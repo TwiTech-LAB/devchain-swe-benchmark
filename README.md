@@ -92,7 +92,7 @@ Evaluation performed with official SWE-bench harness.
 
 ## Tools
 
-Results generated using [Devchain](https://github.com/twitech/devchain) - open source platform for orchestrating AI coding agents.
+Results generated using [Devchain](https://github.com/twitech-lab/devchain) - open source platform for orchestrating AI coding agents.
 
 ## License
 
