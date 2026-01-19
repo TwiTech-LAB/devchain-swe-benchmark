@@ -1,0 +1,22 @@
+{
+  "instance_id": "scikit-learn__scikit-learn-13439",
+  "status": "completed",
+  "patch": "diff --git a/sklearn/pipeline.py b/sklearn/pipeline.py\nindex 7eaf9a46f..d1d03656d 100644\n--- a/sklearn/pipeline.py\n+++ b/sklearn/pipeline.py\n@@ -199,6 +199,12 @@ class Pipeline(_BaseComposition):\n             if trans is not None and trans != 'passthrough':\n                 yield idx, name, trans\n \n+    def __len__(self):\n+        \"\"\"\n+        Returns the length of the Pipeline\n+        \"\"\"\n+        return len(self.steps)\n+\n     def __getitem__(self, ind):\n         \"\"\"Returns a sub-pipeline or a single esimtator in the pipeline\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:35:22.156266",
+  "end_time": "2026-01-17T01:37:02.862471",
+  "duration_seconds": 100.706205,
+  "error_message": null,
+  "workspace_path": "./workspaces/scikit-learn__scikit-learn-13439",
+  "epic_comments": [
+    {
+      "epic_id": "4efd2a27-0c7c-4ecd-8868-30b45bf03a9b",
+      "epic_title": "Fix: scikit-learn__scikit-learn-13439",
+      "comment_id": "88e07d69-1d87-4dd2-90d4-4d37be36f80f",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `__len__` method to the `Pipeline` class so that `len(pipe)` works correctly. This enables expressions like `pipe[:len(pipe)]` to work with the new indexing support.\n\n## Files Modified\n- `sklearn/pipeline.py`: Added `__len__` method that returns `len(self.steps)`\n\n## Test Results\n- **Test file:** sklearn/tests/test_pipeline.py\n- **Baseline (before fix):** 41 passed, 0 failed, 0 errors\n- **After fix:** 41 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested the exact example from the problem statement:\n```python\nfrom sklearn import svm\nfrom sklearn.datasets import samples_generator\nfrom sklearn.feature_selection import SelectKBest\nfrom sklearn.feature_selection import f_regression\nfrom sklearn.pipeline import Pipeline\n\nX, y = samples_generator.make_classification(\n    n_informative=5, n_redundant=0, random_state=42)\n\nanova_filter = SelectKBest(f_regression, k=5)\nclf = svm.SVC(kernel='linear')\npipe = Pipeline([('anova', anova_filter), ('svc', clf)])\n\nlen(pipe)  # Returns 2\npipe[:len(pipe)]  # Works correctly\n```\n\n## Concerns\n- None. The implementation is minimal and follows the pattern of other sequence-like operations in the class.",
+      "created_at": "2026-01-17T00:36:56.191Z"
+    }
+  ]
+}

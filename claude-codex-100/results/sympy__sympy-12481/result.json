@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-12481",
+  "status": "completed",
+  "patch": "diff --git a/sympy/combinatorics/permutations.py b/sympy/combinatorics/permutations.py\nindex 136ed5a478..4ac1c2ef3b 100644\n--- a/sympy/combinatorics/permutations.py\n+++ b/sympy/combinatorics/permutations.py\n@@ -895,12 +895,8 @@ def __new__(cls, *args, **kwargs):\n         # counting starts from 1.\n \n         temp = flatten(args)\n-        if has_dups(temp):\n-            if is_cycle:\n-                raise ValueError('there were repeated elements; to resolve '\n-                'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))\n-            else:\n-                raise ValueError('there were repeated elements.')\n+        if has_dups(temp) and not is_cycle:\n+            raise ValueError('there were repeated elements.')\n         temp = set(temp)\n \n         if not is_cycle and \\\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:24:55.224911",
+  "end_time": "2026-01-16T12:33:07.145432",
+  "duration_seconds": 491.920521,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-12481",
+  "epic_comments": [
+    {
+      "epic_id": "ac52fa0d-4806-49a4-a9ac-6062993f6158",
+      "epic_title": "Fix: sympy__sympy-12481",
+      "comment_id": "95b9fa0c-e43b-4aa8-b8d6-ae8d0fc6a18a",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nModified the `Permutation` constructor to allow non-disjoint cycles. Previously, the constructor raised a `ValueError` when cycles contained repeated elements. Now, non-disjoint cycles are applied left-to-right using the existing `Cycle` class logic.\n\nThe key insight is that the code at lines 911-917 already correctly handles applying cycles using the `Cycle` class:\n```python\nif is_cycle:\n    c = Cycle()\n    for ci in args:\n        c = c(*ci)\n    aform = c.list()\n```\n\nThe fix simply removes the premature duplicate check for cycle notation, allowing this existing correct logic to handle non-disjoint cycles.\n\n## Files Modified\n- `sympy/combinatorics/permutations.py`: Removed the ValueError for repeated elements in cycle notation. The duplicate check now only applies to array form.\n\n## Test Results\n- **Test file:** `sympy/combinatorics/tests/test_permutations.py`\n- **Baseline (before fix):** 9 passed, 0 failed, 0 errors\n- **After fix:** 8 passed, 1 failed, 0 errors\n- **The one failing test (`test_args` line 352):** Tests for the OLD behavior that the problem statement explicitly says should change. The test `raises(ValueError, lambda: Permutation([[1], [1, 2]]))` expects non-disjoint cycles to raise an error, but the problem statement says they should be allowed.\n\n## Additional Verification\nVerified the following cases work correctly:\n- `Permutation([[0,1],[0,1]])` \u2192 identity `[0, 1]` \u2713\n- `Permutation([[0,1],[1,2]])` \u2192 `(0 2 1)` \u2713\n- `Permutation([[1], [1, 2]])` \u2192 `(1 2)` \u2713\n- `Permutation([[1, 2], [1]])` \u2192 `(1 2)` \u2713\n- `Permutation([[0,1],[0,1],[0,1]])` \u2192 `(0 1)` \u2713\n\nVerified array form still correctly rejects duplicates:\n- `Permutation([1, 1, 0])` \u2192 raises `ValueError` \u2713\n\n## Concerns\n- The test at line 352 in `test_permutations.py` tests for the OLD behavior. Per SOP, I did not modify test files. This test failure is expected as it validates behavior the problem statement says should change.",
+      "created_at": "2026-01-16T11:28:15.266Z"
+    },
+    {
+      "epic_id": "ac52fa0d-4806-49a4-a9ac-6062993f6158",
+      "epic_title": "Fix: sympy__sympy-12481",
+      "comment_id": "ddf97d73-579d-42cb-a546-50b2464429df",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Diff is minimal and limited to `sympy/combinatorics/permutations.py` (no test/config changes).\n- Removing the `has_dups` rejection for cyclic-form inputs correctly enables non-disjoint cycles; per current constructor logic, cycles are already composed left-to-right via `Cycle`.\n- Duplicate elements *within a single cycle* are still rejected by `Cycle.__init__`, so this change doesn\u2019t broaden acceptance beyond the intended non-disjoint-cycles case.\n\nNote: the failure you saw in `test_permutations.py` is consistent with changing the intended behavior; the test expectation appears outdated relative to the issue statement.",
+      "created_at": "2026-01-16T11:32:55.227Z"
+    }
+  ]
+}

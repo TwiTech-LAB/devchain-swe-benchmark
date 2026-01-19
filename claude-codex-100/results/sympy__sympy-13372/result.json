@@ -1,0 +1,54 @@
+{
+  "instance_id": "sympy__sympy-13372",
+  "status": "completed",
+  "patch": "diff --git a/sympy/core/evalf.py b/sympy/core/evalf.py\nindex 72a5fbae52..f34908710a 100644\n--- a/sympy/core/evalf.py\n+++ b/sympy/core/evalf.py\n@@ -1301,12 +1301,16 @@ def evalf(x, prec, options):\n             elif re.is_number:\n                 re = re._to_mpmath(prec, allow_ints=False)._mpf_\n                 reprec = prec\n+            else:\n+                raise NotImplementedError\n             if im == 0:\n                 im = None\n                 imprec = None\n             elif im.is_number:\n                 im = im._to_mpmath(prec, allow_ints=False)._mpf_\n                 imprec = prec\n+            else:\n+                raise NotImplementedError\n             r = re, im, reprec, imprec\n         except AttributeError:\n             raise NotImplementedError\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T13:46:10.100739",
+  "end_time": "2026-01-16T14:02:02.536114",
+  "duration_seconds": 952.435375,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-13372",
+  "epic_comments": [
+    {
+      "epic_id": "42417aaa-4893-4d57-8cdb-b8ccbeb63679",
+      "epic_title": "Fix: sympy__sympy-13372",
+      "comment_id": "ef3830a5-f918-43e8-ac2d-986d31c070b9",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- No fix summary/comment from Brainstormer yet.\n- Workspace has no code changes (`git diff` is empty), so there is nothing to review.\n- No baseline vs after-fix test results provided (and no confirmation the actual relevant test file was run inside the container).\n\nRequired Changes:\n- Implement the source-code fix for the `evalf` UnboundLocalError.\n- Add an epic comment summarizing what changed (files/why) and include baseline vs after-fix test output (run the actual SymPy test(s) relevant to `sympy/core/evalf.py` inside the container).",
+      "created_at": "2026-01-16T12:47:25.714Z"
+    },
+    {
+      "epic_id": "42417aaa-4893-4d57-8cdb-b8ccbeb63679",
+      "epic_title": "Fix: sympy__sympy-13372",
+      "comment_id": "f3d45bd6-1729-4c99-a737-0895e4cd8e7b",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the `UnboundLocalError: local variable 'reprec' referenced before assignment` that occurred when calling `evalf()` on expressions like `Mul(Max(0, y), x, evaluate=False)`.\n\n**Root Cause:** In the `evalf()` function, when falling back to `_eval_evalf()` for types not in `evalf_table` (like `Max`), the code extracted real and imaginary parts but only handled two cases:\n1. `re == 0` \u2192 set `re = None, reprec = None`\n2. `re.is_number` \u2192 convert to mpf format and set `reprec = prec`\n\nWhen `re` was a symbolic expression (not 0 and not a number), neither branch executed, leaving `reprec` unassigned.\n\n**Fix:** Added `else` clauses to handle symbolic (non-numeric) results by setting both the value and precision to `None`:\n```python\nelse:\n    re = None\n    reprec = None\n```\nThis tells calling code (like `evalf_mul`) that the component couldn't be numerically evaluated, which is the expected pattern used elsewhere in the codebase.\n\n## Files Modified\n- `sympy/core/evalf.py`: Added `else` clauses at lines ~1305 and ~1313 to handle cases where `re` or `im` are symbolic expressions that can't be evaluated numerically.\n\n## Test Results\n- **Test file:** sympy/core/tests/test_evalf.py\n- **Baseline (before fix):** 46 passed, 2 expected to fail\n- **After fix:** 46 passed, 2 expected to fail\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested the exact scenarios from the problem statement:\n- `Mul(x, Max(0, y), evaluate=False).evalf()` \u2192 `x*Max(0, y)` \u2713\n- `Mul(Max(0, y), x, evaluate=False).evalf()` \u2192 `x*Max(0, y)` \u2713 (previously crashed)\n- `Add(x, Max(0, y), evaluate=False).evalf()` \u2192 `x + Max(0, y)` \u2713\n- `Mul(Min(0, y), x, evaluate=False).evalf()` \u2192 `x*Min(0, y)` \u2713\n\n## Concerns\nNone - the fix follows the existing pattern in the codebase where `None` values indicate unevaluatable components.",
+      "created_at": "2026-01-16T12:49:27.484Z"
+    },
+    {
+      "epic_id": "42417aaa-4893-4d57-8cdb-b8ccbeb63679",
+      "epic_title": "Fix: sympy__sympy-13372",
+      "comment_id": "b4aa01ca-eba6-4948-86fa-95b5268c4eaa",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- The new `else:` branches in `sympy/core/evalf.py` (in `evalf()` fallback after `_eval_evalf`) set `re/im` and `reprec/imprec` to `None` when `re/im` are nonzero but non-numeric. In this module, `None` means *exactly zero*, not \u201cunevaluatable\u201d. This can silently turn symbolic results into 0.\n- Repro in container (after this change): `Mul(Max(0, y), 2, evaluate=False).evalf()` returns `0` (should remain `2*Max(0, y)` / `2.0*Max(0, y)`; it must not collapse to 0).\n\nRequired Changes:\n- Replace those `else:` branches with behavior that preserves semantics (e.g., `raise NotImplementedError` when `re/im` are not 0 and not numeric), so the caller falls back to symbolic evalf instead of treating the value as zero.\n- Re-run baseline vs after-fix for `sympy/core/tests/test_evalf.py` and re-check the original repro cases after updating the fix.",
+      "created_at": "2026-01-16T12:57:55.808Z"
+    },
+    {
+      "epic_id": "42417aaa-4893-4d57-8cdb-b8ccbeb63679",
+      "epic_title": "Fix: sympy__sympy-13372",
+      "comment_id": "3917c9bd-97e1-4c36-ba12-fe6a2c926340",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary (Revised)\n\nFixed the `UnboundLocalError` while addressing the reviewer's concern about semantic correctness.\n\n**Previous Issue:** Setting `re = None` when the value is non-numeric incorrectly treats it as \"exactly zero\", causing `Mul(Max(0, y), 2, evaluate=False).evalf()` to return `0` instead of `2.0*Max(0, y)`.\n\n**Corrected Fix:** Changed the `else` clauses to `raise NotImplementedError` instead of setting to `None`. This allows the caller to fall back to symbolic evalf, preserving the expression correctly.\n\n```python\n# Instead of:\nelse:\n    re = None\n    reprec = None\n\n# Now using:\nelse:\n    raise NotImplementedError\n```\n\n## Files Modified\n- `sympy/core/evalf.py`: Changed `else` clauses at lines ~1304 and ~1313 to raise `NotImplementedError` when `re` or `im` are non-zero but non-numeric.\n\n## Test Results\n- **Test file:** sympy/core/tests/test_evalf.py\n- **Baseline (before fix):** 46 passed, 2 expected to fail\n- **After fix:** 46 passed, 2 expected to fail\n- **Regression check:** No new failures introduced\n\n## Verification\nAll test cases pass correctly:\n- `Mul(x, Max(0, y), evaluate=False).evalf()` \u2192 `x*Max(0, y)` \u2713\n- `Mul(Max(0, y), x, evaluate=False).evalf()` \u2192 `x*Max(0, y)` \u2713 (original bug)\n- `Mul(Max(0, y), 2, evaluate=False).evalf()` \u2192 `2.0*Max(0, y)` \u2713 (reviewer's case)\n- `Add(x, Max(0, y), evaluate=False).evalf()` \u2192 `x + Max(0, y)` \u2713\n- `Mul(Min(0, y), x, evaluate=False).evalf()` \u2192 `x*Min(0, y)` \u2713\n\n## Concerns\nNone - the fix now properly signals that numeric evaluation isn't possible, allowing fallback to symbolic handling.",
+      "created_at": "2026-01-16T12:59:26.334Z"
+    },
+    {
+      "epic_id": "42417aaa-4893-4d57-8cdb-b8ccbeb63679",
+      "epic_title": "Fix: sympy__sympy-13372",
+      "comment_id": "ef8c7a82-e340-4ecb-8d85-7e7e2ed4e5c4",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change in `sympy/core/evalf.py` replaces the problematic \u201cunhandled symbolic re/im\u201d path with `raise NotImplementedError`, preventing `reprec/imprec` from being uninitialized and avoiding the earlier incorrect `None==0` semantics.\n- Verified in container:\n  - `Mul(Max(0, y), x, evaluate=False).evalf()` now returns `x*Max(0, y)` (no crash).\n  - `Mul(Max(0, y), 2, evaluate=False).evalf()` returns `2.0*Max(0, y)` (no silent zero).\n- Ran actual test file via SymPy\u2019s runner: `/testbed/bin/test sympy/core/tests/test_evalf.py` \u2192 `46 passed, 2 expected to fail`.",
+      "created_at": "2026-01-16T13:01:56.515Z"
+    }
+  ]
+}

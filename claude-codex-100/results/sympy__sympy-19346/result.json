@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-19346",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/repr.py b/sympy/printing/repr.py\nindex c936a692c0..2de79afdee 100644\n--- a/sympy/printing/repr.py\n+++ b/sympy/printing/repr.py\n@@ -144,6 +144,21 @@ def _print_EmptySequence(self, expr):\n     def _print_list(self, expr):\n         return \"[%s]\" % self.reprify(expr, \", \")\n \n+    def _print_dict(self, expr):\n+        sep = \", \"\n+        dict_kvs = [\"%s: %s\" % (self.doprint(key), self.doprint(value)) for key, value in expr.items()]\n+        return \"{%s}\" % sep.join(dict_kvs)\n+\n+    def _print_set(self, expr):\n+        if not expr:\n+            return \"set()\"\n+        return \"{%s}\" % self.reprify(expr, \", \")\n+\n+    def _print_frozenset(self, expr):\n+        if not expr:\n+            return \"frozenset()\"\n+        return \"frozenset({%s})\" % self.reprify(expr, \", \")\n+\n     def _print_MatrixBase(self, expr):\n         # special case for some empty matrices\n         if (expr.rows == 0) ^ (expr.cols == 0):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-15T23:49:35.090229",
+  "end_time": "2026-01-15T23:56:50.024860",
+  "duration_seconds": 434.934631,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-19346",
+  "epic_comments": [
+    {
+      "epic_id": "604ba7a7-4c09-44d5-81ee-2c2f92afd6bc",
+      "epic_title": "Fix: sympy__sympy-19346",
+      "comment_id": "0ccc50ea-0b8c-4247-a623-df60b7ad367c",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `_print_dict`, `_print_set`, and `_print_frozenset` methods to the `ReprPrinter` class. Previously, these container types fell back to `emptyPrinter` which just returned `str(expr)` without converting elements to their repr format.\n\nThe fix ensures:\n- `srepr({x, y})` now returns `{Symbol('x'), Symbol('y')}` instead of `{x, y}`\n- `srepr({x: y})` now returns `{Symbol('x'): Symbol('y')}` instead of `{x: y}`\n- Empty sets return `set()` (not `{}` which would be an empty dict)\n- frozenset is also properly handled\n\n## Files Modified\n- **sympy/printing/repr.py**: Added three new methods:\n  - `_print_dict`: Handles dict printing with proper key/value repr\n  - `_print_set`: Handles set printing (with empty set edge case)\n  - `_print_frozenset`: Handles frozenset printing (with empty frozenset edge case)\n\n## Test Results\n- **Test file:** sympy/printing/tests/test_repr.py\n- **Baseline (before fix):** 40 passed, 2 exceptions\n- **After fix:** 40 passed, 2 exceptions\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** 2 exceptions related to `sympify` with `evaluate=False` (unrelated to this fix)\n\n## Additional Verification\nVerified `eval(srepr(expr)) == expr` contract holds for all container types:\n```python\nsrepr({x, y})          # {Symbol('x'), Symbol('y')}\nsrepr({x: y})          # {Symbol('x'): Symbol('y')}\nsrepr(set())           # set()\nsrepr({})              # {}\nsrepr(frozenset({x}))  # frozenset({Symbol('x')})\n```\n\n## Concerns\n- None. The fix follows the existing patterns used by `_print_list` and `_print_tuple` in the same file.",
+      "created_at": "2026-01-15T22:52:38.706Z"
+    },
+    {
+      "epic_id": "604ba7a7-4c09-44d5-81ee-2c2f92afd6bc",
+      "epic_title": "Fix: sympy__sympy-19346",
+      "comment_id": "59780041-495b-4bdc-82f7-f63288834c7e",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly targets the root cause: `ReprPrinter` previously fell back to `emptyPrinter` for builtin `dict`/`set`/`frozenset`, so elements weren\u2019t `srepr`-printed.\n- New `_print_dict`, `_print_set`, `_print_frozenset` implementations use `doprint`/`reprify`, and handle empty `set()` and empty `frozenset()` correctly.\n- Verified in diff: only `sympy/printing/repr.py` modified (no tests/build configs touched).\n\nOptional (non-blocking): consider sorting items (as `StrPrinter` does) if deterministic ordering is desired for `set`/multi-key `dict` outputs.",
+      "created_at": "2026-01-15T22:56:46.410Z"
+    }
+  ]
+}

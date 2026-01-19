@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-13158",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py\nindex 686e75c979..a8168aa6f3 100644\n--- a/django/db/models/sql/compiler.py\n+++ b/django/db/models/sql/compiler.py\n@@ -504,6 +504,8 @@ class SQLCompiler:\n             if combinator:\n                 if not getattr(features, 'supports_select_{}'.format(combinator)):\n                     raise NotSupportedError('{} is not supported on this database backend.'.format(combinator))\n+                if self.query.is_empty():\n+                    raise EmptyResultSet\n                 result, params = self.get_combinator_sql(combinator, self.query.combinator_all)\n             else:\n                 distinct_fields, distinct_params = self.get_distinct()\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-15T23:37:48.609298",
+  "end_time": "2026-01-15T23:43:39.659232",
+  "duration_seconds": 351.049934,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-13158",
+  "epic_comments": [
+    {
+      "epic_id": "60bae74f-9384-4b40-99d0-b28f7c754814",
+      "epic_title": "Fix: django__django-13158",
+      "comment_id": "d5996dd2-876c-4afa-b1f9-26e66e2d5701",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `QuerySet.none()` not working properly on combined queries (union, intersection, difference).\n\n**Root Cause:** When `none()` is called, it adds a `NothingNode` to the outer query's `where` clause via `set_empty()`. However, when `as_sql()` is called with a combinator, it bypasses the outer query's `where` clause and directly generates SQL from `combined_queries`. The `is_empty()` check was never performed on the outer query for combined querysets.\n\n**Fix:** Added a check for `self.query.is_empty()` in the `as_sql()` method of `SQLCompiler` when there's a combinator. If the outer query is empty, it now raises `EmptyResultSet` before generating combinator SQL.\n\n## Files Modified\n- `django/db/models/sql/compiler.py`: Added 2 lines to check `is_empty()` before calling `get_combinator_sql()`\n\n## Test Results\n- **Test file:** `/testbed/tests/queries/test_qs_combinators.py`\n- **Baseline (before fix):** 31 passed, 0 failed, 0 errors (2 skipped)\n- **After fix:** 31 passed, 0 failed, 0 errors (2 skipped)\n- **Regression check:** No new failures introduced\n- **Broader test suite:** All 388 query tests pass\n\n## Additional Verification\nVerified fix works for all combinator operations:\n- `union().none()` - now returns empty (was returning all results)\n- `intersection().none()` - now returns empty\n- `difference().none()` - now returns empty\n\nEdge cases tested:\n- Chained `none()` calls\n- Union with pre-empty querysets\n- List evaluation of `none()`\n- `exists()` check after `none()`\n\n## Concerns\n- None. The fix is minimal (2 lines) and follows the existing pattern used for non-combinator queries.",
+      "created_at": "2026-01-15T22:41:30.933Z"
+    },
+    {
+      "epic_id": "60bae74f-9384-4b40-99d0-b28f7c754814",
+      "epic_title": "Fix: django__django-13158",
+      "comment_id": "78f578eb-42d2-4ffd-ae86-539bdaf456ff",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- `git diff HEAD` shows only `django/db/models/sql/compiler.py` changed; no tests/build configs touched.\n- The added `self.query.is_empty()` -> `EmptyResultSet` check correctly makes `.none()` override combinator SQL generation, matching expected semantics for `union()`, `intersection()`, and `difference()`.\n- Verification evidence includes baseline vs after-fix results on `/testbed/tests/queries/test_qs_combinators.py` plus broader query test coverage.",
+      "created_at": "2026-01-15T22:43:36.875Z"
+    }
+  ]
+}

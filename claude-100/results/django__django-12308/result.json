@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-12308",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/utils.py b/django/contrib/admin/utils.py\nindex e4ddc8f017..c27628a134 100644\n--- a/django/contrib/admin/utils.py\n+++ b/django/contrib/admin/utils.py\n@@ -398,6 +398,8 @@ def display_for_field(value, field, empty_value_display):\n         return formats.number_format(value)\n     elif isinstance(field, models.FileField) and value:\n         return format_html('<a href=\"{}\">{}</a>', value.url, value)\n+    elif isinstance(field, models.JSONField):\n+        return field.formfield().prepare_value(value)\n     else:\n         return display_for_value(value, empty_value_display)\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:08:54.857739",
+  "end_time": "2026-01-16T20:12:06.590805",
+  "duration_seconds": 191.733066,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12308",
+  "epic_comments": [
+    {
+      "epic_id": "b2a14431-f470-4dec-895e-617edfce4265",
+      "epic_title": "Fix: django__django-12308",
+      "comment_id": "fea22e48-246e-41ad-a5a8-642ccaf3e43a",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded a special case in `display_for_field` to properly display JSONField values as valid JSON instead of Python dict representation. The fix checks if the field is a `models.JSONField` and calls `field.formfield().prepare_value(value)` to serialize the value using `json.dumps()`, which produces proper JSON with double quotes.\n\n**Before fix:** `{'foo': 'bar'}` (Python dict with single quotes - invalid JSON)\n**After fix:** `{\"foo\": \"bar\"}` (Valid JSON with double quotes)\n\n## Files Modified\n- `django/contrib/admin/utils.py`: Added JSONField check in `display_for_field` function (line 401-402)\n\n## Test Results\n- **Test file:** tests/admin_utils/tests.py\n- **Baseline (before fix):** 34 passed, 0 failed, 0 errors\n- **After fix:** 34 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n- Tested directly with Python script showing:\n  - `{'foo': 'bar'}` \u2192 `{\"foo\": \"bar\"}` (valid JSON)\n  - Nested structures work correctly\n  - None values still return empty_value_display\n- Ran model_fields.test_jsonfield: 70 passed (3 skipped)\n- Ran forms_tests.field_tests.test_jsonfield: 12 passed\n\n## Concerns\n- None. The fix uses the form field's `prepare_value` method which handles edge cases like `InvalidJSONInput` and respects custom encoders.",
+      "created_at": "2026-01-16T19:11:57.105Z"
+    }
+  ]
+}

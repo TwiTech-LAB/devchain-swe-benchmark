@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-12419",
+  "status": "completed",
+  "patch": "diff --git a/sympy/matrices/expressions/matexpr.py b/sympy/matrices/expressions/matexpr.py\nindex b4d759836e..50b3a1a13e 100644\n--- a/sympy/matrices/expressions/matexpr.py\n+++ b/sympy/matrices/expressions/matexpr.py\n@@ -7,6 +7,7 @@\n from sympy.core.compatibility import range\n from sympy.core.sympify import SympifyError, sympify\n from sympy.functions import conjugate, adjoint\n+from sympy.functions.special.tensor_functions import KroneckerDelta\n from sympy.matrices import ShapeError\n from sympy.simplify import simplify\n \n@@ -476,10 +477,7 @@ def conjugate(self):\n         return self\n \n     def _entry(self, i, j):\n-        if i == j:\n-            return S.One\n-        else:\n-            return S.Zero\n+        return KroneckerDelta(i, j)\n \n     def _eval_determinant(self):\n         return S.One\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:36:07.159733",
+  "end_time": "2026-01-17T01:39:07.014093",
+  "duration_seconds": 179.85436,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-12419",
+  "epic_comments": [
+    {
+      "epic_id": "6ab6828c-12e4-49dc-9326-23491e0d11e3",
+      "epic_title": "Fix: sympy__sympy-12419",
+      "comment_id": "65b6d7cf-6c5f-470a-9a4e-847e9cc07751",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe `_entry` method in the `Identity` class was incorrectly returning `S.Zero` when comparing symbolic indices `i != j`, even though the indices might be equal at evaluation time. The fix changes the method to return `KroneckerDelta(i, j)` which properly handles symbolic summation.\n\n## Files Modified\n- `sympy/matrices/expressions/matexpr.py`: \n  - Added import for `KroneckerDelta` from `sympy.functions.special.tensor_functions`\n  - Changed `Identity._entry(i, j)` to return `KroneckerDelta(i, j)` instead of conditionally returning `S.One` or `S.Zero`\n\n## Test Results\n- **Test file:** sympy/matrices/expressions/tests/test_matexpr.py\n- **Baseline (before fix):** 27 passed, 0 failed, 0 errors\n- **After fix:** 27 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\nAlso verified sympy/matrices/expressions/tests/test_indexing.py: 9 passed, 0 failed\n\n## Additional Verification\n```python\n# Before fix:\nSum(Sum(e[i, j], (i, 0, n-1)), (j, 0, n-1)).doit() = 0  # WRONG\n\n# After fix:\nSum(Sum(e[i, j], (i, 0, n-1)), (j, 0, n-1)).doit() = Sum(Piecewise(...))\nSum(e[i, j], (i, 0, n-1), (j, 0, n-1)).subs(n, 5).doit() = 5  # CORRECT\n\n# Edge cases verified:\nI[0,0] = 1  \u2713\nI[0,1] = 0  \u2713\nI[i,i] = 1  \u2713\nI[i,j] = KroneckerDelta(i, j)  \u2713\nSum(I[0,i], (i,0,n-1)).doit() = 1  \u2713\nSum(I[i,0], (i,0,n-1)).doit() = 1  \u2713\n```\n\n## Concerns\nNone - the fix follows the recommended approach from the issue discussion and uses the existing `KroneckerDelta` function which handles symbolic evaluation correctly.",
+      "created_at": "2026-01-17T00:38:54.062Z"
+    }
+  ]
+}

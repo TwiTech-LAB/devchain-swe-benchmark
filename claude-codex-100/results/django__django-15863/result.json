@@ -1,0 +1,38 @@
+{
+  "instance_id": "django__django-15863",
+  "status": "completed",
+  "patch": "diff --git a/django/template/defaultfilters.py b/django/template/defaultfilters.py\nindex 7a5b28d159..08430582c8 100644\n--- a/django/template/defaultfilters.py\n+++ b/django/template/defaultfilters.py\n@@ -151,13 +151,18 @@ def floatformat(text, arg=-1):\n             use_l10n = False\n             arg = arg[:-1] or -1\n     try:\n-        input_val = repr(text)\n-        d = Decimal(input_val)\n+        if isinstance(text, Decimal):\n+            d = text\n+        else:\n+            input_val = repr(text)\n+            d = Decimal(input_val)\n     except InvalidOperation:\n         try:\n             d = Decimal(str(float(text)))\n         except (ValueError, InvalidOperation, TypeError):\n             return \"\"\n+    if isinstance(text, Decimal):\n+        input_val = repr(text)\n     try:\n         p = int(arg)\n     except ValueError:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:23:10.629455",
+  "end_time": "2026-01-16T07:28:54.168322",
+  "duration_seconds": 343.538867,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15863",
+  "epic_comments": [
+    {
+      "epic_id": "27fdec9d-aef1-4242-9091-3358265de8ed",
+      "epic_title": "Fix: django__django-15863",
+      "comment_id": "64afac6a-6314-4245-b5d4-08e7b93fb0f1",
+      "author_name": "Code Reviewer",
+      "content": "Review not ready yet: there are currently no code changes in the workspace (`git diff` is empty) and no Brainstormer fix summary comment on this epic.\n\nWhen ready for review, please:\n- Add a comment summarizing the fix + files changed.\n- Include baseline vs after-fix results from running the actual relevant Django test file(s) inside the container.\n- Move epic to `Review` and assign to `Code Reviewer`.",
+      "created_at": "2026-01-16T06:24:31.000Z"
+    },
+    {
+      "epic_id": "27fdec9d-aef1-4242-9091-3358265de8ed",
+      "epic_title": "Fix: django__django-15863",
+      "comment_id": "3699c3fe-4e25-46c8-ba52-cb162903ccdf",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the `floatformat` template filter to preserve precision when used with `Decimal` numbers.\n\n**Root Cause:** When a `Decimal` object was passed to `floatformat`, the code used `repr(text)` which returns `\"Decimal('42.12345678901234567890')\"` - an invalid input for `Decimal()` constructor. This caused an `InvalidOperation` exception, which fell back to `Decimal(str(float(text)))`, converting the Decimal to float first and losing precision.\n\n**Solution:** Check if the input is already a `Decimal` instance and use it directly, bypassing the problematic `repr()` conversion.\n\n## Files Modified\n\n- `django/template/defaultfilters.py`: Modified `floatformat` function (lines 153-165) to handle `Decimal` inputs directly.\n\n## Test Results\n\n- **Test file:** `tests/template_tests/filter_tests/test_floatformat.py`\n- **Baseline (before fix):** 10 passed, 0 failed, 0 errors\n- **After fix:** 10 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Extended tests:** All 446 filter tests pass\n\n## Additional Verification\n\nVerified the fix with the exact test case from the bug report:\n```python\nfrom decimal import Decimal\nfrom django.template.defaultfilters import floatformat\n\nvalue = Decimal('42.12345678901234567890')\nresult = floatformat(value, 20)\n# Before fix: '42.12345678901234400000' (precision lost)\n# After fix:  '42.12345678901234567890' (precision preserved)\n```\n\n## Concerns\n\n- None. The fix is minimal and only affects `Decimal` input handling. All other input types (float, int, string) continue to work as before.",
+      "created_at": "2026-01-16T06:27:32.554Z"
+    },
+    {
+      "epic_id": "27fdec9d-aef1-4242-9091-3358265de8ed",
+      "epic_title": "Fix: django__django-15863",
+      "comment_id": "18a4abd3-8562-465c-aa77-08be601852c7",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and targets the root cause: `Decimal` inputs no longer go through the `repr()` -> `Decimal()` path that triggers the float fallback.\n- Verified locally via diff: only `django/template/defaultfilters.py` is modified; no test or build config files changed.\n- Brainstormer provided baseline vs after-fix runs of the actual test file (`tests/template_tests/filter_tests/test_floatformat.py`) with all passing, plus broader filter test run.",
+      "created_at": "2026-01-16T06:28:50.644Z"
+    }
+  ]
+}

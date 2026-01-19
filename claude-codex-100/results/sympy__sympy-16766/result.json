@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-16766",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/pycode.py b/sympy/printing/pycode.py\nindex a3f0310735..a3980dc611 100644\n--- a/sympy/printing/pycode.py\n+++ b/sympy/printing/pycode.py\n@@ -357,6 +357,11 @@ def _print_Not(self, expr):\n         PREC = precedence(expr)\n         return self._operators['not'] + self.parenthesize(expr.args[0], PREC)\n \n+    def _print_Indexed(self, expr):\n+        base = expr.base\n+        indices = [self._print(ind) for ind in expr.indices]\n+        return \"{}[{}]\".format(self._print(base.label), \", \".join(indices))\n+\n \n for k in PythonCodePrinter._kf:\n     setattr(PythonCodePrinter, '_print_%s' % k, _print_known_func)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-15T23:49:20.090794",
+  "end_time": "2026-01-15T23:54:13.187338",
+  "duration_seconds": 293.096544,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-16766",
+  "epic_comments": [
+    {
+      "epic_id": "e8fa2889-e51d-4a1f-b127-b9a8704f6b24",
+      "epic_title": "Fix: sympy__sympy-16766",
+      "comment_id": "fa976cc8-3018-4c5b-8a31-03d8a147747b",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `_print_Indexed` method to `PythonCodePrinter` class to properly handle `Indexed` expressions. Previously, `pycode()` would output a warning comment `# Not supported in Python: # Indexed` followed by the default string representation. Now it correctly generates valid Python indexing syntax.\n\n## Files Modified\n- **sympy/printing/pycode.py**: Added `_print_Indexed` method to `PythonCodePrinter` class (lines 360-363)\n\n## Implementation Details\nThe fix follows the same pattern used by other printers (e.g., Julia printer):\n```python\ndef _print_Indexed(self, expr):\n    base = expr.base\n    indices = [self._print(ind) for ind in expr.indices]\n    return \"{}[{}]\".format(self._print(base.label), \", \".join(indices))\n```\n\n## Test Results\n- **Test file:** sympy/printing/tests/test_pycode.py\n- **Baseline (before fix):** 9 passed, 0 failed, 0 errors\n- **After fix:** 9 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n- `pycode(p[0])` now returns `'p[0]'` (no warning)\n- `pycode(q[1, 2, 3])` returns `'q[1, 2, 3]'`\n- `pycode(p[i])` returns `'p[i]'` (symbolic index)\n- `pycode(p[i + 1])` returns `'p[i + 1]'` (expression in index)\n- All generated code compiles as valid Python\n\n## Concerns\n- None. The fix is minimal and follows existing patterns from other printers like Julia.",
+      "created_at": "2026-01-15T22:52:27.871Z"
+    },
+    {
+      "epic_id": "e8fa2889-e51d-4a1f-b127-b9a8704f6b24",
+      "epic_title": "Fix: sympy__sympy-16766",
+      "comment_id": "bc9a1e6d-db64-46d1-a1cc-42d94a9486f8",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly adds `PythonCodePrinter._print_Indexed`, which also benefits `LambdaPrinter` (inherits `PythonCodePrinter`) for `lambdify()` output.\n- `git diff` shows only `sympy/printing/pycode.py` modified (no test/build config edits).\n- Verification includes baseline vs after running the actual test file `sympy/printing/tests/test_pycode.py` with no failures/errors reported.",
+      "created_at": "2026-01-15T22:54:09.851Z"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-16901",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/sql/where.py b/django/db/models/sql/where.py\nindex aaab1730b7..19a2f58908 100644\n--- a/django/db/models/sql/where.py\n+++ b/django/db/models/sql/where.py\n@@ -129,14 +129,16 @@ class WhereNode(tree.Node):\n             # Convert if the database doesn't support XOR:\n             #   a XOR b XOR c XOR ...\n             # to:\n-            #   (a OR b OR c OR ...) AND (a + b + c + ...) == 1\n-            lhs = self.__class__(self.children, OR)\n+            #   (a + b + c + ...) % 2 == 1\n+            # This checks for an odd number of true values (parity).\n+            from django.db.models.functions import Mod\n+\n             rhs_sum = reduce(\n                 operator.add,\n                 (Case(When(c, then=1), default=0) for c in self.children),\n             )\n-            rhs = Exact(1, rhs_sum)\n-            return self.__class__([lhs, rhs], AND, self.negated).as_sql(\n+            rhs = Exact(1, Mod(rhs_sum, 2))\n+            return self.__class__([rhs], AND, self.negated).as_sql(\n                 compiler, connection\n             )\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:43:25.002218",
+  "end_time": "2026-01-16T07:50:49.046149",
+  "duration_seconds": 444.043931,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-16901",
+  "epic_comments": [
+    {
+      "epic_id": "51a0047e-12b6-49e2-b913-8a9c6d917778",
+      "epic_title": "Fix: django__django-16901",
+      "comment_id": "088e3923-8438-4d6a-b7cd-d77d05dfff6d",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the XOR fallback implementation for databases that don't natively support XOR (like PostgreSQL). The bug was that `Q(\u2026) ^ Q(\u2026) ^ Q(\u2026)` with more than 2 arguments was being interpreted as \"exactly one is true\" instead of the correct parity check \"an odd number are true\".\n\n**Root cause:** The fallback SQL was checking `(a + b + c + ...) == 1` which only matches when exactly one argument is true. The correct interpretation of XOR is parity - it should be true when an odd number of arguments are true.\n\n**Fix:** Changed the fallback to use `(a + b + c + ...) % 2 == 1` (modulo 2) which correctly implements parity checking.\n\n## Files Modified\n- `django/db/models/sql/where.py`: Changed XOR fallback logic from `Exact(1, rhs_sum)` to `Exact(1, Mod(rhs_sum, 2))` and removed the unnecessary OR clause since parity check is sufficient.\n\n## Test Results\n- **Test file:** `tests/queries/test_q.py`\n- **Baseline (before fix):** 29 passed, 0 failed, 0 errors\n- **After fix:** 29 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n- **Test file:** `tests/xor_lookups/tests.py`\n- **After fix:** 6 passed, 0 failed, 0 errors\n\n- **Test file:** `tests/queries/` (full suite)\n- **After fix:** 474 passed, 0 failed, 0 errors (14 skipped, 2 expected failures)\n\n- **Test file:** `tests/expressions/tests.py`\n- **After fix:** 185 passed, 0 failed, 0 errors\n\n## Additional Verification\nVerified the specific issue from the problem statement:\n```\nQ(id=37): 1 (expected: 1) \u2713\nQ(id=37) ^ Q(id=37): 0 (expected: 0) \u2713\nQ(id=37) ^ Q(id=37) ^ Q(id=37): 1 (expected: 1) \u2713\nQ(id=37) ^ Q(id=37) ^ Q(id=37) ^ Q(id=37): 0 (expected: 0) \u2713\nQ(id=37) ^ Q(id=37) ^ Q(id=37) ^ Q(id=37) ^ Q(id=37): 1 (expected: 1) \u2713\n```\n\n## Concerns\n- None. The fix is minimal and focused on the root cause.",
+      "created_at": "2026-01-16T06:47:53.952Z"
+    },
+    {
+      "epic_id": "51a0047e-12b6-49e2-b913-8a9c6d917778",
+      "epic_title": "Fix: django__django-16901",
+      "comment_id": "1a279da8-0085-43a6-a01b-7dd9222531ae",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change in `django/db/models/sql/where.py` correctly implements XOR fallback as parity (odd number of true predicates) via `(a + b + c + ...) % 2 == 1`.\n- Diff is minimal and confined to source code (no test/build config changes).\n- Brainstormer provided baseline vs after-fix results for `tests/queries/test_q.py` and ran additional relevant suites without failures.",
+      "created_at": "2026-01-16T06:50:38.377Z"
+    }
+  ]
+}

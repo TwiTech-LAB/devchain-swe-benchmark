@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-11490",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py\nindex 08d7faf194..6e51d30a3d 100644\n--- a/django/db/models/sql/query.py\n+++ b/django/db/models/sql/query.py\n@@ -328,6 +328,10 @@ class Query(BaseExpression):\n             obj.subq_aliases = self.subq_aliases.copy()\n         obj.used_aliases = self.used_aliases.copy()\n         obj._filtered_relations = self._filtered_relations.copy()\n+        # Clone combined queries so that changes to values_select in one clone\n+        # do not affect other clones.\n+        if self.combined_queries:\n+            obj.combined_queries = tuple(q.clone() for q in self.combined_queries)\n         # Clear the cached_property\n         try:\n             del obj.base_table\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:55:12.894246",
+  "end_time": "2026-01-17T02:01:36.282998",
+  "duration_seconds": 383.388752,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11490",
+  "epic_comments": [
+    {
+      "epic_id": "6c07dcd9-87ab-409d-9ee9-e4a4e0dd05ab",
+      "epic_title": "Fix: django__django-11490",
+      "comment_id": "0fd65763-c58b-4b0e-8614-5f3ade408039",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the bug where composed queries (union, intersection, difference) could not change the list of columns when `values()` or `values_list()` was evaluated multiple times.\n\n**Root Cause:** When a combined query was cloned (e.g., for a new `values_list()` call), the inner queries in `combined_queries` were not being cloned - they were shared references. This meant that when `values_select` was set on the inner queries during the first evaluation, subsequent evaluations with different columns couldn't update them because the condition `if not compiler.query.values_select` prevented overwriting.\n\n**Solution:** Clone the `combined_queries` in `Query.clone()` so that each clone has its own independent inner queries. This allows each `values_list()` call to work on fresh inner queries without being affected by previous evaluations.\n\n## Files Modified\n- `django/db/models/sql/query.py`: Added cloning of `combined_queries` in the `clone()` method (lines 331-334)\n\n## Test Results\n- **Test file:** tests/queries/test_qs_combinators.py\n- **Baseline (before fix):** 24 passed, 2 skipped, 0 errors\n- **After fix:** 24 passed, 2 skipped, 0 errors\n- **Regression check:** No new failures introduced\n\n- **Broader tests:** Ran 364 tests from the queries module - all pass (9 skipped, 2 expected failures)\n\n## Additional Verification\nTested the exact scenario from the problem statement:\n```python\n>>> ReservedName.objects.create(name='a', order=2)\n>>> qs1 = ReservedName.objects.all()\n>>> print(qs1.union(qs1).values_list('name', 'order').get())\n('a', 2)\n>>> print(qs1.union(qs1).values_list('order').get())\n(2,)  # Correctly returns (2,) instead of ('a', 2)\n```\n\n## Concerns\n- The fix involves cloning inner queries which adds some overhead, but this is necessary to ensure correct behavior and is consistent with how other mutable attributes are handled in `Query.clone()`.",
+      "created_at": "2026-01-17T01:01:27.461Z"
+    }
+  ]
+}

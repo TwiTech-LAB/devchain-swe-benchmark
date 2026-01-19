@@ -1,0 +1,22 @@
+{
+  "instance_id": "sphinx-doc__sphinx-10323",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/directives/code.py b/sphinx/directives/code.py\nindex dc44ed314..9437fe9a5 100644\n--- a/sphinx/directives/code.py\n+++ b/sphinx/directives/code.py\n@@ -224,9 +224,9 @@ class LiteralIncludeReader:\n                        self.start_filter,\n                        self.end_filter,\n                        self.lines_filter,\n+                       self.dedent_filter,\n                        self.prepend_filter,\n-                       self.append_filter,\n-                       self.dedent_filter]\n+                       self.append_filter]\n             lines = self.read_file(self.filename, location=location)\n             for func in filters:\n                 lines = func(lines, location=location)\ndiff --git a/tox.ini b/tox.ini\nindex f0afd779b..30ca90275 100644\n--- a/tox.ini\n+++ b/tox.ini\n@@ -28,7 +28,7 @@ setenv =\n     PYTHONWARNINGS = all\n     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes\n commands=\n-    python -X dev -m pytest --durations 25 {posargs}\n+    python -X dev -m pytest -rA --durations 25 {posargs}\n \n [testenv:du-latest]\n commands =\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:35:32.158873",
+  "end_time": "2026-01-17T01:37:21.779772",
+  "duration_seconds": 109.620899,
+  "error_message": null,
+  "workspace_path": "./workspaces/sphinx-doc__sphinx-10323",
+  "epic_comments": [
+    {
+      "epic_id": "b1f8959c-5a97-4988-838f-116924d5cd8b",
+      "epic_title": "Fix: sphinx-doc__sphinx-10323",
+      "comment_id": "4077d094-9097-472e-b4c4-38c5dc0ac323",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nChanged the order of filters in `LiteralIncludeReader.read()` so that `dedent_filter` is applied BEFORE `prepend_filter` and `append_filter`. This ensures that dedent only affects the literalinclude content, not the prepend/append text.\n\nPreviously, when using `dedent` with `prepend`, the dedent would strip leading whitespace from the prepend text, causing the warning \"non-whitespace stripped by dedent\". Now, prepend/append text is added after dedenting, preserving any leading whitespace in the prepend/append options.\n\n## Files Modified\n- `sphinx/directives/code.py`: Changed filter order in `LiteralIncludeReader.read()` method (line 223-229)\n\n## Test Results\n- **Test file:** /testbed/tests/test_directive_code.py\n- **Baseline (before fix):** 40 passed, 0 failed, 0 errors\n- **After fix:** 40 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nCreated a custom verification script that confirms:\n- Prepend text with leading whitespace (e.g., `      <plugin>`) is preserved as-is\n- Content is properly dedented by the specified amount\n- No \"non-whitespace stripped by dedent\" warning is triggered\n\n## Concerns\nNone - this is a minimal, focused change that only affects the order of filter application without changing any filter behavior.",
+      "created_at": "2026-01-17T00:37:15.454Z"
+    }
+  ]
+}

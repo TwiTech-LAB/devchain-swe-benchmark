@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-13741",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/auth/forms.py b/django/contrib/auth/forms.py\nindex b9eb33329f..9a6614a809 100644\n--- a/django/contrib/auth/forms.py\n+++ b/django/contrib/auth/forms.py\n@@ -56,6 +56,7 @@ class ReadOnlyPasswordHashField(forms.Field):\n \n     def __init__(self, *args, **kwargs):\n         kwargs.setdefault(\"required\", False)\n+        kwargs.setdefault(\"disabled\", True)\n         super().__init__(*args, **kwargs)\n \n     def bound_data(self, data, initial):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T11:15:13.946411",
+  "end_time": "2026-01-17T11:18:04.429851",
+  "duration_seconds": 170.48344,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-13741",
+  "epic_comments": [
+    {
+      "epic_id": "9d7ee6c8-12aa-4b1b-b890-d7dbdd3a32a1",
+      "epic_title": "Fix: django__django-13741",
+      "comment_id": "30a1d0a0-868c-45e6-88b8-c6f05ab98a12",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nSet `disabled=True` by default on `ReadOnlyPasswordHashField` to prevent accidental or malicious modification of password hash values. This ensures the field automatically ignores any tampered submissions in favor of the form's initial data, making the `clean_password` method in `UserChangeForm` redundant for security purposes.\n\n## Files Modified\n- `django/contrib/auth/forms.py`: Added `kwargs.setdefault(\"disabled\", True)` in `ReadOnlyPasswordHashField.__init__` (line 59)\n\n## Test Results\n- **Test file:** tests/auth_tests/test_forms.py\n- **Baseline (before fix):** 83 passed, 0 failed, 0 errors\n- **After fix:** 83 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n```python\nfrom django.contrib.auth.forms import ReadOnlyPasswordHashField\nfield = ReadOnlyPasswordHashField()\nprint('disabled:', field.disabled)  # True\nprint('required:', field.required)  # False\n```\n\n## Concerns\n- None. The fix is minimal and follows existing pattern in the field's `__init__` method (similar to how `required` is set).\n- The `disabled` attribute is a built-in Django forms feature that ensures values submitted by users are ignored in favor of initial data.",
+      "created_at": "2026-01-17T10:17:55.104Z"
+    }
+  ]
+}

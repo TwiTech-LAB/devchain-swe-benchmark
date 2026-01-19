@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-14771",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py\nindex cc65c043ab..00c70cda82 100644\n--- a/django/utils/autoreload.py\n+++ b/django/utils/autoreload.py\n@@ -220,6 +220,11 @@ def get_child_arguments():\n     py_script = Path(sys.argv[0])\n \n     args = [sys.executable] + ['-W%s' % o for o in sys.warnoptions]\n+    if sys._xoptions:\n+        args.extend(\n+            '-X%s' % key if value is True else '-X%s=%s' % (key, value)\n+            for key, value in sys._xoptions.items()\n+        )\n     # __spec__ is set when the server was started with the `-m` option,\n     # see https://docs.python.org/3/reference/import.html#main-spec\n     # __spec__ may not exist, e.g. when running in a Conda env.\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:14:21.873873",
+  "end_time": "2026-01-16T20:17:13.842436",
+  "duration_seconds": 171.968563,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14771",
+  "epic_comments": [
+    {
+      "epic_id": "7e96b98e-ff91-4c64-8062-22595dd4a9be",
+      "epic_title": "Fix: django__django-14771",
+      "comment_id": "eaeb0e70-7e2d-4c34-9f01-6ec695f88cc2",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe Django auto-reloader's `get_child_arguments()` function was only passing `-W` (warning) options to the child process via `sys.warnoptions`, but it wasn't passing `-X` options from `sys._xoptions`. This caused `-X utf8` (and other `-X` flags) to be lost when the reloader spawned child processes.\n\nThe fix adds code to extract `-X` options from `sys._xoptions` and include them in the child arguments, properly handling both boolean flags (`-Xutf8`) and key=value pairs (`-Xkey=value`).\n\n## Files Modified\n- `django/utils/autoreload.py`: Added 4 lines to `get_child_arguments()` function (lines 223-227) to pass `-X` options to child processes\n\n## Test Results\n- **Test file:** tests/utils_tests/test_autoreload.py\n- **Baseline (before fix):** 80 tests, 60 passed, 20 skipped (Watchman unavailable)\n- **After fix:** 80 tests, 60 passed, 20 skipped (Watchman unavailable)\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the fix works by testing with `-X utf8` flag:\n- `sys._xoptions`: `{'utf8': True}`\n- Generated args include: `-Xutf8`\n\nAlso verified with multiple `-X` options (`-X utf8 -X faulthandler -X dev`):\n- `sys._xoptions`: `{'utf8': True, 'faulthandler': True, 'dev': True}`\n- Generated args include: `-Xutf8`, `-Xfaulthandler`, `-Xdev`\n\n## Concerns\n- None. The fix follows the existing pattern used for `-W` options and is minimal and focused.",
+      "created_at": "2026-01-16T19:17:04.819Z"
+    }
+  ]
+}

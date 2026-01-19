@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-11095",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py\nindex 5e7b23f9a0..64ab78e793 100644\n--- a/django/contrib/admin/options.py\n+++ b/django/contrib/admin/options.py\n@@ -580,9 +580,15 @@ class ModelAdmin(BaseModelAdmin):\n     def __str__(self):\n         return \"%s.%s\" % (self.model._meta.app_label, self.__class__.__name__)\n \n+    def get_inlines(self, request, obj):\n+        \"\"\"\n+        Return the inline classes to use for the given request and obj.\n+        \"\"\"\n+        return self.inlines\n+\n     def get_inline_instances(self, request, obj=None):\n         inline_instances = []\n-        for inline_class in self.inlines:\n+        for inline_class in self.get_inlines(request, obj):\n             inline = inline_class(self.model, self.admin_site)\n             if request:\n                 if not (inline.has_view_or_change_permission(request, obj) or\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T19:59:44.719686",
+  "end_time": "2026-01-16T20:02:25.664872",
+  "duration_seconds": 160.945186,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11095",
+  "epic_comments": [
+    {
+      "epic_id": "7646e909-889b-4cc1-8544-67bcd95d1901",
+      "epic_title": "Fix: django__django-11095",
+      "comment_id": "eca77837-466f-4e6f-9ae2-39ced3ad1f59",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `ModelAdmin.get_inlines(request, obj)` hook method to allow setting inlines based on the request or model instance. The new method returns `self.inlines` by default but can be overridden in subclasses to provide dynamic inlines.\n\nModified `get_inline_instances()` to use `self.get_inlines(request, obj)` instead of directly accessing `self.inlines`.\n\n## Files Modified\n- `django/contrib/admin/options.py`: Added `get_inlines(self, request, obj)` method at line 583-587 and modified `get_inline_instances()` at line 591 to use the new hook.\n\n## Test Results\n- **Test file:** tests/admin_inlines/tests.py\n- **Baseline (before fix):** 55 passed, 6 skipped\n- **After fix:** 55 passed, 6 skipped\n- **Regression check:** No new failures introduced\n\n- **Additional test:** tests/admin_views - 354 passed, 15 skipped\n\n## Additional Verification\n- Manual verification that `get_inlines()` method returns `self.inlines` correctly\n\n## Concerns\n- None. The change is minimal and backward compatible. Existing code that doesn't override `get_inlines()` will continue to work identically.",
+      "created_at": "2026-01-16T19:02:11.090Z"
+    }
+  ]
+}

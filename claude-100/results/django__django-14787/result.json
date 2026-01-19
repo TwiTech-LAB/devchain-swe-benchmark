@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-14787",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/decorators.py b/django/utils/decorators.py\nindex 5c9a5d01c7..8b9da17e31 100644\n--- a/django/utils/decorators.py\n+++ b/django/utils/decorators.py\n@@ -38,6 +38,7 @@ def _multi_decorate(decorators, method):\n         # 'func'. Also, wrap method.__get__() in a function because new\n         # attributes can't be set on bound method objects, only on functions.\n         bound_method = partial(method.__get__(self, type(self)))\n+        update_wrapper(bound_method, method)\n         for dec in decorators:\n             bound_method = dec(bound_method)\n         return bound_method(*args, **kwargs)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:14:26.981098",
+  "end_time": "2026-01-16T20:17:29.040396",
+  "duration_seconds": 182.059298,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14787",
+  "epic_comments": [
+    {
+      "epic_id": "95dc7176-939b-4582-b038-810303db8684",
+      "epic_title": "Fix: django__django-14787",
+      "comment_id": "dc1c6c73-78f8-4322-b677-038fb3fbadf9",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `update_wrapper(bound_method, method)` after creating the partial object in `_multi_decorate()`. This copies function attributes (`__name__`, `__module__`, `__qualname__`, `__doc__`, `__annotations__`) from the original method to the partial object, allowing decorators that use `@wraps(func)` to work correctly.\n\n## Root Cause\nIn `_multi_decorate()`, a `functools.partial` object was created to wrap the bound method. However, `partial` objects don't have the standard function attributes (`__name__`, `__module__`, etc.) that `functools.wraps()` expects to copy. When a decorator used `@wraps(func)` on this partial object, it raised `AttributeError: 'functools.partial' object has no attribute '__name__'`.\n\n## Files Modified\n- `django/utils/decorators.py`: Added `update_wrapper(bound_method, method)` at line 41, after the partial object is created\n\n## Test Results\n- **Test file:** `tests/decorators/tests.py` and `tests/utils_tests/test_decorators.py`\n- **Baseline (before fix):** 24 passed (4 + 20), 0 failed, 0 errors\n- **After fix:** 24 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the original bug is fixed:\n```python\nfrom functools import wraps\nfrom django.utils.decorators import method_decorator\n\ndef logger(func):\n    @wraps(func)\n    def inner(*args, **kwargs):\n        print(f'{func.__name__} called')  # Now works!\n        return func(*args, **kwargs)\n    return inner\n\nclass Test:\n    @method_decorator(logger)\n    def hello_world(self):\n        return 'hello'\n\nTest().hello_world()  # Output: hello_world called\n```\n\nAlso verified all wrapper attributes are preserved: `__name__`, `__module__`, `__qualname__`, `__doc__`, `__annotations__`.\n\n## Concerns\nNone - this is a minimal, focused fix that uses the existing `update_wrapper` import already present in the file.",
+      "created_at": "2026-01-16T19:17:17.221Z"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "instance_id": "sphinx-doc__sphinx-9320",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/cmd/quickstart.py b/sphinx/cmd/quickstart.py\nindex a40a21073..9e5bfcf4c 100644\n--- a/sphinx/cmd/quickstart.py\n+++ b/sphinx/cmd/quickstart.py\n@@ -95,6 +95,12 @@ def is_path(x: str) -> str:\n     return x\n \n \n+def is_path_or_empty(x: str) -> str:\n+    if x:\n+        return is_path(x)\n+    return x\n+\n+\n def allow_empty(x: str) -> str:\n     return x\n \n@@ -223,7 +229,7 @@ def ask_user(d: Dict) -> None:\n         print(__('sphinx-quickstart will not overwrite existing Sphinx projects.'))\n         print()\n         d['path'] = do_prompt(__('Please enter a new root path (or just Enter to exit)'),\n-                              '', is_path)\n+                              '', is_path_or_empty)\n         if not d['path']:\n             sys.exit(1)\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:51:44.591212",
+  "end_time": "2026-01-16T12:57:17.357581",
+  "duration_seconds": 332.766369,
+  "error_message": null,
+  "workspace_path": "./workspaces/sphinx-doc__sphinx-9320",
+  "epic_comments": [
+    {
+      "epic_id": "f7132837-0318-4624-bbd7-2afaac32c299",
+      "epic_title": "Fix: sphinx-doc__sphinx-9320",
+      "comment_id": "b237c571-1860-4774-bfb5-bdcc69da2af9",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nWhen `sphinx-quickstart` runs in a folder with an existing `conf.py`, the prompt says \"Please enter a new root path (or just Enter to exit)\" but pressing Enter showed \"Please enter a valid path name\" instead of exiting.\n\nThe root cause was that the `do_prompt` call used the `is_path` validator which requires a valid directory path. When user presses Enter with empty input, `is_path('')` calls `path.isdir('')` which returns `False`, triggering a `ValidationError`.\n\nThe fix adds a new `is_path_or_empty` validator function that allows empty strings to pass through (for the exit flow) but still validates non-empty inputs as valid paths. This validator is now used in the prompt that asks for a new root path.\n\n## Files Modified\n- `sphinx/cmd/quickstart.py`:\n  - Added new `is_path_or_empty` validator function (lines 98-101)\n  - Changed the prompt at line 231-232 to use `is_path_or_empty` instead of `is_path`\n\n## Test Results\n- **Test file:** /testbed/tests/test_quickstart.py\n- **Baseline (before fix):** 9 passed, 0 failed, 0 errors\n- **After fix:** 9 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\nVerified the new validator behavior:\n- `is_path_or_empty(\"\")` returns `\"\"` (allows exit flow)\n- `is_path_or_empty(\"/tmp\")` returns `/tmp` (valid path works)\n- `is_path_or_empty(\"/nonexistent/path\")` raises `ValidationError` (invalid paths still rejected)\n\n## Concerns\n- None. The fix is minimal and follows the existing code pattern of having specialized validators.",
+      "created_at": "2026-01-16T11:54:11.932Z"
+    },
+    {
+      "epic_id": "f7132837-0318-4624-bbd7-2afaac32c299",
+      "epic_title": "Fix: sphinx-doc__sphinx-9320",
+      "comment_id": "d449ed98-df67-428b-95b9-d204d7367c56",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- `git diff HEAD` shows unexpected modifications to `setup.py` and `tox.ini` in addition to the intended change in `sphinx/cmd/quickstart.py`.\n- This violates the epic rule to avoid build/config changes (and these files weren\u2019t mentioned in the fix summary).\n\nWhat Looks Good:\n- The `is_path_or_empty` approach in `sphinx/cmd/quickstart.py` correctly allows Enter-to-exit while still validating non-empty paths.\n\nRequired Changes:\n- Revert `setup.py` and `tox.ini` so only the source fix remains.\n- Verify `git diff HEAD` shows only `sphinx/cmd/quickstart.py`.\n- Re-run `/testbed/tests/test_quickstart.py` after the cleanup and report results.",
+      "created_at": "2026-01-16T11:55:16.814Z"
+    },
+    {
+      "epic_id": "f7132837-0318-4624-bbd7-2afaac32c299",
+      "epic_title": "Fix: sphinx-doc__sphinx-9320",
+      "comment_id": "36d6545a-6ef1-4750-91ae-3fa662d4b381",
+      "author_name": "Brainstormer",
+      "content": "## Review Response\n\nAddressed the Code Review feedback:\n\n### Changes Made\n- Reverted `setup.py` and `tox.ini` to their original state using `git checkout HEAD --`\n- Verified that `git diff HEAD --name-only` now shows only `sphinx/cmd/quickstart.py`\n\n### Git Diff Verification\n```\n$ git diff HEAD --name-only\nsphinx/cmd/quickstart.py\n```\n\nThe diff shows only the intended fix:\n- Added `is_path_or_empty` function (lines 98-101)\n- Changed validator from `is_path` to `is_path_or_empty` (line 232)\n\n### Test Results After Cleanup\n- **Test file:** /testbed/tests/test_quickstart.py\n- **Result:** 9 passed, 0 failed, 0 errors\n\nReady for re-review.",
+      "created_at": "2026-01-16T11:56:19.670Z"
+    },
+    {
+      "epic_id": "f7132837-0318-4624-bbd7-2afaac32c299",
+      "epic_title": "Fix: sphinx-doc__sphinx-9320",
+      "comment_id": "2aebc664-75f5-4890-9b71-8d0dcb404f47",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- `git diff HEAD --name-only` shows only `sphinx/cmd/quickstart.py` (no build/config or test changes).\n- The new `is_path_or_empty` validator correctly permits empty input for the \u201cEnter to exit\u201d flow while preserving validation for non-empty paths.\n- Brainstormer reports `/testbed/tests/test_quickstart.py` passing (9 passed).",
+      "created_at": "2026-01-16T11:57:02.551Z"
+    }
+  ]
+}

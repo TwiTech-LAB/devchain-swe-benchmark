@@ -1,0 +1,22 @@
+{
+  "instance_id": "sphinx-doc__sphinx-9320",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/cmd/quickstart.py b/sphinx/cmd/quickstart.py\nindex a40a21073..fa5786bf9 100644\n--- a/sphinx/cmd/quickstart.py\n+++ b/sphinx/cmd/quickstart.py\n@@ -99,6 +99,12 @@ def allow_empty(x: str) -> str:\n     return x\n \n \n+def is_path_or_empty(x: str) -> str:\n+    if x == '':\n+        return x\n+    return is_path(x)\n+\n+\n def nonempty(x: str) -> str:\n     if not x:\n         raise ValidationError(__(\"Please enter some text.\"))\n@@ -223,7 +229,7 @@ def ask_user(d: Dict) -> None:\n         print(__('sphinx-quickstart will not overwrite existing Sphinx projects.'))\n         print()\n         d['path'] = do_prompt(__('Please enter a new root path (or just Enter to exit)'),\n-                              '', is_path)\n+                              '', is_path_or_empty)\n         if not d['path']:\n             sys.exit(1)\n \ndiff --git a/tox.ini b/tox.ini\nindex a363e187f..3b8bc12d0 100644\n--- a/tox.ini\n+++ b/tox.ini\n@@ -27,7 +27,7 @@ setenv =\n     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version\n     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes\n commands=\n-    python -X dev -m pytest --durations 25 {posargs}\n+    python -X dev -m pytest -rA --durations 25 {posargs}\n \n [testenv:flake8]\n basepython = python3\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:36:02.158475",
+  "end_time": "2026-01-17T01:38:51.990217",
+  "duration_seconds": 169.831742,
+  "error_message": null,
+  "workspace_path": "./workspaces/sphinx-doc__sphinx-9320",
+  "epic_comments": [
+    {
+      "epic_id": "76ba1231-bbe6-4b95-ad36-dc22e06a1374",
+      "epic_title": "Fix: sphinx-doc__sphinx-9320",
+      "comment_id": "7e85f25e-063b-4337-ad5d-410c3a006476",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nWhen `sphinx-quickstart` is run in a folder with an existing `conf.py`, it prompts the user to \"enter a new root path (or just Enter to exit)\". However, pressing Enter caused a validation error instead of exiting because the `is_path` validator doesn't allow empty input.\n\nFixed by adding a new `is_path_or_empty` validator that allows empty strings to pass through (for the \"Enter to exit\" case) while still validating non-empty paths. This validator is now used for the prompt at line 231-232.\n\n## Files Modified\n- `sphinx/cmd/quickstart.py`: \n  - Added new `is_path_or_empty` validator function (lines 102-105)\n  - Changed the prompt validator from `is_path` to `is_path_or_empty` (line 232)\n\n## Test Results\n- **Test file:** tests/test_quickstart.py\n- **Baseline (before fix):** 9 passed, 0 failed, 0 errors\n- **After fix:** 9 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n- Verified `is_path_or_empty('')` returns empty string (allows exit)\n- Verified `is_path_or_empty('/tmp')` returns '/tmp' (valid path works)\n- Verified `is_path_or_empty('/nonexistent')` raises ValidationError (invalid paths rejected)\n\n## Concerns\n- None. The fix is minimal and follows existing code patterns.",
+      "created_at": "2026-01-17T00:38:40.745Z"
+    }
+  ]
+}

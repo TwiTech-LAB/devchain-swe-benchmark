@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-19637",
+  "status": "completed",
+  "patch": "diff --git a/sympy/core/sympify.py b/sympy/core/sympify.py\nindex a3f1ce2851..4266773dff 100644\n--- a/sympy/core/sympify.py\n+++ b/sympy/core/sympify.py\n@@ -513,7 +513,7 @@ def kernS(s):\n             while kern in s:\n                 kern += choice(string.ascii_letters + string.digits)\n             s = s.replace(' ', kern)\n-        hit = kern in s\n+            hit = kern in s\n \n     for i in range(2):\n         try:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:23:05.628694",
+  "end_time": "2026-01-16T07:28:37.636886",
+  "duration_seconds": 332.008192,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-19637",
+  "epic_comments": [
+    {
+      "epic_id": "aaf63821-82dc-40da-8846-fb402e522c4b",
+      "epic_title": "Fix: sympy__sympy-19637",
+      "comment_id": "db2cb959-ab61-4553-ae30-5d5fff583dff",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the `UnboundLocalError: local variable 'kern' referenced before assignment` in the `kernS` function.\n\n**Root Cause:** Line 516 (`hit = kern in s`) referenced `kern` outside the `if ' ' in s:` block where it was defined. When the input string didn't contain any spaces after processing, `kern` was never assigned, causing the error.\n\n**Fix:** Moved `hit = kern in s` inside the `if ' ' in s:` block. Since `hit` is already initialized to `False` at line 471, if no space exists in `s`, `hit` remains `False` correctly.\n\n## Files Modified\n- `sympy/core/sympify.py`: Moved `hit = kern in s` (line 516) inside the `if ' ' in s:` block (indented to be part of that conditional).\n\n## Test Results\n- **Test file:** sympy/core/tests/test_sympify.py\n- **Baseline (before fix):** 41 passed, 5 skipped, 2 expected to fail, 2 errors\n- **After fix:** 41 passed, 5 skipped, 2 expected to fail, 2 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** test_evaluate_false and test_issue_17811 fail with `ValueError: Name node can't be used with 'False' constant` - these are unrelated to kernS and existed before the fix.\n\n## Additional Verification\nVerified the fix works with multiple edge cases:\n- `(2*x)/(x-1)` \u2192 `2*x/(x - 1)` (original bug case - now works)\n- `2*(x + y)` \u2192 `2*(x + y)` (2-arg Mul case - still works)\n- `-(x + 1)` \u2192 `-(x + 1)` (negated parenthesis - still works)\n- `x + y` \u2192 `x + y` (simple expression - still works)\n- `x*y` \u2192 `x*y` (no parenthesis - still works)\n\n## Concerns\n- None. The fix is minimal and targeted, only affecting the scope of the `hit = kern in s` assignment.",
+      "created_at": "2026-01-16T06:25:44.792Z"
+    },
+    {
+      "epic_id": "aaf63821-82dc-40da-8846-fb402e522c4b",
+      "epic_title": "Fix: sympy__sympy-19637",
+      "comment_id": "7e0171c1-ac1f-453b-bafd-7be5a49c6582",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Workspace `git diff` is empty (no test/build/source changes to review).\n- The reported `kernS` UnboundLocalError is not reproducible here: `kernS('(2*x)/(x-1)')` returns successfully.\n- `kernS` implementation in `sympy/core/sympify.py` has `hit = kern in s` guarded under `if ' ' in s:` so `kern` is never referenced uninitialized.\n- Spot-check: `/opt/miniconda3/envs/testbed/bin/python /testbed/bin/test sympy/core/tests/test_sympify.py -k kernS` passes.\n\nGiven the issue appears already fixed in this checkout and tests are green for the relevant coverage, this can be marked Done.",
+      "created_at": "2026-01-16T06:28:19.370Z"
+    }
+  ]
+}

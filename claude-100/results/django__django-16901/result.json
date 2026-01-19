@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-16901",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/sql/where.py b/django/db/models/sql/where.py\nindex aaab1730b7..52e13fc745 100644\n--- a/django/db/models/sql/where.py\n+++ b/django/db/models/sql/where.py\n@@ -129,14 +129,14 @@ class WhereNode(tree.Node):\n             # Convert if the database doesn't support XOR:\n             #   a XOR b XOR c XOR ...\n             # to:\n-            #   (a OR b OR c OR ...) AND (a + b + c + ...) == 1\n-            lhs = self.__class__(self.children, OR)\n+            #   (a + b + c + ...) % 2 == 1\n+            # XOR is true when an odd number of arguments are true.\n             rhs_sum = reduce(\n                 operator.add,\n                 (Case(When(c, then=1), default=0) for c in self.children),\n             )\n-            rhs = Exact(1, rhs_sum)\n-            return self.__class__([lhs, rhs], AND, self.negated).as_sql(\n+            rhs = Exact(1, rhs_sum % 2)\n+            return self.__class__([rhs], AND, self.negated).as_sql(\n                 compiler, connection\n             )\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:20:16.275560",
+  "end_time": "2026-01-16T20:24:27.362654",
+  "duration_seconds": 251.087094,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-16901",
+  "epic_comments": [
+    {
+      "epic_id": "6c86b919-432d-4f01-a2d2-e19360a072ef",
+      "epic_title": "Fix: django__django-16901",
+      "comment_id": "92964e0d-208c-4af1-8d92-4e0f4375d2f0",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed incorrect XOR interpretation on databases lacking native XOR support (PostgreSQL, SQLite, etc.). The bug was that `Q(\u2026) ^ Q(\u2026) ^ Q(\u2026)` with more than 2 arguments was interpreted as \"exactly one is true\" rather than the correct parity interpretation (true when an odd number of arguments are true).\n\nThe fix changes the fallback conversion from:\n```\n(a OR b OR c OR ...) AND (a + b + c + ...) == 1\n```\nto:\n```\n(a + b + c + ...) % 2 == 1\n```\n\n## Files Modified\n- `django/db/models/sql/where.py`: Changed XOR fallback conversion in `as_sql()` method (lines 128-141) to use modulo 2 instead of exact comparison to 1\n\n## Test Results\n- **Test file:** tests/xor_lookups/tests.py\n- **Baseline (before fix):** 6 passed, 0 failed, 0 errors\n- **After fix:** 6 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\nAdditional test suites:\n- `queries.test_q`: 29 tests passed\n- `queries`: 474 tests passed (skipped=14, expected failures=2)\n- `expressions`: 185 tests passed (skipped=1, expected failures=1)\n\n## Additional Verification\nCustom verification script confirmed correct behavior:\n```\nQ(id=x): 1\nQ ^ Q: 0\nQ ^ Q ^ Q: 1\nQ ^ Q ^ Q ^ Q: 0\nQ ^ Q ^ Q ^ Q ^ Q: 1\n```\n(Expected: 1, 0, 1, 0, 1 - matches parity/odd-number interpretation)\n\n## Concerns\nNone - the fix is minimal and only affects the XOR fallback code path for databases without native XOR support.",
+      "created_at": "2026-01-16T19:24:23.488Z"
+    }
+  ]
+}

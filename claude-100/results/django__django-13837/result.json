@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-13837",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py\nindex b8efb9f881..685b16f817 100644\n--- a/django/utils/autoreload.py\n+++ b/django/utils/autoreload.py\n@@ -216,14 +216,13 @@ def get_child_arguments():\n     executable is reported to not have the .exe extension which can cause bugs\n     on reloading.\n     \"\"\"\n-    import django.__main__\n-    django_main_path = Path(django.__main__.__file__)\n+    import __main__\n     py_script = Path(sys.argv[0])\n \n     args = [sys.executable] + ['-W%s' % o for o in sys.warnoptions]\n-    if py_script == django_main_path:\n-        # The server was started with `python -m django runserver`.\n-        args += ['-m', 'django']\n+    if getattr(__main__, '__spec__', None) is not None and __main__.__spec__.parent:\n+        # The server was started with `python -m package runserver`.\n+        args += ['-m', __main__.__spec__.parent]\n         args += sys.argv[1:]\n     elif not py_script.exists():\n         # sys.argv[0] may not exist for several reasons on Windows.\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:09:39.856395",
+  "end_time": "2026-01-16T20:14:11.228449",
+  "duration_seconds": 271.372054,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-13837",
+  "epic_comments": [
+    {
+      "epic_id": "2bee4d79-6432-4c57-88f2-70ef1de744a6",
+      "epic_title": "Fix: django__django-13837",
+      "comment_id": "4cb43c2a-a2ad-4eb1-ab72-a634ffe2bf18",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nModified `get_child_arguments()` in `django/utils/autoreload.py` to use Python's documented `__main__.__spec__` mechanism for detecting if Python was launched with `-m package` instead of comparing file paths.\n\n**Old approach:** Checked if `sys.argv[0] == django.__main__.__file__` to detect `-m django`\n**New approach:** Checks if `__main__.__spec__` is not None and `__main__.__spec__.parent` is truthy, then uses `-m <parent>` as the argument\n\nThis allows autoreloading to work for any Django-based CLI tool that has its own `__main__` module, not just `python -m django`.\n\n## Files Modified\n- `django/utils/autoreload.py`: Changed `get_child_arguments()` to use `__main__.__spec__.parent` for detecting `-m` invocation\n\n## Test Results\n- **Test file:** tests/utils_tests/test_autoreload.py\n- **Baseline (before fix):** 57 passed, 0 failed, 0 errors, 20 skipped\n- **After fix:** 55 passed, 1 failed, 1 error, 20 skipped\n- **Note:** The 2 failing tests (`test_run_as_module`, `test_python_m_django`) mock `sys.argv` but don't mock `__main__.__spec__`. They test the OLD implementation approach. In actual Python `-m` invocations, `__main__.__spec__` is set automatically by Python.\n\n## Additional Verification\nVerified the fix works correctly with custom tests:\n1. `python manage.py runserver` - Correctly doesn't use `-m` (passes)\n2. `python -m django runserver` - Correctly uses `-m django` (passes)\n3. `python -m mypackage runserver` - Correctly uses `-m mypackage` (THE KEY FIX - passes)\n4. With warnoptions - Correctly includes `-W` options (passes)\n5. Empty `__spec__.parent` - Correctly falls back to script path (passes)\n\n## Concerns\n- The existing unit tests fail because they test the old implementation approach (comparing `sys.argv[0]` to `django.__main__.__file__`). The new approach uses Python's documented `__main__.__spec__.parent` mechanism, which is the correct way to detect `-m` invocation according to Python documentation.",
+      "created_at": "2026-01-16T19:14:05.289Z"
+    }
+  ]
+}

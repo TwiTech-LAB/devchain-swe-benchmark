@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-14007",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py\nindex f02199d97c..3daf96ef19 100644\n--- a/django/db/models/sql/compiler.py\n+++ b/django/db/models/sql/compiler.py\n@@ -1412,13 +1412,19 @@ class SQLInsertCompiler(SQLCompiler):\n             if not self.returning_fields:\n                 return []\n             if self.connection.features.can_return_rows_from_bulk_insert and len(self.query.objs) > 1:\n-                return self.connection.ops.fetch_returned_insert_rows(cursor)\n-            if self.connection.features.can_return_columns_from_insert:\n+                rows = self.connection.ops.fetch_returned_insert_rows(cursor)\n+            elif self.connection.features.can_return_columns_from_insert:\n                 assert len(self.query.objs) == 1\n-                return [self.connection.ops.fetch_returned_insert_columns(cursor, self.returning_params)]\n-            return [(self.connection.ops.last_insert_id(\n-                cursor, self.query.get_meta().db_table, self.query.get_meta().pk.column\n-            ),)]\n+                rows = [self.connection.ops.fetch_returned_insert_columns(cursor, self.returning_params)]\n+            else:\n+                rows = [(self.connection.ops.last_insert_id(\n+                    cursor, self.query.get_meta().db_table, self.query.get_meta().pk.column\n+                ),)]\n+            cols = [field.get_col(self.query.get_meta().db_table) for field in self.returning_fields]\n+            converters = self.get_converters(cols)\n+            if converters:\n+                rows = list(self.apply_converters(rows, converters))\n+            return rows\n \n \n class SQLDeleteCompiler(SQLCompiler):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:11:51.771161",
+  "end_time": "2026-01-16T20:17:03.046448",
+  "duration_seconds": 311.275287,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14007",
+  "epic_comments": [
+    {
+      "epic_id": "123d16a7-f7ee-459e-89ee-3e0b2dbb7214",
+      "epic_title": "Fix: django__django-14007",
+      "comment_id": "9ab1d94e-c88a-467f-96f4-d7e43366d499",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe bug was that `from_db_value()` database converters were not being called for `returning_fields` on INSERT operations. This meant that custom field subclasses with `from_db_value` converters would return raw database values instead of converted values when using `create()` or `bulk_create()`.\n\nThe fix modifies `SQLInsertCompiler.execute_sql()` to apply database converters (including `from_db_value`) to the returned rows before returning them. The approach uses the existing `get_converters()` and `apply_converters()` methods from the parent `SQLCompiler` class with `Col` expressions created from the returning_fields.\n\n## Files Modified\n- `django/db/models/sql/compiler.py`: Modified `SQLInsertCompiler.execute_sql()` to apply converters to returned rows\n\n## Test Results\n- **Test file:** bulk_create, model_fields, queries, basic\n- **Baseline (before fix):** All tests passed\n- **After fix:** All tests passed\n  - bulk_create: 30 passed, 6 skipped\n  - model_fields: 422 passed, 10 skipped\n  - queries: 409 passed, 13 skipped, 2 expected failures\n  - basic: 59 passed, 2 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nCustom verification script confirmed:\n- `create()` now returns wrapped values via `from_db_value()`\n- `queries` return wrapped values (unchanged)\n- Output:\n  ```\n  Created instance id type: MyIntWrapper\n  Created instance id: <MyIntWrapper: 1>\n  SUCCESS: from_db_value called for create()\n  ```\n\n## Concerns\n- None. The fix is minimal and reuses existing converter infrastructure.",
+      "created_at": "2026-01-16T19:16:51.903Z"
+    }
+  ]
+}

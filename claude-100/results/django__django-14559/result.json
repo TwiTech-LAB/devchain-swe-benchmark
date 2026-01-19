@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-14559",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/query.py b/django/db/models/query.py\nindex 387deca527..f14ff8d094 100644\n--- a/django/db/models/query.py\n+++ b/django/db/models/query.py\n@@ -541,7 +541,7 @@ class QuerySet:\n         if any(f.primary_key for f in fields):\n             raise ValueError('bulk_update() cannot be used with primary key fields.')\n         if not objs:\n-            return\n+            return 0\n         # PK is used twice in the resulting update query, once in the filter\n         # and once in the WHEN. Each field will also have one CAST.\n         max_batch_size = connections[self.db].ops.bulk_batch_size(['pk', 'pk'] + fields, objs)\n@@ -563,9 +563,11 @@ class QuerySet:\n                     case_statement = Cast(case_statement, output_field=field)\n                 update_kwargs[field.attname] = case_statement\n             updates.append(([obj.pk for obj in batch_objs], update_kwargs))\n+        rows_updated = 0\n         with transaction.atomic(using=self.db, savepoint=False):\n             for pks, update_kwargs in updates:\n-                self.filter(pk__in=pks).update(**update_kwargs)\n+                rows_updated += self.filter(pk__in=pks).update(**update_kwargs)\n+        return rows_updated\n     bulk_update.alters_data = True\n \n     def get_or_create(self, defaults=None, **kwargs):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T11:18:04.698500",
+  "end_time": "2026-01-17T11:20:51.519347",
+  "duration_seconds": 166.820847,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14559",
+  "epic_comments": [
+    {
+      "epic_id": "4fa1330a-7691-4ede-ab1c-f6cb223ead6c",
+      "epic_title": "Fix: django__django-14559",
+      "comment_id": "c1b89f9c-c948-4421-803d-ecfb8ad16cb4",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nModified `bulk_update()` to return the number of rows matched (sum of all internal `update()` calls), matching the behavior of `update()`. Previously, `bulk_update()` returned `None`.\n\nChanges made:\n1. Changed early return for empty objects from `return` to `return 0`\n2. Added `rows_updated` counter initialized to 0\n3. Accumulated return values from each `update()` call\n4. Return `rows_updated` at the end\n\n## Files Modified\n- `django/db/models/query.py`: Modified `bulk_update()` method (lines 543-570)\n\n## Test Results\n- **Test file:** tests/queries/test_bulk_update.py\n- **Baseline (before fix):** 25 passed, 0 failed, 0 errors\n- **After fix:** 25 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\nAdditional test suite (basic): 59 passed, 2 skipped, 0 failed\n\n## Additional Verification\nCustom verification script confirmed:\n- `bulk_update(items, ['value'])` returns `5` (correct row count)\n- `bulk_update([], ['value'])` returns `0` (empty case handled)\n- Return type is `int`\n- Values are correctly updated in the database\n\n## Concerns\n- None. The fix is minimal and follows the existing pattern used by `update()`.",
+      "created_at": "2026-01-17T10:20:39.580Z"
+    }
+  ]
+}

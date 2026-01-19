@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-12304",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/enums.py b/django/db/models/enums.py\nindex f48143ddaf..51821a2b45 100644\n--- a/django/db/models/enums.py\n+++ b/django/db/models/enums.py\n@@ -31,6 +31,7 @@ class ChoicesMeta(enum.EnumMeta):\n         # that is passed in as \"self\" as the value to use when looking up the\n         # label in the choices.\n         cls.label = property(lambda self: cls._value2label_map_.get(self.value))\n+        cls.do_not_call_in_templates = True\n         return enum.unique(cls)\n \n     def __contains__(cls, member):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:00:24.721412",
+  "end_time": "2026-01-16T20:03:45.793165",
+  "duration_seconds": 201.071753,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12304",
+  "epic_comments": [
+    {
+      "epic_id": "7bc8cd4a-35f9-4e5d-85e2-ce9682644b4f",
+      "epic_title": "Fix: django__django-12304",
+      "comment_id": "4c97768d-ec6e-41c2-b04e-ce93c25ad295",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `do_not_call_in_templates = True` to the `ChoicesMeta` metaclass to prevent Django templates from automatically calling enumeration classes. This allows enumeration types (Choices, IntegerChoices, TextChoices) to be used directly in templates like `{% if student.year_in_school == YearInSchool.FRESHMAN %}`.\n\nThe fix is applied in the metaclass's `__new__` method so the attribute is set on every enum class created with `ChoicesMeta`, avoiding the \"Cannot extend enumerations\" error that would occur if set directly on the Choices class.\n\n## Files Modified\n- `django/db/models/enums.py`: Added `cls.do_not_call_in_templates = True` in `ChoicesMeta.__new__` (line 34)\n\n## Test Results\n- **Test file:** tests/model_enums/tests.py\n- **Baseline (before fix):** 17 passed, 0 failed, 0 errors\n- **After fix:** 17 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n- **Test file:** tests/template_tests/test_callables.py\n- **Baseline (before fix):** 4 passed, 0 failed, 0 errors  \n- **After fix:** 4 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the fix with custom Python script demonstrating:\n1. `do_not_call_in_templates = True` is accessible on YearInSchool, IntegerChoices, and TextChoices\n2. Template rendering works correctly: `{% if year == YearInSchool.FRESHMAN %}` evaluates properly\n3. Enum functionality remains intact (values, labels, etc.)\n\n## Concerns\nNone - this is a minimal, focused fix following the pattern used elsewhere in Django (e.g., `related_descriptors.py`, `fields.py`).",
+      "created_at": "2026-01-16T19:03:34.258Z"
+    }
+  ]
+}

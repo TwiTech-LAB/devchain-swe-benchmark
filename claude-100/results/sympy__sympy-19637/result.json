@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-19637",
+  "status": "completed",
+  "patch": "diff --git a/sympy/core/sympify.py b/sympy/core/sympify.py\nindex a3f1ce2851..4266773dff 100644\n--- a/sympy/core/sympify.py\n+++ b/sympy/core/sympify.py\n@@ -513,7 +513,7 @@ def kernS(s):\n             while kern in s:\n                 kern += choice(string.ascii_letters + string.digits)\n             s = s.replace(' ', kern)\n-        hit = kern in s\n+            hit = kern in s\n \n     for i in range(2):\n         try:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:39:37.536232",
+  "end_time": "2026-01-17T01:41:47.993133",
+  "duration_seconds": 130.456901,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-19637",
+  "epic_comments": [
+    {
+      "epic_id": "5b769b7f-5d41-492a-a180-2db51180cf6b",
+      "epic_title": "Fix: sympy__sympy-19637",
+      "comment_id": "1dc88eaf-e01f-4046-aebc-b89685ec8b48",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `UnboundLocalError: local variable 'kern' referenced before assignment` in `kernS()` function.\n\n**Root Cause:** The variable `kern` was only defined inside the `if ' ' in s:` conditional block (line 510-515), but the line `hit = kern in s` was executed unconditionally outside that block. When input like `\"(2*x)/(x-1)\"` was processed, no spaces were introduced during the transformation steps, so the `if ' ' in s:` block was never entered and `kern` was never defined.\n\n**Fix:** Moved `hit = kern in s` inside the `if ' ' in s:` block. Since `hit` is already initialized to `False` at line 471, when no spaces exist in the transformed string, `hit` correctly remains `False`.\n\n## Files Modified\n- `sympy/core/sympify.py`: Moved line 516 (`hit = kern in s`) to be inside the `if ' ' in s:` conditional block (now line 516 is properly indented)\n\n## Test Results\n- **Test file:** sympy/core/tests/test_sympify.py\n- **Baseline (before fix):** 41 passed, 5 skipped, 2 expected to fail, 2 exceptions\n- **After fix:** 41 passed, 5 skipped, 2 expected to fail, 2 exceptions\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested the following cases successfully:\n- `kernS(\"(2*x)/(x-1)\")` - Original bug case, now returns `2*x/(x - 1)`\n- `kernS(\"2*(x + y)\")` - Returns `2*(x + y)` (prevents distribution)\n- `kernS(\"-(x + 1)\")` - Returns `-(x + 1)` (prevents distribution)\n- `kernS(\"-2*(-(-x + 1/x)/(x*(x - 1/x)**2) - 1/(x*(x - 1/x))) - 1\")` - Complex case works\n\n## Concerns\nNone. The fix is minimal and follows the original code's logic - `hit` should only be `True` when a kern substitution was actually made.",
+      "created_at": "2026-01-17T00:41:36.895Z"
+    }
+  ]
+}

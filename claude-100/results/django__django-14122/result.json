@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-14122",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py\nindex 850734709d..f6cd8d3052 100644\n--- a/django/db/models/sql/compiler.py\n+++ b/django/db/models/sql/compiler.py\n@@ -125,11 +125,12 @@ class SQLCompiler:\n             cols = expr.get_group_by_cols()\n             for col in cols:\n                 expressions.append(col)\n-        for expr, (sql, params, is_ref) in order_by:\n-            # Skip References to the select clause, as all expressions in the\n-            # select clause are already part of the group by.\n-            if not is_ref:\n-                expressions.extend(expr.get_group_by_cols())\n+        if not self._meta_ordering:\n+            for expr, (sql, params, is_ref) in order_by:\n+                # Skip References to the select clause, as all expressions in the\n+                # select clause are already part of the group by.\n+                if not is_ref:\n+                    expressions.extend(expr.get_group_by_cols())\n         having_group_by = self.having.get_group_by_cols() if self.having else ()\n         for expr in having_group_by:\n             expressions.append(expr)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:12:31.426159",
+  "end_time": "2026-01-16T20:15:53.311903",
+  "duration_seconds": 201.885744,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14122",
+  "epic_comments": [
+    {
+      "epic_id": "6e51e9c7-033d-41dc-88bc-fe1a6334da39",
+      "epic_title": "Fix: django__django-14122",
+      "comment_id": "6d5b3bac-a7a5-4d2a-a89d-605374fe7c0d",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the bug where `Meta.ordering` fields were incorrectly included in the GROUP BY clause, leading to wrong aggregation results.\n\nThe root cause was in `get_group_by()` method in `django/db/models/sql/compiler.py`. When `Meta.ordering` is used, the code correctly removes the ORDER BY clause later (lines 599-600) but was still adding the ordering expressions to GROUP BY at lines 128-132.\n\nThe fix adds a check for `self._meta_ordering` before adding order_by expressions to GROUP BY. When ordering comes from `Meta.ordering`, these expressions are now excluded from GROUP BY since:\n1. They weren't explicitly requested by the user\n2. The ORDER BY will be removed anyway\n3. Including them in GROUP BY leads to incorrect aggregation\n\n## Files Modified\n- `django/db/models/sql/compiler.py`: Added `if not self._meta_ordering:` check before the loop that adds order_by expressions to GROUP BY (line 128)\n\n## Test Results\n- **Test files:** aggregation, aggregation_regress, ordering\n- **Baseline (before fix):** 175 passed, 5 skipped\n- **After fix:** 175 passed, 5 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nCreated a demonstration script that confirms:\n- Before fix: `Meta.ordering` field \"name\" would be included in GROUP BY\n- After fix: GROUP BY correctly contains only the `.values()` field \"category\"\n\nGenerated SQL after fix:\n```sql\nSELECT \"test_app_testmodel\".\"category\", COUNT(\"test_app_testmodel\".\"id\") AS \"count\" \nFROM \"test_app_testmodel\" \nGROUP BY \"test_app_testmodel\".\"category\"\n```\n\n## Concerns\nNone. The fix is minimal and follows the existing pattern where `_meta_ordering` is checked to exclude Meta.ordering from query generation.",
+      "created_at": "2026-01-16T19:15:49.463Z"
+    }
+  ]
+}

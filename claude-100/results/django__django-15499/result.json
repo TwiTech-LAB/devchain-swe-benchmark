@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-15499",
+  "status": "completed",
+  "patch": "diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py\nindex 90fc31bee5..8a5c04393b 100644\n--- a/django/db/migrations/operations/models.py\n+++ b/django/db/migrations/operations/models.py\n@@ -170,6 +170,19 @@ class CreateModel(ModelOperation):\n                     managers=self.managers,\n                 ),\n             ]\n+        elif (\n+            isinstance(operation, AlterModelManagers)\n+            and self.name_lower == operation.name_lower\n+        ):\n+            return [\n+                CreateModel(\n+                    self.name,\n+                    fields=self.fields,\n+                    options=self.options,\n+                    bases=self.bases,\n+                    managers=operation.managers,\n+                ),\n+            ]\n         elif (\n             isinstance(operation, AlterTogetherOptionOperation)\n             and self.name_lower == operation.name_lower\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:17:13.659110",
+  "end_time": "2026-01-16T20:20:05.718540",
+  "duration_seconds": 172.05943,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15499",
+  "epic_comments": [
+    {
+      "epic_id": "b1ed2507-25a6-434e-8183-1b2c9ec70dc6",
+      "epic_title": "Fix: django__django-15499",
+      "comment_id": "5d45106a-53d2-4577-992d-31e85873452b",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded optimization for `CreateModel + AlterModelManagers` to reduce them into a single `CreateModel` operation during migration optimization. This follows the same pattern as the existing `CreateModel + AlterModelOptions` optimization.\n\nWhen a `CreateModel` operation is followed by an `AlterModelManagers` operation for the same model, they are now combined into a single `CreateModel` that includes the managers from the `AlterModelManagers` operation.\n\n## Files Modified\n- `django/db/migrations/operations/models.py`: Added a new case in `CreateModel.reduce()` method (around line 173) to handle `AlterModelManagers` operations. The fix replaces the model's managers with those from the `AlterModelManagers` operation.\n\n## Test Results\n- **Test file:** tests/migrations/test_optimizer.py\n- **Baseline (before fix):** 35 passed, 0 failed, 0 errors\n- **After fix:** 35 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\nAdditional test results:\n- migrations.test_autodetector: 142 passed\n- migrations.test_operations: 121 passed (1 skipped)\n\n## Additional Verification\nVerified the optimization works correctly with a manual test:\n```\nInput: CreateModel + AlterModelManagers (2 operations)\nOutput: CreateModel with managers applied (1 operation)\n```\n\n## Concerns\nNone. The implementation follows the exact same pattern used for other optimizations (AlterModelOptions, AlterTogetherOptionOperation, etc.) in the same method.",
+      "created_at": "2026-01-16T19:19:52.939Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-13158",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py\nindex 686e75c979..a8168aa6f3 100644\n--- a/django/db/models/sql/compiler.py\n+++ b/django/db/models/sql/compiler.py\n@@ -504,6 +504,8 @@ class SQLCompiler:\n             if combinator:\n                 if not getattr(features, 'supports_select_{}'.format(combinator)):\n                     raise NotSupportedError('{} is not supported on this database backend.'.format(combinator))\n+                if self.query.is_empty():\n+                    raise EmptyResultSet\n                 result, params = self.get_combinator_sql(combinator, self.query.combinator_all)\n             else:\n                 distinct_fields, distinct_params = self.get_distinct()\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:09:24.856366",
+  "end_time": "2026-01-16T20:13:06.389459",
+  "duration_seconds": 221.533093,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-13158",
+  "epic_comments": [
+    {
+      "epic_id": "4c6f381a-edaf-4d4e-812a-c7b3b6f35016",
+      "epic_title": "Fix: django__django-13158",
+      "comment_id": "42fc5f90-bf40-4295-927d-f6bf0374c6f4",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `QuerySet.none()` not working properly on combined querysets (union, intersection, difference). The issue was that when `none()` was called on a combined queryset, it added a `NothingNode` to the outer query's WHERE clause, but the SQL generation for combined queries ignored this and only checked if individual sub-queries were empty.\n\nThe fix adds an `is_empty()` check in `SQLCompiler.as_sql()` before generating combinator SQL. If the outer query is empty (as indicated by `none()` being called), we now raise `EmptyResultSet` which properly returns an empty queryset.\n\n## Files Modified\n- `django/db/models/sql/compiler.py`: Added `is_empty()` check before generating combinator SQL (line 507-508)\n\n## Test Results\n- **Test file:** `/testbed/tests/queries/test_qs_combinators.py`\n- **Baseline (before fix):** 31 passed, 2 skipped\n- **After fix:** 31 passed, 2 skipped\n- **Full queries suite:** 388 passed, 13 skipped, 2 expected failures\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified fix with manual test script that tests:\n1. Regular queryset.none() - works (count: 0) \u2705\n2. Union queryset.none() - fixed (count: 0) \u2705\n3. OR queryset.none() - works (count: 0) \u2705\n4. Intersection queryset.none() - fixed (count: 0) \u2705\n5. Difference queryset.none() - fixed (count: 0) \u2705\n\n## Root Cause\nIn `compiler.py:as_sql()`, when there was a combinator (union/intersection/difference), the code directly generated SQL from combined_queries without checking if the outer query itself was empty. The fix adds:\n```python\nif self.query.is_empty():\n    raise EmptyResultSet\n```",
+      "created_at": "2026-01-16T19:13:00.155Z"
+    }
+  ]
+}

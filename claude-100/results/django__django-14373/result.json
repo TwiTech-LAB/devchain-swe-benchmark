@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-14373",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/dateformat.py b/django/utils/dateformat.py\nindex 38e89c47bb..7185c6921c 100644\n--- a/django/utils/dateformat.py\n+++ b/django/utils/dateformat.py\n@@ -314,7 +314,7 @@ class DateFormat(TimeFormat):\n \n     def Y(self):\n         \"Year, 4 digits; e.g. '1999'\"\n-        return self.data.year\n+        return '%04d' % self.data.year\n \n     def z(self):\n         \"\"\"Day of the year, i.e. 1 to 366.\"\"\"\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T11:15:23.946649",
+  "end_time": "2026-01-17T11:18:44.650450",
+  "duration_seconds": 200.703801,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14373",
+  "epic_comments": [
+    {
+      "epic_id": "9d384b97-ed7c-453e-b088-0af6c43df9d0",
+      "epic_title": "Fix: django__django-14373",
+      "comment_id": "d71c916a-c785-445d-b937-88961f051d7e",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe `DateFormat.Y()` method was returning `self.data.year` directly as an integer without zero-padding. For years before 1000, this would return values like `999` instead of the expected `0999`. \n\nFixed by using Python string formatting `'%04d' % self.data.year` to ensure 4-digit zero-padded output, consistent with the method's docstring (\"Year, 4 digits; e.g. '1999'\") and the PHP date() Y specifier it implements.\n\n## Files Modified\n- `django/utils/dateformat.py`: Changed `Y()` method to return `'%04d' % self.data.year` instead of `self.data.year`\n\n## Test Results\n- **Test file:** tests/utils_tests/test_dateformat.py\n- **Baseline (before fix):** 19 passed, 0 failed, 0 errors\n- **After fix:** 19 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nManually verified the fix works for edge cases:\n- Year 1 \u2192 '0001' \u2713\n- Year 99 \u2192 '0099' \u2713\n- Year 100 \u2192 '0100' \u2713\n- Year 999 \u2192 '0999' \u2713\n- Year 1000 \u2192 '1000' \u2713\n- Year 1999 \u2192 '1999' \u2713\n- Year 2021 \u2192 '2021' \u2713\n\n## Concerns\n- None. The fix is minimal and follows the same pattern used by the `y()` method for 2-digit years (`'%02d'` format).",
+      "created_at": "2026-01-17T10:18:38.740Z"
+    }
+  ]
+}

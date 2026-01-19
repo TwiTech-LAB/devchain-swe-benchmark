@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-14017",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py\nindex c957ffa564..1cd5baf629 100644\n--- a/django/db/models/query_utils.py\n+++ b/django/db/models/query_utils.py\n@@ -41,7 +41,10 @@ class Q(tree.Node):\n \n     def _combine(self, other, conn):\n         if not isinstance(other, Q):\n-            raise TypeError(other)\n+            if getattr(other, 'conditional', False):\n+                other = Q(other)\n+            else:\n+                raise TypeError(other)\n \n         # If the other Q() is empty, ignore it and just use `self`.\n         if not other:\n@@ -87,7 +90,10 @@ class Q(tree.Node):\n         args, kwargs = (), {}\n         if len(self.children) == 1 and not isinstance(self.children[0], Q):\n             child = self.children[0]\n-            kwargs = {child[0]: child[1]}\n+            if isinstance(child, tuple):\n+                kwargs = {child[0]: child[1]}\n+            else:\n+                args = (child,)\n         else:\n             args = tuple(self.children)\n             if self.connector != self.default:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:11:57.243443",
+  "end_time": "2026-01-16T20:16:49.272682",
+  "duration_seconds": 292.029239,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14017",
+  "epic_comments": [
+    {
+      "epic_id": "b1517f82-b7bc-4e83-a8d4-42548e8d4caa",
+      "epic_title": "Fix: django__django-14017",
+      "comment_id": "b5b45a16-df30-4bea-9f20-3356fc5bc387",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the TypeError that occurred when using `Q(...) & Exists(...)` by making the `&` and `|` operators commutative between Q objects and conditional expressions like `Exists`.\n\nThe issue was in two places:\n1. `Q._combine()` raised TypeError for any non-Q object, even conditional expressions like `Exists`\n2. `Q.deconstruct()` assumed single non-Q children were always tuples (keyword arguments), failing when they were expression objects\n\n## Files Modified\n- **django/db/models/query_utils.py**:\n  - Modified `Q._combine()` to check if `other` has `conditional = True` and wrap it in a Q object before combining\n  - Modified `Q.deconstruct()` to handle expression children by checking if the child is a tuple before subscripting\n\n## Test Results\n- **Test file:** /testbed/tests/expressions/tests.py\n- **Baseline (before fix):** 59 passed, 0 failed, 0 errors\n- **After fix:** 59 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\nAlso ran queries.tests: 288 tests passed (3 skipped, 2 expected failures)\n\n## Additional Verification\nVerified all combinations work:\n- `Q() & Exists()` \u2713\n- `Exists() & Q()` \u2713\n- `Q() | Exists()` \u2713\n- `Exists() | Q()` \u2713\n- `Q(field=value) & Exists()` \u2713\n- `Q(field=value) | Exists()` \u2713\n\nVerified SQL generation works correctly with real querysets.\n\n## Concerns\nNone - the fix is minimal and only affects the handling of conditional expressions in Q operations.",
+      "created_at": "2026-01-16T19:16:29.642Z"
+    }
+  ]
+}

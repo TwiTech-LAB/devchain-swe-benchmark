@@ -1,0 +1,7 @@
+{
+  "name": "claude-100",
+  "created_at": "2026-01-16T19:07:20.336897",
+  "timeout_minutes": 30,
+  "workers": 4,
+  "description": "Claude only"
+}

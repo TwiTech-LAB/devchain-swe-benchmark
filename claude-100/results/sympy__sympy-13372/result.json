@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-13372",
+  "status": "completed",
+  "patch": "diff --git a/sympy/core/evalf.py b/sympy/core/evalf.py\nindex 72a5fbae52..f34908710a 100644\n--- a/sympy/core/evalf.py\n+++ b/sympy/core/evalf.py\n@@ -1301,12 +1301,16 @@ def evalf(x, prec, options):\n             elif re.is_number:\n                 re = re._to_mpmath(prec, allow_ints=False)._mpf_\n                 reprec = prec\n+            else:\n+                raise NotImplementedError\n             if im == 0:\n                 im = None\n                 imprec = None\n             elif im.is_number:\n                 im = im._to_mpmath(prec, allow_ints=False)._mpf_\n                 imprec = prec\n+            else:\n+                raise NotImplementedError\n             r = re, im, reprec, imprec\n         except AttributeError:\n             raise NotImplementedError\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:37:13.337843",
+  "end_time": "2026-01-17T01:40:14.536243",
+  "duration_seconds": 181.1984,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-13372",
+  "epic_comments": [
+    {
+      "epic_id": "3e858d83-06f5-4b54-908a-2e728f42e469",
+      "epic_title": "Fix: sympy__sympy-13372",
+      "comment_id": "b5c071cf-40ce-49ad-a9e1-451849fd7314",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the `UnboundLocalError: local variable 'reprec' referenced before assignment` bug in `evalf` function. The issue occurred when calling `.evalf()` on expressions like `Mul(Max(0, y), x, evaluate=False)` where the argument order caused `Max` to be evaluated first.\n\n**Root Cause:** In the `evalf` function's fallback code path (lines 1298-1312), when handling `re` and `im` values from `as_real_imag()`, there were only two conditions:\n1. `if re == 0:` - sets `reprec = None`\n2. `elif re.is_number:` - sets `reprec = prec`\n\nWhen `re` was neither 0 nor a number (e.g., a symbolic expression like `x`), `reprec` was never assigned, causing the UnboundLocalError.\n\n**Fix:** Added `else: raise NotImplementedError` clauses for both `re` and `im` conditions. This properly signals that the expression cannot be numerically evaluated when it contains symbolic parts, allowing the evalf system to handle it gracefully by returning the expression as-is.\n\n## Files Modified\n- `sympy/core/evalf.py`: Added two `else: raise NotImplementedError` clauses after the `elif re.is_number` and `elif im.is_number` blocks (around lines 1303-1311)\n\n## Test Results\n- **Test file:** sympy/core/tests/test_evalf.py\n- **Baseline (before fix):** 46 passed, 2 expected to fail\n- **After fix:** 46 passed, 2 expected to fail\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the fix works for the reported bug case:\n- `Mul(x, Max(0, y), evaluate=False).evalf()` \u2192 `x*Max(0, y)` \u2713\n- `Mul(Max(0, y), x, evaluate=False).evalf()` \u2192 `x*Max(0, y)` \u2713 (was failing before)\n\nAlso tested additional edge cases:\n- `Mul(Max(0, y), Max(0, z), evaluate=False).evalf()` \u2713\n- `Mul(x, y, Max(0, z), evaluate=False).evalf()` \u2713\n- `Add(Max(0, y), x, evaluate=False).evalf()` \u2713\n- Various other combinations with Max/Min functions \u2713\n\n## Concerns\nNone - the fix follows the pattern suggested in the issue hints and properly handles the edge case without affecting existing functionality.",
+      "created_at": "2026-01-17T00:40:04.836Z"
+    }
+  ]
+}

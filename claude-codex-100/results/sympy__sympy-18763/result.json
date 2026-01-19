@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-18763",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/latex.py b/sympy/printing/latex.py\nindex 8743723ea0..969072f47f 100644\n--- a/sympy/printing/latex.py\n+++ b/sympy/printing/latex.py\n@@ -698,7 +698,7 @@ def _print_Derivative(self, expr):\n \n     def _print_Subs(self, subs):\n         expr, old, new = subs.args\n-        latex_expr = self._print(expr)\n+        latex_expr = self.parenthesize(expr, PRECEDENCE[\"Mul\"], strict=True)\n         latex_old = (self._print(e) for e in old)\n         latex_new = (self._print(e) for e in new)\n         latex_subs = r'\\\\ '.join(\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:52:19.622004",
+  "end_time": "2026-01-16T12:57:13.431131",
+  "duration_seconds": 293.809127,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-18763",
+  "epic_comments": [
+    {
+      "epic_id": "c921873a-834d-4928-9239-e56eba9f4a9a",
+      "epic_title": "Fix: sympy__sympy-18763",
+      "comment_id": "6ddd75c2-97f9-4610-91dc-75a2d7a7bd59",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed incorrect parenthesizing of `Subs` expressions in LaTeX printing. The issue was that when a `Subs` expression like `3*Subs(-x+y, (x,),(1,))` was printed, the inner expression `-x + y` was not parenthesized, resulting in ambiguous output `3 \\left. - x + y \\right|_{\\substack{ x=1 }}`.\n\nThe fix uses `self.parenthesize(expr, PRECEDENCE[\"Mul\"], strict=True)` instead of `self._print(expr)` to properly wrap expressions with lower precedence than Mul (like Add) in parentheses.\n\n## Files Modified\n- `sympy/printing/latex.py`: Modified `_print_Subs` method (line 701) to use `parenthesize` for the inner expression\n\n## Test Results\n- **Test file:** `sympy/printing/tests/test_latex.py`\n- **Baseline (before fix):** 143 passed, 2 expected to fail, 2 exceptions (pre-existing)\n- **After fix:** 143 passed, 2 expected to fail, 2 exceptions (pre-existing)\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** `test_issue_8470` and `test_issue_13559` have ERRORs related to `parse_expr` with `evaluate=False` - unrelated to this fix\n\n## Additional Verification\nVerified the fix with multiple test cases:\n- `3*Subs(-x+y, (x,),(1,))` \u2192 `3 \\left. \\left(- x + y\\right) \\right|_{\\substack{ x=1 }}` \u2713\n- `Subs(x*y, (x, y), (1, 2))` \u2192 `\\left. x y \\right|_{\\substack{ x=1\\\\ y=2 }}` (no extra parentheses) \u2713\n- `Subs(x**2, (x,), (1,))` \u2192 `\\left. x^{2} \\right|_{\\substack{ x=1 }}` (no extra parentheses) \u2713\n\n## Concerns\n- None. The fix follows the same pattern used by `_print_Derivative` in the same file.",
+      "created_at": "2026-01-16T11:56:01.019Z"
+    },
+    {
+      "epic_id": "c921873a-834d-4928-9239-e56eba9f4a9a",
+      "epic_title": "Fix: sympy__sympy-18763",
+      "comment_id": "e4dc7b17-4a06-406e-984c-c1065a99362a",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Diff is minimal and focused: only `sympy/printing/latex.py` changes `_print_Subs` to use `parenthesize(..., PRECEDENCE[\"Mul\"], strict=True)`.\n- This matches the existing `_print_Derivative` pattern and correctly parenthesizes lower-precedence expressions (e.g., `Add`) without adding parentheses for `Mul`/`Pow`.\n- No test files were modified. Brainstormer reports running the actual test file with baseline vs after-fix results and no new failures.",
+      "created_at": "2026-01-16T11:57:08.917Z"
+    }
+  ]
+}

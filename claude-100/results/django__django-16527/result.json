@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-16527",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/templatetags/admin_modify.py b/django/contrib/admin/templatetags/admin_modify.py\nindex 9df4b7aadb..5b742af46a 100644\n--- a/django/contrib/admin/templatetags/admin_modify.py\n+++ b/django/contrib/admin/templatetags/admin_modify.py\n@@ -100,6 +100,7 @@ def submit_row(context):\n                 and context.get(\"show_delete\", True)\n             ),\n             \"show_save_as_new\": not is_popup\n+            and has_add_permission\n             and has_change_permission\n             and change\n             and save_as,\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:19:11.160075",
+  "end_time": "2026-01-16T20:21:22.576226",
+  "duration_seconds": 131.416151,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-16527",
+  "epic_comments": [
+    {
+      "epic_id": "62a766b2-b698-46d6-8441-647dd4db7679",
+      "epic_title": "Fix: django__django-16527",
+      "comment_id": "297bb323-721e-4dce-8abb-6e991ca35b98",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `has_add_permission` check to the `show_save_as_new` condition in the admin `submit_row` template tag. The \"Save as new\" button creates a new object, so it should only be shown when the user has both add and change permissions.\n\n## Files Modified\n- `django/contrib/admin/templatetags/admin_modify.py`: Added `and has_add_permission` to the `show_save_as_new` condition (line 103)\n\n## Test Results\n- **Test file:** admin_views.test_templatetags\n- **Baseline (before fix):** 6 passed, 0 failed, 0 errors\n- **After fix:** 6 passed, 0 failed, 0 errors\n- **Broader test (admin_views.tests):** 358 passed, 0 failed, 23 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nThe fix follows the exact suggestion from the problem statement and aligns with the discussion in the hints that both `has_add_permission` and `has_change_permission` should be checked.\n\n## Concerns\nNone. This is a minimal, focused fix that addresses the security issue without affecting other functionality.",
+      "created_at": "2026-01-16T19:21:10.514Z"
+    }
+  ]
+}

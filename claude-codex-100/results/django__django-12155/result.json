@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-12155",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admindocs/utils.py b/django/contrib/admindocs/utils.py\nindex 4c0e7e2a56..aa663ead5b 100644\n--- a/django/contrib/admindocs/utils.py\n+++ b/django/contrib/admindocs/utils.py\n@@ -34,7 +34,7 @@ def trim_docstring(docstring):\n         return ''\n     # Convert tabs to spaces and split into lines\n     lines = docstring.expandtabs().splitlines()\n-    indent = min(len(line) - len(line.lstrip()) for line in lines if line.lstrip())\n+    indent = min((len(line) - len(line.lstrip()) for line in lines[1:] if line.lstrip()), default=0)\n     trimmed = [lines[0].lstrip()] + [line[indent:].rstrip() for line in lines[1:]]\n     return \"\\n\".join(trimmed).strip()\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:23:40.629633",
+  "end_time": "2026-01-16T07:26:45.460241",
+  "duration_seconds": 184.830608,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12155",
+  "epic_comments": [
+    {
+      "epic_id": "781e4f5d-1953-43d4-80a1-83c64211394c",
+      "epic_title": "Fix: django__django-12155",
+      "comment_id": "3cbb00d0-18a7-4260-9d51-dfc0ab16d4c4",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the `trim_docstring` function to correctly handle docstrings where text starts on the first line (e.g., `\"\"\"test tests something.\"\"\"`).\n\nThe issue was that the original code calculated minimum indentation from ALL lines, including the first line which has 0 indentation. This caused docutils to fail when rendering such docstrings. Per PEP 257, the first line should be excluded from indentation calculation.\n\nThe fix:\n- Skip the first line (`lines[1:]`) when calculating minimum indentation\n- Use `default=0` parameter to handle edge cases (single-line docstrings or empty remaining lines)\n\n## Files Modified\n- `django/contrib/admindocs/utils.py`: Changed line 37 to skip first line in indentation calculation\n\n## Test Results\n- **Test file:** tests/admin_docs/test_utils.py (full suite: admin_docs)\n- **Baseline (before fix):** 7 passed, 0 failed, 0 errors (test_utils); 57 passed total (admin_docs)\n- **After fix:** 7 passed, 0 failed, 0 errors (test_utils); 57 passed total (admin_docs)\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nManually verified edge cases:\n1. Docstring with text on first line \u2192 correctly trimmed\n2. Docstring with text on first line + indented body \u2192 correctly handles indentation\n3. Traditional format (empty first line) \u2192 still works\n4. Single line docstring \u2192 works (default=0 handles this)\n\n## Concerns\nNone - the fix follows PEP 257 and uses Python 3.4+ `default` parameter for `min()` which is safe for Django 3.1.",
+      "created_at": "2026-01-16T06:25:53.885Z"
+    },
+    {
+      "epic_id": "781e4f5d-1953-43d4-80a1-83c64211394c",
+      "epic_title": "Fix: django__django-12155",
+      "comment_id": "df3a5f5b-319f-47a4-bd2b-d6b0fdc53ca7",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and targets root cause in `trim_docstring()` (skip first line when computing indentation; safe `default=0` for empty remainder).\n- No test/build files modified (only `django/contrib/admindocs/utils.py`).\n- Brainstormer provided baseline vs after-fix results on the actual test module (`tests/admin_docs/test_utils.py`, admin_docs suite) with no new failures/errors.\n\nVerdict: ready to merge.",
+      "created_at": "2026-01-16T06:26:41.601Z"
+    }
+  ]
+}

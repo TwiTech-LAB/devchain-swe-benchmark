@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-15037",
+  "status": "completed",
+  "patch": "diff --git a/django/core/management/commands/inspectdb.py b/django/core/management/commands/inspectdb.py\nindex f9b4bfb477..d894c93062 100644\n--- a/django/core/management/commands/inspectdb.py\n+++ b/django/core/management/commands/inspectdb.py\n@@ -116,18 +116,25 @@ class Command(BaseCommand):\n                         extra_params['unique'] = True\n \n                     if is_relation:\n+                        ref_db_column, ref_db_table = relations[column_name]\n                         if extra_params.pop('unique', False) or extra_params.get('primary_key'):\n                             rel_type = 'OneToOneField'\n                         else:\n                             rel_type = 'ForeignKey'\n                         rel_to = (\n-                            \"self\" if relations[column_name][1] == table_name\n-                            else table2model(relations[column_name][1])\n+                            \"self\" if ref_db_table == table_name\n+                            else table2model(ref_db_table)\n                         )\n                         if rel_to in known_models:\n                             field_type = '%s(%s' % (rel_type, rel_to)\n                         else:\n                             field_type = \"%s('%s'\" % (rel_type, rel_to)\n+                        if ref_db_table == table_name:\n+                            ref_pk_column = primary_key_column\n+                        else:\n+                            ref_pk_column = connection.introspection.get_primary_key_column(cursor, ref_db_table)\n+                        if ref_db_column != ref_pk_column:\n+                            extra_params['to_field'] = ref_db_column\n                     else:\n                         # Calling `get_field_type` to get the field type string and any\n                         # additional parameters and notes.\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:14:38.749313",
+  "end_time": "2026-01-16T20:19:00.568426",
+  "duration_seconds": 261.819113,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15037",
+  "epic_comments": [
+    {
+      "epic_id": "a9ba4788-0c00-435f-b810-fce4e3165ff6",
+      "epic_title": "Fix: django__django-15037",
+      "comment_id": "0b4ae758-81fa-4091-bd33-9297e9dc0ef9",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `inspectdb` command to properly handle foreign keys that reference non-primary key fields (unique fields). When a FK references a specific field like `foo(other_id)` instead of the primary key, the generated model now includes the `to_field` parameter.\n\n**Root cause:** The `inspectdb` command was only using the table name from `relations[column_name][1]` but ignoring the referenced field name in `relations[column_name][0]`. When the FK references a non-PK field, the `to_field` parameter must be included in the generated ForeignKey.\n\n**Fix:** Added logic to compare the referenced field with the primary key of the referenced table. If they differ, `to_field` is added to `extra_params`.\n\n## Files Modified\n- `django/core/management/commands/inspectdb.py`: Added check to include `to_field` parameter when FK references a non-PK field (lines 119-137)\n\n## Test Results\n- **Test file:** tests/inspectdb/tests.py\n- **Baseline (before fix):** 20 tests, 1 failure (pre-existing), 4 skipped\n- **After fix:** 20 tests, 1 failure (same pre-existing), 4 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nCreated test database with:\n```sql\nCREATE TABLE foo (id INTEGER PRIMARY KEY, other_id INTEGER UNIQUE);\nCREATE TABLE bar (id INTEGER PRIMARY KEY, other_id INTEGER, FOREIGN KEY(other_id) REFERENCES foo(other_id));\n```\n\nBefore fix, generated model:\n```python\nother = models.ForeignKey('Foo', models.DO_NOTHING, ...)  # Missing to_field\n```\n\nAfter fix, generated model:\n```python\nother = models.ForeignKey('Foo', models.DO_NOTHING, to_field='other_id', ...)  # Correct!\n```\n\n## Concerns\n- None. The fix is minimal and follows existing code patterns.",
+      "created_at": "2026-01-16T19:18:49.945Z"
+    }
+  ]
+}

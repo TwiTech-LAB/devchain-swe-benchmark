@@ -1,0 +1,22 @@
+{
+  "instance_id": "pytest-dev__pytest-10051",
+  "status": "completed",
+  "patch": "diff --git a/src/_pytest/logging.py b/src/_pytest/logging.py\nindex a4f4214b1..63eb8c3aa 100644\n--- a/src/_pytest/logging.py\n+++ b/src/_pytest/logging.py\n@@ -440,7 +440,8 @@ class LogCaptureFixture:\n \n     def clear(self) -> None:\n         \"\"\"Reset the list of log records and the captured log text.\"\"\"\n-        self.handler.reset()\n+        self.handler.records.clear()\n+        self.handler.stream = StringIO()\n \n     def set_level(self, level: Union[int, str], logger: Optional[str] = None) -> None:\n         \"\"\"Set the level of a logger for the duration of a test.\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:20:59.198787",
+  "end_time": "2026-01-16T20:23:48.959197",
+  "duration_seconds": 169.76041,
+  "error_message": null,
+  "workspace_path": "./workspaces/pytest-dev__pytest-10051",
+  "epic_comments": [
+    {
+      "epic_id": "a921d3de-b788-4193-939f-301d30a6db0c",
+      "epic_title": "Fix: pytest-dev__pytest-10051",
+      "comment_id": "be02550e-3eb7-4d92-b743-a6e8828fdee6",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the conflict between `caplog.get_records()` and `caplog.clear()` by modifying the `clear()` method to clear the records list in-place instead of replacing it.\n\n**Root Cause:** When `caplog.clear()` was called, it invoked `handler.reset()` which replaced `self.records` with a new empty list (`self.records = []`). However, the stash still held a reference to the old list, causing `get_records()` to return stale data.\n\n**Solution:** Modified `LogCaptureFixture.clear()` to clear the records list in-place (`self.handler.records.clear()`) instead of calling `handler.reset()` which creates a new list. This preserves the list reference stored in the stash while clearing its contents.\n\n## Files Modified\n- `src/_pytest/logging.py`: Modified `LogCaptureFixture.clear()` method (line 441-444)\n  - Changed from calling `self.handler.reset()` to directly clearing the list with `self.handler.records.clear()` and resetting the stream with `self.handler.stream = StringIO()`\n\n## Test Results\n- **Test file:** testing/logging/test_fixture.py and testing/logging/\n- **Baseline (before fix):** 15 passed (fixture tests), 59 passed (all logging tests)\n- **After fix:** 15 passed (fixture tests), 59 passed (all logging tests)\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n- Tested with the reproduction case from the issue:\n```python\nimport logging\n\ndef test(caplog) -> None:\n    def verify_consistency() -> None:\n        assert caplog.get_records(\"call\") == caplog.records\n\n    verify_consistency()\n    logging.warning(\"test\")\n    verify_consistency()\n    caplog.clear()\n    verify_consistency()  # Now passes\n```\n\n## Concerns\n- None. The fix is minimal and preserves the existing behavior for phase transitions (which still uses `handler.reset()` to create new lists between setup/call/teardown phases).",
+      "created_at": "2026-01-16T19:23:34.681Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-15345",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/mathematica.py b/sympy/printing/mathematica.py\nindex ea7e3a2d94..e3014af1ff 100644\n--- a/sympy/printing/mathematica.py\n+++ b/sympy/printing/mathematica.py\n@@ -116,6 +116,12 @@ def _print_Derivative(self, expr):\n         dvars = [i[0] if i[1] == 1 else i for i in expr.variable_count]\n         return \"Hold[D[\" + ', '.join(self.doprint(a) for a in [dexpr] + dvars) + \"]]\"\n \n+    def _print_Max(self, expr):\n+        return \"Max[{}]\".format(\", \".join(self.doprint(a) for a in expr.args))\n+\n+    def _print_Min(self, expr):\n+        return \"Min[{}]\".format(\", \".join(self.doprint(a) for a in expr.args))\n+\n \n def mathematica_code(expr, **settings):\n     r\"\"\"Converts an expr to a string of the Wolfram Mathematica code\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:38:08.268884",
+  "end_time": "2026-01-17T01:41:08.621695",
+  "duration_seconds": 180.352811,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-15345",
+  "epic_comments": [
+    {
+      "epic_id": "33254a7b-705d-471b-b1f4-f2220640efac",
+      "epic_title": "Fix: sympy__sympy-15345",
+      "comment_id": "e4369386-3332-42ef-8f13-2790741a26f3",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `_print_Max` and `_print_Min` methods to the `MCodePrinter` class in `mathematica.py`. The issue was that `Max` and `Min` are not subclasses of `Function` in SymPy (they inherit from `MinMaxBase`), so they weren't being handled by `_print_Function` and fell back to default printing which used parentheses `()` instead of Mathematica's required square brackets `[]`.\n\n## Files Modified\n- `sympy/printing/mathematica.py`: Added `_print_Max` and `_print_Min` methods (lines 119-123)\n\n## Test Results\n- **Test file:** sympy/printing/tests/test_mathematica.py\n- **Baseline (before fix):** 10 passed, 0 failed, 0 errors\n- **After fix:** 10 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the fix handles:\n- Basic Max/Min with symbols and numbers: `Max(x, 2)` \u2192 `Max[2, x]`\n- Multiple arguments: `Max(x, y, z)` \u2192 `Max[x, y, z]`\n- Nested expressions: `Max(Max(x, y), z)` \u2192 `Max[x, y, z]` (SymPy flattens)\n- With other functions: `Max(sin(x), cos(x))` \u2192 `Max[Sin[x], Cos[x]]`\n- Mixed composition: `Max(Min(x, y), z)` \u2192 `Max[z, Min[x, y]]`\n\n## Concerns\nNone. The argument ordering (e.g., `Max[2, x]` vs `Max[x, 2]`) is handled by SymPy's internal sorting, which is correct behavior since Max/Min are commutative.",
+      "created_at": "2026-01-17T00:40:55.154Z"
+    }
+  ]
+}

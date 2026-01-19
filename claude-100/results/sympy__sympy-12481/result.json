@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-12481",
+  "status": "completed",
+  "patch": "diff --git a/sympy/combinatorics/permutations.py b/sympy/combinatorics/permutations.py\nindex 136ed5a478..4ac1c2ef3b 100644\n--- a/sympy/combinatorics/permutations.py\n+++ b/sympy/combinatorics/permutations.py\n@@ -895,12 +895,8 @@ def __new__(cls, *args, **kwargs):\n         # counting starts from 1.\n \n         temp = flatten(args)\n-        if has_dups(temp):\n-            if is_cycle:\n-                raise ValueError('there were repeated elements; to resolve '\n-                'cycles use Cycle%s.' % ''.join([str(tuple(c)) for c in args]))\n-            else:\n-                raise ValueError('there were repeated elements.')\n+        if has_dups(temp) and not is_cycle:\n+            raise ValueError('there were repeated elements.')\n         temp = set(temp)\n \n         if not is_cycle and \\\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:36:12.159507",
+  "end_time": "2026-01-17T01:39:22.420264",
+  "duration_seconds": 190.260757,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-12481",
+  "epic_comments": [
+    {
+      "epic_id": "ee38debd-7236-4a29-903c-9c27eb1ba8ed",
+      "epic_title": "Fix: sympy__sympy-12481",
+      "comment_id": "5adebeb1-b82a-41a1-a664-5b6e0c1511c7",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the `Permutation` constructor to allow non-disjoint cycles by removing the premature duplicate check for cycle notation. The existing code at lines 911-917 already correctly handles non-disjoint cycles via the `Cycle` class, which applies cycles left-to-right.\n\n## Files Modified\n- `sympy/combinatorics/permutations.py`: Removed the ValueError for duplicate elements when using cycle notation (lines 898-903). Changed from raising an error for all duplicates to only raising for array form duplicates.\n\n## Test Results\n- **Test file:** `sympy/combinatorics/tests/test_permutations.py`\n- **Baseline (before fix):** test_Permutation PASSED, test_Cycle PASSED, test_josephus PASSED\n- **After fix:** test_Permutation PASSED, test_Cycle PASSED, test_josephus PASSED\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n- `Permutation([[0,1],[0,1]])` now correctly returns identity `[0, 1]`\n- `Permutation([[0,1,2],[0,2]])` correctly applies cycles left-to-right resulting in `[1, 0, 2]`\n- Disjoint cycles still work: `Permutation([[0,1],[2,3]])` returns `[1, 0, 3, 2]`\n- Array form with duplicates still correctly raises ValueError: `Permutation([1, 1, 0])` raises error\n- Edge cases tested: empty cycles, single element cycles, repeated single-element cycles, triple application of same 2-cycle\n\n## Concerns\n- None. The fix is minimal and leverages existing `Cycle` class functionality that already handles non-disjoint cycles correctly.",
+      "created_at": "2026-01-17T00:39:15.759Z"
+    }
+  ]
+}

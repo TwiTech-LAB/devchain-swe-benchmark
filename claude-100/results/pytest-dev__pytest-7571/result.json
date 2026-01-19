@@ -1,0 +1,22 @@
+{
+  "instance_id": "pytest-dev__pytest-7571",
+  "status": "completed",
+  "patch": "diff --git a/src/_pytest/logging.py b/src/_pytest/logging.py\nindex 11031f2f2..1b4d9d385 100644\n--- a/src/_pytest/logging.py\n+++ b/src/_pytest/logging.py\n@@ -346,6 +346,7 @@ class LogCaptureFixture:\n         self._item = item\n         # dict of log name -> log level\n         self._initial_logger_levels = {}  # type: Dict[Optional[str], int]\n+        self._initial_handler_level = None  # type: Optional[int]\n \n     def _finalize(self) -> None:\n         \"\"\"Finalizes the fixture.\n@@ -356,6 +357,9 @@ class LogCaptureFixture:\n         for logger_name, level in self._initial_logger_levels.items():\n             logger = logging.getLogger(logger_name)\n             logger.setLevel(level)\n+        # restore handler level\n+        if self._initial_handler_level is not None:\n+            self.handler.setLevel(self._initial_handler_level)\n \n     @property\n     def handler(self) -> LogCaptureHandler:\n@@ -434,6 +438,9 @@ class LogCaptureFixture:\n         # save the original log-level to restore it during teardown\n         self._initial_logger_levels.setdefault(logger, logger_obj.level)\n         logger_obj.setLevel(level)\n+        # save the original handler level to restore it during teardown\n+        if self._initial_handler_level is None:\n+            self._initial_handler_level = self.handler.level\n         self.handler.setLevel(level)\n \n     @contextmanager\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:35:12.155950",
+  "end_time": "2026-01-17T01:37:41.392213",
+  "duration_seconds": 149.236263,
+  "error_message": null,
+  "workspace_path": "./workspaces/pytest-dev__pytest-7571",
+  "epic_comments": [
+    {
+      "epic_id": "317a24f3-32ab-40cf-a420-34c788476549",
+      "epic_title": "Fix: pytest-dev__pytest-7571",
+      "comment_id": "13d9ae99-3999-4fd0-9706-77b4ec0b2955",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe `caplog` fixture's `set_level()` method was modified in commit fcbaab8b to also set the handler level (`self.handler.setLevel(level)`), but the `_finalize()` method was not updated to restore the handler level. This caused the handler level to persist between tests.\n\nThe fix adds tracking of the initial handler level and restores it in `_finalize()`:\n1. Added `_initial_handler_level` attribute to `LogCaptureFixture.__init__()` \n2. Save the original handler level in `set_level()` before changing it\n3. Restore the handler level in `_finalize()` if it was modified\n\n## Files Modified\n- `src/_pytest/logging.py`: Added handler level tracking and restoration in `LogCaptureFixture`\n\n## Test Results\n- **Test file:** testing/logging/test_fixture.py\n- **Baseline (before fix):** 14 passed\n- **After fix:** 14 passed\n- **Full logging tests:** 57 passed\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nCreated reproduction test that:\n1. test_foo sets caplog.set_level(42)\n2. test_bar checks caplog.handler.level is 0\n\nBefore fix: test_bar failed (handler level was 42)\nAfter fix: test_bar passes (handler level correctly restored to 0)\n\n## Concerns\nNone - the fix follows the same pattern used by the `at_level()` context manager which correctly saves and restores both logger and handler levels.",
+      "created_at": "2026-01-17T00:37:30.596Z"
+    }
+  ]
+}

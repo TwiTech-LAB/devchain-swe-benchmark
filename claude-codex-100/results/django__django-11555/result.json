@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-11555",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py\nindex eaccc96d7d..934760992b 100644\n--- a/django/db/models/sql/compiler.py\n+++ b/django/db/models/sql/compiler.py\n@@ -704,6 +704,15 @@ class SQLCompiler:\n         not be) and column name for ordering by the given 'name' parameter.\n         The 'name' is of the form 'field1__field2__...__fieldN'.\n         \"\"\"\n+        if hasattr(name, 'resolve_expression'):\n+            if isinstance(name, Value):\n+                name = Cast(name, name.output_field)\n+            if not isinstance(name, OrderBy):\n+                name = name.asc() if default_order == 'ASC' else name.desc()\n+            if not self.query.standard_ordering:\n+                name = name.copy()\n+                name.reverse_ordering()\n+            return [(name, False)]\n         name, order = get_order_dir(name, default_order)\n         descending = order == 'DESC'\n         pieces = name.split(LOOKUP_SEP)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-15T23:49:30.091631",
+  "end_time": "2026-01-15T23:54:36.259648",
+  "duration_seconds": 306.168017,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11555",
+  "epic_comments": [
+    {
+      "epic_id": "77936603-4deb-46a9-b8a5-2b9b7d9c2de9",
+      "epic_title": "Fix: django__django-11555",
+      "comment_id": "8554b59c-754d-4c9b-8c76-dcafabdb8a21",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe bug occurred because `find_ordering_name()` in `django/db/models/sql/compiler.py` assumed the `name` parameter was always a string. When `Meta.ordering` contains expressions (like `Lower('name')` or `OrderBy`), these expression objects were passed directly to `get_order_dir()` which tried to subscript them with `field[0]`, causing `TypeError: 'Lower' object does not support indexing`.\n\nThe fix adds a check at the beginning of `find_ordering_name()` to handle expression objects. When `name` has `resolve_expression` attribute (is an expression), it:\n1. Wraps `Value` objects in `Cast`\n2. Converts non-OrderBy expressions to OrderBy using `.asc()` or `.desc()` based on `default_order`\n3. Handles the `standard_ordering` flag for reversed ordering\n4. Returns the expression directly in the expected format\n\n## Files Modified\n- `django/db/models/sql/compiler.py`: Added expression handling at the start of `find_ordering_name()` method (lines 707-715)\n\n## Test Results\n- **Test file:** tests/ordering/ (26 tests)\n- **Baseline (before fix):** 26 passed, 0 failed, 0 errors\n- **After fix:** 26 passed, 0 failed, 0 errors\n- **Additional tests:** model_inheritance (46 passed), expressions (127 passed), queries (367 passed)\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested with multiple scenarios:\n- `Lower('name')` expression in Meta.ordering \u2713\n- `Lower('name').desc()` with explicit descending order \u2713\n- `F('name').desc()` F-expression ordering \u2713\n- Reversed ordering via `-parent_ptr` \u2713\n\n## Concerns\n- None. The fix follows the same pattern used in `get_order_by()` method for handling expressions.",
+      "created_at": "2026-01-15T22:53:00.723Z"
+    },
+    {
+      "epic_id": "77936603-4deb-46a9-b8a5-2b9b7d9c2de9",
+      "epic_title": "Fix: django__django-11555",
+      "comment_id": "77dfd351-ef55-435b-bed9-4f8d44e4772d",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and source-only (`django/db/models/sql/compiler.py`), no test/build config edits.\n- Fix correctly handles `Meta.ordering` expression objects in `find_ordering_name()` (avoids passing non-strings into `get_order_dir()`), and mirrors existing `get_order_by()` handling for `Value`/`OrderBy`.\n- Verification summary includes baseline vs after and running the relevant Django test suite areas; no new failures reported.",
+      "created_at": "2026-01-15T22:54:23.266Z"
+    }
+  ]
+}

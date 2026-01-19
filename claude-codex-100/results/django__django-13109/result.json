@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-13109",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/fields/related.py b/django/db/models/fields/related.py\nindex d517d7269b..c2aea9c730 100644\n--- a/django/db/models/fields/related.py\n+++ b/django/db/models/fields/related.py\n@@ -914,7 +914,7 @@ class ForeignKey(ForeignObject):\n             return\n \n         using = router.db_for_read(self.remote_field.model, instance=model_instance)\n-        qs = self.remote_field.model._default_manager.using(using).filter(\n+        qs = self.remote_field.model._base_manager.using(using).filter(\n             **{self.remote_field.field_name: value}\n         )\n         qs = qs.complex_filter(self.get_limit_choices_to())\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:51:24.592834",
+  "end_time": "2026-01-16T12:55:28.669556",
+  "duration_seconds": 244.076722,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-13109",
+  "epic_comments": [
+    {
+      "epic_id": "ff28397c-f0bc-41c4-b9f4-2dd9035d72e3",
+      "epic_title": "Fix: django__django-13109",
+      "comment_id": "260a359b-bd5b-4972-95a4-adb47984812d",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nChanged `ForeignKey.validate()` to use `_base_manager` instead of `_default_manager` when validating foreign key values. This allows forms that explicitly set a different queryset (e.g., to include archived records) to validate successfully.\n\nThe root cause was that even when a form's field queryset was set to use `_base_manager`, the underlying ForeignKey validation would still use `_default_manager`, causing validation errors for records filtered out by a custom default manager.\n\n## Files Modified\n- `django/db/models/fields/related.py`: Changed line 917 from `_default_manager` to `_base_manager` in the `validate()` method\n\n## Test Results\n- **Test file:** `tests/model_fields/test_foreignkey.py`\n- **Baseline (before fix):** 10 passed, 0 failed, 0 errors\n- **After fix:** 10 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n- **Test file:** `tests/validation/`\n- **Baseline (before fix):** 52 passed, 0 failed, 0 errors  \n- **After fix:** 52 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested the exact scenario from the problem statement:\n1. Created an `Article` model with a custom manager that filters out archived articles\n2. Created an archived article (id=1, archived=True)\n3. Verified `_default_manager` returns empty list, `_base_manager` returns the article\n4. ForeignKey validation now passes for the archived article\n\n## Concerns\n- None. The fix is minimal and follows the suggested solution from the issue.",
+      "created_at": "2026-01-16T11:54:26.860Z"
+    },
+    {
+      "epic_id": "ff28397c-f0bc-41c4-b9f4-2dd9035d72e3",
+      "epic_title": "Fix: django__django-13109",
+      "comment_id": "61af91f5-b21a-4a20-b1a6-6bb4440bda81",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and targets the root cause: `ForeignKey.validate()` now uses `remote_field.model._base_manager` instead of `_default_manager`, so existence validation isn\u2019t affected by custom default-manager filters.\n- Only source file changed (`django/db/models/fields/related.py`); no tests/build configs modified.\n- Verification looks sufficient: baseline + after results reported, and the actual test file `tests/model_fields/test_foreignkey.py` was run (plus `tests/validation/`).",
+      "created_at": "2026-01-16T11:55:18.010Z"
+    }
+  ]
+}

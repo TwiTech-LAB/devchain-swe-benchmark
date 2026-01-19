@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-12419",
+  "status": "completed",
+  "patch": "diff --git a/django/conf/global_settings.py b/django/conf/global_settings.py\nindex 09c9b95d26..8bb59a4037 100644\n--- a/django/conf/global_settings.py\n+++ b/django/conf/global_settings.py\n@@ -637,6 +637,6 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = False\n SECURE_HSTS_PRELOAD = False\n SECURE_HSTS_SECONDS = 0\n SECURE_REDIRECT_EXEMPT = []\n-SECURE_REFERRER_POLICY = None\n+SECURE_REFERRER_POLICY = 'same-origin'\n SECURE_SSL_HOST = None\n SECURE_SSL_REDIRECT = False\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:08:59.862571",
+  "end_time": "2026-01-16T20:11:41.215709",
+  "duration_seconds": 161.353138,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12419",
+  "epic_comments": [
+    {
+      "epic_id": "071622af-023a-4073-bb94-710126642523",
+      "epic_title": "Fix: django__django-12419",
+      "comment_id": "e334afe9-31b4-4fed-83fd-3356299d92e3",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nChanged the default value of `SECURE_REFERRER_POLICY` setting from `None` to `'same-origin'` to make Django applications more secure by default. This prevents leaking referrer information to third-party sites.\n\n## Files Modified\n- `django/conf/global_settings.py`: Changed line 640 from `SECURE_REFERRER_POLICY = None` to `SECURE_REFERRER_POLICY = 'same-origin'`\n\n## Test Results\n- **Test files:** \n  - `tests/check_framework/test_security.py`\n  - `tests/middleware/test_security.py`\n- **Baseline (before fix):** 52 passed, 0 failed, 0 errors (check_framework) + 23 passed (middleware)\n- **After fix:** 52 passed, 0 failed, 0 errors (check_framework) + 23 passed (middleware)\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n- Confirmed the default value is correctly set to 'same-origin' by importing Django settings\n\n## Concerns\n- None. The change is backward compatible - users can still override the default by setting `SECURE_REFERRER_POLICY = None` or any other valid value in their settings. The security check (W022) will still warn users if they explicitly set it to `None`.",
+      "created_at": "2026-01-16T19:11:29.199Z"
+    }
+  ]
+}

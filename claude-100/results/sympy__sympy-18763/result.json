@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-18763",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/latex.py b/sympy/printing/latex.py\nindex 8743723ea0..969072f47f 100644\n--- a/sympy/printing/latex.py\n+++ b/sympy/printing/latex.py\n@@ -698,7 +698,7 @@ def _print_Derivative(self, expr):\n \n     def _print_Subs(self, subs):\n         expr, old, new = subs.args\n-        latex_expr = self._print(expr)\n+        latex_expr = self.parenthesize(expr, PRECEDENCE[\"Mul\"], strict=True)\n         latex_old = (self._print(e) for e in old)\n         latex_new = (self._print(e) for e in new)\n         latex_subs = r'\\\\ '.join(\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:39:27.794669",
+  "end_time": "2026-01-17T01:42:48.192492",
+  "duration_seconds": 200.397823,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-18763",
+  "epic_comments": [
+    {
+      "epic_id": "3ea57c05-071e-4956-b5cd-c854dbc0a38a",
+      "epic_title": "Fix: sympy__sympy-18763",
+      "comment_id": "48e535a7-18cc-43b3-bc05-0ada89876208",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed incorrect parenthesizing of `Subs` in LaTeX printing. When a `Subs` expression with an `Add` inside is multiplied (e.g., `3*Subs(-x+y, (x,), (1,))`), the internal expression now correctly gets parentheses.\n\n**Root cause:** The `_print_Subs` method was using `self._print(expr)` directly, which didn't consider the need for parentheses when the expression has lower precedence than multiplication.\n\n**Fix:** Changed to use `self.parenthesize(expr, PRECEDENCE[\"Mul\"], strict=True)`, matching the pattern used by `_print_Derivative` and other similar methods.\n\n## Files Modified\n- `sympy/printing/latex.py`: Changed line 701 in `_print_Subs` method from `self._print(expr)` to `self.parenthesize(expr, PRECEDENCE[\"Mul\"], strict=True)`\n\n## Test Results\n- **Test file:** sympy/printing/tests/test_latex.py\n- **Baseline (before fix):** 143 passed, 2 expected to fail, 2 exceptions\n- **After fix:** 143 passed, 2 expected to fail, 2 exceptions\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the fix with the original issue:\n- **Before:** `3*Subs(-x+y, (x,), (1,))` \u2192 `3 \\left. - x + y \\right|_{\\substack{ x=1 }}`\n- **After:** `3*Subs(-x+y, (x,), (1,))` \u2192 `3 \\left. \\left(- x + y\\right) \\right|_{\\substack{ x=1 }}`\n\nAlso tested edge cases:\n- Simple symbols (x) - no unnecessary parentheses\n- Functions (sin(x)) - no parentheses (high precedence)\n- Multiplication expressions (x*y) - no parentheses (equal precedence)\n- Addition expressions (x+y) - gets parentheses (lower precedence)\n- Nested Subs - works correctly\n- Integral inside Subs - no parentheses (Mul precedence)\n\n## Concerns\nNone. The fix is minimal and follows the existing pattern used by `_print_Derivative`.",
+      "created_at": "2026-01-17T00:42:44.286Z"
+    }
+  ]
+}

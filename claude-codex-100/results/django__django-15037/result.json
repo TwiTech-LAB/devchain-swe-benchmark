@@ -1,0 +1,38 @@
+{
+  "instance_id": "django__django-15037",
+  "status": "completed",
+  "patch": "diff --git a/django/core/management/commands/inspectdb.py b/django/core/management/commands/inspectdb.py\nindex f9b4bfb477..dca00ce765 100644\n--- a/django/core/management/commands/inspectdb.py\n+++ b/django/core/management/commands/inspectdb.py\n@@ -120,14 +120,17 @@ class Command(BaseCommand):\n                             rel_type = 'OneToOneField'\n                         else:\n                             rel_type = 'ForeignKey'\n+                        ref_db_column, ref_db_table = relations[column_name]\n                         rel_to = (\n-                            \"self\" if relations[column_name][1] == table_name\n-                            else table2model(relations[column_name][1])\n+                            \"self\" if ref_db_table == table_name\n+                            else table2model(ref_db_table)\n                         )\n                         if rel_to in known_models:\n                             field_type = '%s(%s' % (rel_type, rel_to)\n                         else:\n                             field_type = \"%s('%s'\" % (rel_type, rel_to)\n+                        if ref_db_column != connection.introspection.get_primary_key_column(cursor, ref_db_table):\n+                            extra_params['to_field'] = ref_db_column\n                     else:\n                         # Calling `get_field_type` to get the field type string and any\n                         # additional parameters and notes.\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:44:10.003386",
+  "end_time": "2026-01-16T07:49:54.207677",
+  "duration_seconds": 344.204291,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15037",
+  "epic_comments": [
+    {
+      "epic_id": "edda9816-41ae-4a4a-a48c-0c98ec52c35b",
+      "epic_title": "Fix: django__django-15037",
+      "comment_id": "95423b36-3355-4877-a689-c055982b9fc6",
+      "author_name": "Code Reviewer",
+      "content": "Code review pending: I don\u2019t see any code changes in the workspace yet (`git diff` is empty) and there\u2019s no fix summary/test output in the epic.\n\nBefore requesting review, please:\n- Implement the fix (source only; no tests/build config changes).\n- Post a summary of changed files + rationale.\n- Include baseline vs after-fix test results, and run the actual relevant Django test module(s) in the container.\n- Move the epic to `Review` (and optionally assign to `Code Reviewer`) when ready.",
+      "created_at": "2026-01-16T06:45:28.889Z"
+    },
+    {
+      "epic_id": "edda9816-41ae-4a4a-a48c-0c98ec52c35b",
+      "epic_title": "Fix: django__django-15037",
+      "comment_id": "1706b08e-90d9-4b27-a0bc-2079fbd9abce",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nWhen `inspectdb` generates models from a database with a foreign key referencing a non-primary-key field (e.g., a UNIQUE column), it was not adding the `to_field` parameter to the ForeignKey definition. This caused the generated model to incorrectly reference the primary key instead of the intended target field.\n\nThe fix unpacks the `relations` dict to get both the referenced column name (`ref_db_column`) and table name (`ref_db_table`), then checks if the referenced column is the primary key of the target table. If not, it adds `to_field='column_name'` to the extra_params.\n\n## Files Modified\n- `django/core/management/commands/inspectdb.py`: Added logic to check if FK targets a non-PK column and add `to_field` parameter when needed (lines 123, 132-133)\n\n## Test Results\n- **Test file:** `/testbed/tests/inspectdb/tests.py`\n- **Baseline (before fix):** 20 tests, 1 failed (pre-existing: `test_custom_fields`), 4 skipped\n- **After fix:** 20 tests, 1 failed (same pre-existing failure), 4 skipped\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** `test_custom_fields` fails due to unrelated SQLite-specific custom field introspection issue\n\n## Additional Verification\nTested with the exact scenario from the issue:\n```sql\nCREATE TABLE foo (id INTEGER PRIMARY KEY, other_id INTEGER UNIQUE);\nCREATE TABLE bar (id INTEGER PRIMARY KEY, other_id INTEGER REFERENCES foo(other_id));\n```\n\nBefore fix: `other = models.ForeignKey('Foo', models.DO_NOTHING, ...)`\nAfter fix: `other = models.ForeignKey('Foo', models.DO_NOTHING, to_field='other_id', ...)`\n\n## Concerns\n- The fix correctly handles the edge case where FK references a non-PK unique column\n- Works across all database backends since it uses the generic `get_primary_key_column` introspection method",
+      "created_at": "2026-01-16T06:47:25.775Z"
+    },
+    {
+      "epic_id": "edda9816-41ae-4a4a-a48c-0c98ec52c35b",
+      "epic_title": "Fix: django__django-15037",
+      "comment_id": "fef6938b-1a43-4c17-a515-8b6db70c08d8",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal (only `django/core/management/commands/inspectdb.py`) and correctly detects when an FK targets a non-PK column, emitting `to_field`.\n- No tests/build config modified.\n- Baseline vs after-fix test run provided; no new failures reported.",
+      "created_at": "2026-01-16T06:49:46.486Z"
+    }
+  ]
+}

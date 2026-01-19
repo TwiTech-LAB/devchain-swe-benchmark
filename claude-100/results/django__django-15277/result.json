@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-15277",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py\nindex f30b523346..88c9ca9f28 100644\n--- a/django/db/models/fields/__init__.py\n+++ b/django/db/models/fields/__init__.py\n@@ -1010,7 +1010,8 @@ class CharField(Field):\n     def __init__(self, *args, db_collation=None, **kwargs):\n         super().__init__(*args, **kwargs)\n         self.db_collation = db_collation\n-        self.validators.append(validators.MaxLengthValidator(self.max_length))\n+        if self.max_length is not None:\n+            self.validators.append(validators.MaxLengthValidator(self.max_length))\n \n     def check(self, **kwargs):\n         databases = kwargs.get('databases') or []\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T11:22:39.417478",
+  "end_time": "2026-01-17T11:26:43.155581",
+  "duration_seconds": 243.738103,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15277",
+  "epic_comments": [
+    {
+      "epic_id": "32ed8c38-9dd0-481b-8d10-28d600265f5c",
+      "epic_title": "Fix: django__django-15277",
+      "comment_id": "18711596-20ff-43be-8f56-7db3fcc37a35",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nModified `CharField.__init__` to only add `MaxLengthValidator` when `max_length is not None`. This follows the same pattern already used by `BinaryField.__init__`.\n\nPreviously, when using `Value('test')` which calls `Value._resolve_output_field()` and returns a `CharField()` without `max_length`, the validator was still added with `None` value causing a `TypeError` when `clean()` was called.\n\n## Files Modified\n- `django/db/models/fields/__init__.py`: Added conditional check `if self.max_length is not None:` before appending `MaxLengthValidator` in `CharField.__init__` (line 1013-1014)\n\n## Test Results\n- **Test file:** `/testbed/tests/model_fields/test_charfield.py`\n- **Baseline (before fix):** 12 passed, 0 failed, 0 errors\n- **After fix:** 12 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\nAdditional test runs:\n- expressions tests: 167 passed (1 skipped, 1 expected failure)\n- validators tests: 14 passed\n- model_fields tests: 427 passed (9 skipped)\n\n## Additional Verification\nVerified the fix works correctly:\n```python\nfrom django.db.models import Value\nx = Value('test')\ny = x._resolve_output_field()\n# Before fix: y.validators = [<MaxLengthValidator>], y.clean() raised TypeError\n# After fix: y.validators = [], y.clean('1', model_instance=None) returns '1' successfully\n```\n\n## Concerns\nNone. The fix is minimal and follows the existing pattern used by `BinaryField`.",
+      "created_at": "2026-01-17T10:26:28.147Z"
+    }
+  ]
+}

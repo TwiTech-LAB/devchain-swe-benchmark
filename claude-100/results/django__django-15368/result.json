@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-15368",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/query.py b/django/db/models/query.py\nindex f8d848e926..f2f9797d88 100644\n--- a/django/db/models/query.py\n+++ b/django/db/models/query.py\n@@ -670,7 +670,7 @@ class QuerySet:\n                 when_statements = []\n                 for obj in batch_objs:\n                     attr = getattr(obj, field.attname)\n-                    if not isinstance(attr, Expression):\n+                    if not hasattr(attr, 'resolve_expression'):\n                         attr = Value(attr, output_field=field)\n                     when_statements.append(When(pk=obj.pk, then=attr))\n                 case_statement = Case(*when_statements, output_field=field)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:16:03.981538",
+  "end_time": "2026-01-16T20:18:56.228986",
+  "duration_seconds": 172.247448,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15368",
+  "epic_comments": [
+    {
+      "epic_id": "4a111827-9f32-4958-b759-b619c97f7065",
+      "epic_title": "Fix: django__django-15368",
+      "comment_id": "3f5152d8-3063-441d-bf5d-2a463b33cfdd",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nChanged the type check in `bulk_update()` from `isinstance(attr, Expression)` to `hasattr(attr, 'resolve_expression')` to use duck typing. This allows `F()` expressions (which inherit from `Combinable`, not `Expression`) to be properly resolved to column names instead of being converted to their string representation.\n\n## Files Modified\n- `django/db/models/query.py`: Line 673 - Changed type check from `isinstance(attr, Expression)` to `hasattr(attr, 'resolve_expression')`\n\n## Test Results\n- **Test file:** tests/queries/test_bulk_update.py\n- **Baseline (before fix):** 29 passed, 0 failed, 0 errors\n- **After fix:** 29 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nCreated a custom test script to verify the exact scenario from the problem statement:\n- Created model with `name` and `copy_of_name` fields\n- Assigned `F('name')` to `copy_of_name`\n- Called `bulk_update()`\n- Verified `copy_of_name` now contains the actual column value ('hello') instead of the string 'F(name)'\n\n## Concerns\n- None. The duck typing pattern (`hasattr(attr, 'resolve_expression')`) is already used elsewhere in Django (e.g., `Combinable._combine` in expressions.py line 59) and is the recommended approach per the issue discussion.",
+      "created_at": "2026-01-16T19:18:49.279Z"
+    }
+  ]
+}

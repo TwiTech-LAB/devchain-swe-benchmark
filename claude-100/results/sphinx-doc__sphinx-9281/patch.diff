@@ -1,0 +1,26 @@
+diff --git a/sphinx/util/inspect.py b/sphinx/util/inspect.py
+index a415a7074..170e9663b 100644
+--- a/sphinx/util/inspect.py
++++ b/sphinx/util/inspect.py
+@@ -457,6 +457,8 @@ def object_description(object: Any) -> str:
+         else:
+             return "frozenset({%s})" % ", ".join(object_description(x)
+                                                  for x in sorted_values)
++    if isinstance(object, enum.Enum):
++        return "%s.%s" % (object.__class__.__name__, object.name)
+     try:
+         s = repr(object)
+     except Exception as exc:
+diff --git a/tox.ini b/tox.ini
+index a363e187f..3b8bc12d0 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

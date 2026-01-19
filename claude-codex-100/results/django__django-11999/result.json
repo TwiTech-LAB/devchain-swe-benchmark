@@ -1,0 +1,46 @@
+{
+  "instance_id": "django__django-11999",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py\nindex ee45bb941e..d883eaf005 100644\n--- a/django/db/models/fields/__init__.py\n+++ b/django/db/models/fields/__init__.py\n@@ -763,8 +763,14 @@ class Field(RegisterLookupMixin):\n             if not getattr(cls, self.attname, None):\n                 setattr(cls, self.attname, self.descriptor_class(self))\n         if self.choices is not None:\n-            setattr(cls, 'get_%s_display' % self.name,\n-                    partialmethod(cls._get_FIELD_display, field=self))\n+            # Don't overwrite a user-defined get_%s_display method.\n+            # Check if there's a method directly on this class that is NOT a\n+            # partialmethod (i.e., a user-defined override). Inherited methods\n+            # or auto-generated partialmethods should be replaced.\n+            display_method = 'get_%s_display' % self.name\n+            if display_method not in cls.__dict__ or isinstance(cls.__dict__[display_method], partialmethod):\n+                setattr(cls, display_method,\n+                        partialmethod(cls._get_FIELD_display, field=self))\n \n     def get_filter_kwargs_for_object(self, obj):\n         \"\"\"\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T10:11:50.764006",
+  "end_time": "2026-01-17T10:25:01.974098",
+  "duration_seconds": 791.210092,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11999",
+  "epic_comments": [
+    {
+      "epic_id": "f4b181f4-9147-4187-a72f-31737898728e",
+      "epic_title": "Fix: django__django-11999",
+      "comment_id": "2dcccba5-8571-4633-825e-3a85857d31ae",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the issue where user-defined `get_FOO_display()` methods could not be overridden in Django 2.2+.\n\nThe root cause was in `Field.contribute_to_class()` which unconditionally set the `get_%s_display` method, overwriting any user-defined method. The fix adds a check to only set the method if it doesn't already exist on the class.\n\n**Change:** Added `if not hasattr(cls, 'get_%s_display' % self.name):` before setting the method.\n\n## Files Modified\n- `django/db/models/fields/__init__.py` (line 765-768): Added hasattr check before setting get_FOO_display method\n\n## Test Results\n- **Test file:** tests/model_fields/tests.py\n- **Baseline (before fix):** 30 passed, 0 failed, 0 errors\n- **After fix:** 30 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n- **Additional test file:** tests/model_regress/\n- **After fix:** 21 passed, 0 failed, 0 errors (1 skipped for timezone support)\n\n## Additional Verification\nRan custom verification script that confirms:\n1. Method defined after field works: `get_foo_bar_display()` returns \"something\" \u2713\n2. Method defined before field works: `get_foo_bar_display()` returns \"something_else\" \u2713\n\nThe fix ensures both declaration orders work correctly, which was the exact issue described in the hints.\n\n## Concerns\n- None. The fix is minimal and follows the approach suggested in the Django ticket hints.",
+      "created_at": "2026-01-17T09:14:24.666Z"
+    },
+    {
+      "epic_id": "f4b181f4-9147-4187-a72f-31737898728e",
+      "epic_title": "Fix: django__django-11999",
+      "comment_id": "96d401d5-59d7-4786-b31a-930761b26419",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- The change in `django/db/models/fields/__init__.py` uses `hasattr()` to decide whether to set `get_%s_display`. This prevents updating an *inherited* auto-generated `get_FOO_display()` when a subclass overrides a field with the same name, causing incorrect display values.\n\nRepro (run in container):\n```py\nfrom django.db import models\n\nclass Base(models.Model):\n    foo = models.CharField(max_length=3, choices=[('a','A')])\n    class Meta:\n        abstract = True\n        app_label='testapp'\n\nclass Child(Base):\n    foo = models.CharField(max_length=3, choices=[('b','B')])\n    class Meta:\n        app_label='testapp'\n\nChild(foo='b').get_foo_display()  # returns 'b' with current patch, expected 'B'\n```\n(Observed: `Child.__dict__.get('get_foo_display') is None` and it inherits the base partialmethod.)\n\nRequired Changes:\n- Don\u2019t skip setting `get_%s_display` just because it exists on the class via inheritance. Only preserve *user-defined* overrides, but allow replacing inherited auto-generated `partialmethod(Model._get_FIELD_display, field=...)` when contributing a field (especially for overridden abstract base fields).\n- Add verification that field-overriding-in-subclass works (run the relevant Django test file(s) that cover model inheritance/choices, or add a focused repro in an existing non-test harness if tests already cover it).",
+      "created_at": "2026-01-17T09:20:02.277Z"
+    },
+    {
+      "epic_id": "f4b181f4-9147-4187-a72f-31737898728e",
+      "epic_title": "Fix: django__django-11999",
+      "comment_id": "d01e6d29-462b-479d-873c-d1481e64f32a",
+      "author_name": "Brainstormer",
+      "content": "## Fix Revision - Addressing Code Review Feedback\n\n### Issue Identified\nThe reviewer correctly identified that the simple `hasattr()` check caused problems with model inheritance. When a child class overrides a field from an abstract parent, the inherited `partialmethod` was incorrectly preserved instead of being updated for the new field.\n\n### Revised Fix\nChanged from:\n```python\nif not hasattr(cls, 'get_%s_display' % self.name):\n    setattr(...)\n```\n\nTo:\n```python\ndisplay_method = 'get_%s_display' % self.name\nif display_method not in cls.__dict__ or isinstance(cls.__dict__[display_method], partialmethod):\n    setattr(...)\n```\n\n### Logic\n- If the method is **not in `cls.__dict__`** \u2192 set it (handles inherited or non-existent methods)\n- If the method **is a `partialmethod`** \u2192 set it (replace auto-generated methods)\n- If the method is a **regular function** (user-defined) \u2192 preserve it\n\n## Test Results\n\n### Original Problem Tests\n1. User-defined method after field: \u2713 Returns \"something\"\n2. User-defined method before field: \u2713 Returns \"something_else\"\n\n### Inheritance Test (Reviewer's Case)\n```python\nclass Base(models.Model):\n    foo = models.CharField(max_length=3, choices=[('a','A')])\n    class Meta:\n        abstract = True\n\nclass Child(Base):\n    foo = models.CharField(max_length=3, choices=[('b','B')])\n\nChild(foo='b').get_foo_display()  # Now correctly returns 'B'\n```\nTest passed: \u2713\n\n### Default Behavior Test\nStandard `get_FOO_display()` without override: \u2713 Works correctly\n\n### Regression Tests\n- **model_fields.tests:** 30 passed, 0 failed\n- **model_regress + model_inheritance:** 67 passed, 0 failed (1 skipped)\n\n## Files Modified\n- `django/db/models/fields/__init__.py` (lines 765-772): Refined condition to check `cls.__dict__` and distinguish between user-defined methods and auto-generated partialmethods",
+      "created_at": "2026-01-17T09:23:05.142Z"
+    },
+    {
+      "epic_id": "f4b181f4-9147-4187-a72f-31737898728e",
+      "epic_title": "Fix: django__django-11999",
+      "comment_id": "dc4ce8f0-e25a-4bb5-a0a8-983901bd4221",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED. The revised `get_%s_display` generation preserves user-defined overrides while still replacing inherited auto-generated `partialmethod`s, fixing the inheritance regression from the previous attempt. No test files were modified and the fix is minimal and localized to `django/db/models/fields/__init__.py`.\n\n(Quick sanity check in container: both declaration orders return the user override, and abstract-base-field override returns the correct choice label.)",
+      "created_at": "2026-01-17T09:24:52.572Z"
+    }
+  ]
+}

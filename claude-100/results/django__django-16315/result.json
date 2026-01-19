@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-16315",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/query.py b/django/db/models/query.py\nindex be8580f2c4..a4318bac99 100644\n--- a/django/db/models/query.py\n+++ b/django/db/models/query.py\n@@ -800,6 +800,10 @@ class QuerySet(AltersData):\n         self._prepare_for_bulk_create(objs)\n         with transaction.atomic(using=self.db, savepoint=False):\n             objs_with_pk, objs_without_pk = partition(lambda o: o.pk is None, objs)\n+            if update_fields:\n+                update_fields = [self.model._meta.get_field(name) for name in update_fields]\n+            if unique_fields:\n+                unique_fields = [self.model._meta.get_field(name) for name in unique_fields]\n             if objs_with_pk:\n                 returned_columns = self._batched_insert(\n                     objs_with_pk,\ndiff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py\nindex 0562a71dd1..caf36382b5 100644\n--- a/django/db/models/sql/compiler.py\n+++ b/django/db/models/sql/compiler.py\n@@ -1725,8 +1725,8 @@ class SQLInsertCompiler(SQLCompiler):\n         on_conflict_suffix_sql = self.connection.ops.on_conflict_suffix_sql(\n             fields,\n             self.query.on_conflict,\n-            self.query.update_fields,\n-            self.query.unique_fields,\n+            (f.column for f in self.query.update_fields),\n+            (f.column for f in self.query.unique_fields),\n         )\n         if (\n             self.returning_fields\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:18:28.634479",
+  "end_time": "2026-01-16T20:21:00.397723",
+  "duration_seconds": 151.763244,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-16315",
+  "epic_comments": [
+    {
+      "epic_id": "890ee9b7-5b57-40c9-a150-d15753e48993",
+      "epic_title": "Fix: django__django-16315",
+      "comment_id": "fa72adf7-c706-45ff-b136-4ccecedb8ad9",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed QuerySet.bulk_create() crash when using mixed case columns in unique_fields/update_fields. The ON CONFLICT clause was using field names (e.g., \"blacklistid\") instead of db_column values (e.g., \"BlacklistID\").\n\n**Root Cause:** When fields have a custom `db_column` set, the `bulk_create()` method was passing field names directly to the SQL compiler, which then used them in the ON CONFLICT clause without converting to actual database column names.\n\n**Solution:**\n1. In `query.py`: Convert field name strings to field objects before passing to `_batched_insert()`\n2. In `compiler.py`: Use `field.column` attribute to get the actual database column name\n\n## Files Modified\n- `django/db/models/query.py`: Added conversion of `update_fields` and `unique_fields` from strings to field objects (lines 803-806)\n- `django/db/models/sql/compiler.py`: Changed to use `f.column` for field objects instead of passing field names directly (lines 1728-1729)\n\n## Test Results\n- **Test file:** /testbed/tests/bulk_create/\n- **Baseline (before fix):** 50 tests passed, 7 skipped, OK\n- **After fix:** 50 tests passed, 7 skipped, OK\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified that `field.column` correctly returns the db_column value:\n- Field `blacklistid` \u2192 Column `BlacklistID`\n- Field `sectorid` \u2192 Column `SectorID`\n\n## Concerns\n- None. The fix is minimal and follows the existing code patterns.",
+      "created_at": "2026-01-16T19:20:52.269Z"
+    }
+  ]
+}

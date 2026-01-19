@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-13112",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/fields/related.py b/django/db/models/fields/related.py\nindex c2aea9c730..397146a354 100644\n--- a/django/db/models/fields/related.py\n+++ b/django/db/models/fields/related.py\n@@ -582,7 +582,11 @@ class ForeignObject(RelatedField):\n         if self.remote_field.parent_link:\n             kwargs['parent_link'] = self.remote_field.parent_link\n         if isinstance(self.remote_field.model, str):\n-            kwargs['to'] = self.remote_field.model.lower()\n+            if '.' in self.remote_field.model:\n+                app_label, model_name = self.remote_field.model.split('.')\n+                kwargs['to'] = '%s.%s' % (app_label, model_name.lower())\n+            else:\n+                kwargs['to'] = self.remote_field.model.lower()\n         else:\n             kwargs['to'] = self.remote_field.model._meta.label_lower\n         # If swappable is True, then see if we're actually pointing to the target\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:09:19.856047",
+  "end_time": "2026-01-16T20:12:20.805048",
+  "duration_seconds": 180.949001,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-13112",
+  "epic_comments": [
+    {
+      "epic_id": "c48539ef-48c3-45b9-a61d-aac036f96d56",
+      "epic_title": "Fix: django__django-13112",
+      "comment_id": "a217f717-6bed-4646-9915-90f8712b4e90",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the `makemigrations` crash for ForeignKey with mixed-case app names. The bug was in `ForeignObject.deconstruct()` which incorrectly lowercased the entire model reference string (including the app label). App labels are case-sensitive in Django, so only the model name should be lowercased.\n\n## Files Modified\n- `django/db/models/fields/related.py`: Modified the `deconstruct()` method to preserve app label case while only lowercasing the model name\n\n## Change Details\n```python\n# Before (buggy):\nkwargs['to'] = self.remote_field.model.lower()\n\n# After (fixed):\nif '.' in self.remote_field.model:\n    app_label, model_name = self.remote_field.model.split('.')\n    kwargs['to'] = '%s.%s' % (app_label, model_name.lower())\nelse:\n    kwargs['to'] = self.remote_field.model.lower()\n```\n\n## Test Results\n- **Test file:** tests/model_fields/test_foreignkey.py\n- **Baseline (before fix):** 10 passed\n- **After fix:** 10 passed\n\n- **Test file:** tests/migrations/test_state.py\n- **Baseline (before fix):** 63 passed\n- **After fix:** 63 passed\n\n- **Test file:** tests/migrations/test_autodetector.py\n- **After fix:** 123 passed\n\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the fix logic directly:\n- Input `DJ_RegLogin.Category` now produces `DJ_RegLogin.category` (preserving app label case)\n- Old buggy behavior produced `dj_reglogin.category` (incorrectly lowercasing the app label)\n\n## Edge Cases Handled\n- Model reference with app label (e.g., `DJ_RegLogin.Category`) - app label preserved, model name lowercased\n- Model reference without app label (e.g., `ModelOnly`) - entire string lowercased (maintains backward compatibility)",
+      "created_at": "2026-01-16T19:12:11.019Z"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 04e430a42e..5546d68791 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -129,7 +129,13 @@ class SQLCompiler:
+             # Skip References to the select clause, as all expressions in the
+             # select clause are already part of the group by.
+             if not is_ref:
+-                expressions.extend(expr.get_group_by_cols())
++                # Expressions with no column references do not affect the GROUP
++                # BY clause (e.g., Random()). However, RawSQL must be included
++                # since we can't analyze raw SQL strings.
++                cols = expr.get_group_by_cols()
++                for col in cols:
++                    if isinstance(col, RawSQL) or col.contains_column_references:
++                        expressions.append(col)
+         having_group_by = self.having.get_group_by_cols() if self.having else ()
+         for expr in having_group_by:
+             expressions.append(expr)

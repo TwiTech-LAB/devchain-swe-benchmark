@@ -1,0 +1,46 @@
+{
+  "instance_id": "django__django-14771",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py\nindex cc65c043ab..1209dc75a5 100644\n--- a/django/utils/autoreload.py\n+++ b/django/utils/autoreload.py\n@@ -220,6 +220,12 @@ def get_child_arguments():\n     py_script = Path(sys.argv[0])\n \n     args = [sys.executable] + ['-W%s' % o for o in sys.warnoptions]\n+    xoptions = getattr(sys, '_xoptions', {})\n+    if xoptions:\n+        args.extend(\n+            '-X%s' % key if value is True else '-X%s=%s' % (key, value)\n+            for key, value in xoptions.items()\n+        )\n     # __spec__ is set when the server was started with the `-m` option,\n     # see https://docs.python.org/3/reference/import.html#main-spec\n     # __spec__ may not exist, e.g. when running in a Conda env.\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-15T23:37:53.594815",
+  "end_time": "2026-01-15T23:44:53.423864",
+  "duration_seconds": 419.829049,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14771",
+  "epic_comments": [
+    {
+      "epic_id": "3692a7e7-2757-4e5e-9e3f-48a0baf77b7d",
+      "epic_title": "Fix: django__django-14771",
+      "comment_id": "cf403843-1c63-498b-a46c-9e0af62a79db",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nModified `get_child_arguments()` in Django's auto-reloader to include `-X` options from `sys._xoptions` when spawning the child process. Previously, only `-W` (warning) options were passed, causing `-X` options like `-X utf8` to be lost when the auto-reloader restarted.\n\nThe fix handles both boolean flags (e.g., `-Xutf8`) and key=value options (e.g., `-Xtracemalloc=5`).\n\n## Files Modified\n- `django/utils/autoreload.py`: Added logic to pass `-X` options from `sys._xoptions` to subprocess (line 223-227)\n\n## Test Results\n- **Test file:** tests/utils_tests/test_autoreload.py\n- **Baseline (before fix):** 60 passed, 20 skipped, 0 errors\n- **After fix:** 60 passed, 20 skipped, 0 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing skips:** 20 tests skipped due to Watchman service unavailable (expected)\n\n## Additional Verification\n- Verified `-X` options are correctly formatted:\n  - Boolean True values \u2192 `-Xkey` format (e.g., `-Xutf8`)\n  - String values \u2192 `-Xkey=value` format (e.g., `-Xtracemalloc=5`)\n- Confirmed full argument list maintains correct order: python executable, -W options, -X options, script, args\n\n## Concerns\n- None. The fix is minimal and follows the existing pattern for `-W` options.",
+      "created_at": "2026-01-15T22:40:44.374Z"
+    },
+    {
+      "epic_id": "3692a7e7-2757-4e5e-9e3f-48a0baf77b7d",
+      "epic_title": "Fix: django__django-14771",
+      "comment_id": "20b6af5a-576b-42e6-9107-d8d86b06d131",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- `django/utils/autoreload.py` reads `sys._xoptions` directly (`if sys._xoptions:`). On Python implementations/environments where `sys._xoptions` isn\u2019t present, this will raise `AttributeError` and break `runserver`/autoreload entirely.\n\nRequired Changes:\n- Guard the access (e.g., `xoptions = getattr(sys, \"_xoptions\", {})`) and only extend args when `xoptions` is truthy.\n\nEverything else looks minimal and on-target (only `django/utils/autoreload.py` changed; no tests/build configs touched).",
+      "created_at": "2026-01-15T22:42:44.553Z"
+    },
+    {
+      "epic_id": "3692a7e7-2757-4e5e-9e3f-48a0baf77b7d",
+      "epic_title": "Fix: django__django-14771",
+      "comment_id": "5a5f5d41-cd72-4d0e-87d9-7eac82202f13",
+      "author_name": "Brainstormer",
+      "content": "## Fix Applied\n\nChanged direct `sys._xoptions` access to use `getattr(sys, '_xoptions', {})` to safely handle Python implementations where `_xoptions` might not exist.\n\n**Before:**\n```python\nif sys._xoptions:\n    args.extend(...)\n```\n\n**After:**\n```python\nxoptions = getattr(sys, '_xoptions', {})\nif xoptions:\n    args.extend(...)\n```\n\n## Verification\n- All 80 tests pass (60 passed, 20 skipped)\n- Verified safe access returns empty dict when `_xoptions` doesn't exist\n- Verified `-X` options are still correctly passed when `_xoptions` exists",
+      "created_at": "2026-01-15T22:43:50.766Z"
+    },
+    {
+      "epic_id": "3692a7e7-2757-4e5e-9e3f-48a0baf77b7d",
+      "epic_title": "Fix: django__django-14771",
+      "comment_id": "f74fc81f-b5da-4684-87fb-cad2cf80c47f",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly preserves `-X` options across autoreloader restarts.\n- Guarding via `xoptions = getattr(sys, '_xoptions', {})` avoids `AttributeError` on runtimes without `_xoptions`.\n- Only `django/utils/autoreload.py` changed; no tests/build configs modified.",
+      "created_at": "2026-01-15T22:44:50.118Z"
+    }
+  ]
+}

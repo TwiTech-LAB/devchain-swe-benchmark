@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-16766",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/pycode.py b/sympy/printing/pycode.py\nindex a3f0310735..d8fbdb5f50 100644\n--- a/sympy/printing/pycode.py\n+++ b/sympy/printing/pycode.py\n@@ -357,6 +357,10 @@ def _print_Not(self, expr):\n         PREC = precedence(expr)\n         return self._operators['not'] + self.parenthesize(expr.args[0], PREC)\n \n+    def _print_Indexed(self, expr):\n+        inds = [self._print(i) for i in expr.indices]\n+        return \"{}[{}]\".format(self._print(expr.base.label), \", \".join(inds))\n+\n \n for k in PythonCodePrinter._kf:\n     setattr(PythonCodePrinter, '_print_%s' % k, _print_known_func)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:39:17.554981",
+  "end_time": "2026-01-17T01:41:58.322966",
+  "duration_seconds": 160.767985,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-16766",
+  "epic_comments": [
+    {
+      "epic_id": "9fdb2ce6-f7ce-4afa-b12d-c5783e7f8407",
+      "epic_title": "Fix: sympy__sympy-16766",
+      "comment_id": "a45c198e-6ee5-4934-933f-388e1cffb09e",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `_print_Indexed` method to `PythonCodePrinter` class to properly handle `Indexed` expressions. The method follows the established pattern used by other language printers (rcode.py, julia.py, etc.) which uses `expr.base.label` and `expr.indices` with `self._print()` for proper formatting.\n\nBefore fix: `pycode(p[0])` returned `'  # Not supported in Python:\\n  # Indexed\\np[0]'`\nAfter fix: `pycode(p[0])` returns `'p[0]'`\n\n## Files Modified\n- `sympy/printing/pycode.py`: Added `_print_Indexed` method to `PythonCodePrinter` class\n\n## Test Results\n- **Test file:** sympy/printing/tests/test_pycode.py\n- **Baseline (before fix):** 9 passed, 0 failed, 0 errors\n- **After fix:** 9 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified fix handles various cases:\n- Single index: `p[0]` -> `'p[0]'`\n- Multiple indices: `q[1, 2, 3]` -> `'q[1, 2, 3]'`\n- Symbolic indices: `p[i, j]` -> `'p[i, j]'`\n- Expression index: `p[i + 1]` -> `'p[i + 1]'`\n- Complex base name: `myArray[0]` -> `'myArray[0]'`\n- Indexed in expression: `p[0] + x` -> `'x + p[0]'`\n\n## Concerns\nNone. The fix is minimal and follows the existing codebase patterns.",
+      "created_at": "2026-01-17T00:41:52.928Z"
+    }
+  ]
+}

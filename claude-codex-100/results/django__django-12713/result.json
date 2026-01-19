@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-12713",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py\nindex 69a5fbf389..db7df891e3 100644\n--- a/django/contrib/admin/options.py\n+++ b/django/contrib/admin/options.py\n@@ -249,16 +249,17 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):\n             return None\n         db = kwargs.get('using')\n \n-        autocomplete_fields = self.get_autocomplete_fields(request)\n-        if db_field.name in autocomplete_fields:\n-            kwargs['widget'] = AutocompleteSelectMultiple(db_field.remote_field, self.admin_site, using=db)\n-        elif db_field.name in self.raw_id_fields:\n-            kwargs['widget'] = widgets.ManyToManyRawIdWidget(db_field.remote_field, self.admin_site, using=db)\n-        elif db_field.name in [*self.filter_vertical, *self.filter_horizontal]:\n-            kwargs['widget'] = widgets.FilteredSelectMultiple(\n-                db_field.verbose_name,\n-                db_field.name in self.filter_vertical\n-            )\n+        if 'widget' not in kwargs:\n+            autocomplete_fields = self.get_autocomplete_fields(request)\n+            if db_field.name in autocomplete_fields:\n+                kwargs['widget'] = AutocompleteSelectMultiple(db_field.remote_field, self.admin_site, using=db)\n+            elif db_field.name in self.raw_id_fields:\n+                kwargs['widget'] = widgets.ManyToManyRawIdWidget(db_field.remote_field, self.admin_site, using=db)\n+            elif db_field.name in [*self.filter_vertical, *self.filter_horizontal]:\n+                kwargs['widget'] = widgets.FilteredSelectMultiple(\n+                    db_field.verbose_name,\n+                    db_field.name in self.filter_vertical\n+                )\n \n         if 'queryset' not in kwargs:\n             queryset = self.get_field_queryset(db, db_field, request)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:43:50.002488",
+  "end_time": "2026-01-16T07:47:22.706979",
+  "duration_seconds": 212.704491,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12713",
+  "epic_comments": [
+    {
+      "epic_id": "4da56f93-1fe3-498c-a0de-0701355f3a5c",
+      "epic_title": "Fix: django__django-12713",
+      "comment_id": "36029e0c-46c1-4010-8dd9-3c736e57b7d6",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `if 'widget' not in kwargs:` guard around the widget assignment logic in `formfield_for_manytomany()` to match the behavior of `formfield_for_foreignkey()`.\n\n**Root Cause:** The `formfield_for_foreignkey()` method checks whether a widget is already provided in kwargs before setting one, but `formfield_for_manytomany()` did not have this check, causing any user-specified widget to be overwritten.\n\n## Files Modified\n- `django/contrib/admin/options.py`: Added `if 'widget' not in kwargs:` guard at line 252, wrapping the widget selection logic (autocomplete_fields, raw_id_fields, filter_vertical/horizontal) to prevent overwriting a user-provided widget.\n\n## Test Results\n- **Test file:** tests/admin_widgets (via Django runtests.py)\n- **Baseline (before fix):** 81 passed, 0 failed, 0 errors (14 skipped)\n- **After fix:** 81 passed, 0 failed, 0 errors (14 skipped)\n- **Regression check:** No new failures introduced\n\n- **Test file:** tests/admin_ordering\n- **Baseline (before fix):** 10 passed, 0 failed, 0 errors\n- **After fix:** 10 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n- Verified via code inspection that both `formfield_for_foreignkey` and `formfield_for_manytomany` now have identical widget guard patterns\n\n## Concerns\n- None. The fix is minimal and follows the same pattern already established in `formfield_for_foreignkey()`.",
+      "created_at": "2026-01-16T06:46:11.374Z"
+    },
+    {
+      "epic_id": "4da56f93-1fe3-498c-a0de-0701355f3a5c",
+      "epic_title": "Fix: django__django-12713",
+      "comment_id": "a67f7fb0-1e44-4734-94f7-7556020254c6",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and matches `formfield_for_foreignkey()` behavior: user-supplied `widget` in `formfield_for_manytomany()` is no longer overwritten.\n- Only source code changed (`django/contrib/admin/options.py`); no tests/build configs touched.\n- Verification includes baseline vs after-fix results for relevant suites (`tests/admin_widgets`, `tests/admin_ordering`) with no regressions reported.",
+      "created_at": "2026-01-16T06:47:18.009Z"
+    }
+  ]
+}

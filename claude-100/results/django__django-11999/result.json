@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-11999",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py\nindex ee45bb941e..7754ffc646 100644\n--- a/django/db/models/fields/__init__.py\n+++ b/django/db/models/fields/__init__.py\n@@ -763,8 +763,9 @@ class Field(RegisterLookupMixin):\n             if not getattr(cls, self.attname, None):\n                 setattr(cls, self.attname, self.descriptor_class(self))\n         if self.choices is not None:\n-            setattr(cls, 'get_%s_display' % self.name,\n-                    partialmethod(cls._get_FIELD_display, field=self))\n+            if not hasattr(cls, 'get_%s_display' % self.name):\n+                setattr(cls, 'get_%s_display' % self.name,\n+                        partialmethod(cls._get_FIELD_display, field=self))\n \n     def get_filter_kwargs_for_object(self, obj):\n         \"\"\"\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:55:17.894400",
+  "end_time": "2026-01-17T01:58:21.470308",
+  "duration_seconds": 183.575908,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11999",
+  "epic_comments": [
+    {
+      "epic_id": "6d91b259-deac-400b-93a5-2fc85b1cf9be",
+      "epic_title": "Fix: django__django-11999",
+      "comment_id": "44c175c4-aba0-4898-9153-222a9bf255ed",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded a `hasattr` check before setting the `get_FOO_display` method in `Field.contribute_to_class()`. This allows users to override the `get_FOO_display()` method on their models, restoring the expected behavior from Django 2.1.\n\nThe fix follows the same pattern already used in the same method for not overriding classmethods with field descriptors (line 763).\n\n## Files Modified\n- `django/db/models/fields/__init__.py`: Added `hasattr` check before `setattr` for `get_%s_display` method (line 765-768)\n\n## Test Results\n- **Test file:** tests/model_fields/tests.py\n- **Baseline (before fix):** 30 passed, 0 failed, 0 errors\n- **After fix:** 30 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\nAlso tested tests/model_regress: 21 passed, 0 failed, 1 skipped\n\n## Additional Verification\nTested all edge cases:\n1. Method defined AFTER field: \u2705 Works (was broken before)\n2. Method defined BEFORE field: \u2705 Works  \n3. No override (default behavior): \u2705 Returns choice display value correctly\n\n```python\n# All three scenarios now work correctly:\nclass TestAfter(models.Model):\n    foo_bar = models.CharField('foo', choices=[(1, 'foo'), (2, 'bar')])\n    def get_foo_bar_display(self):\n        return 'overridden_after'  # Returns 'overridden_after' \u2705\n\nclass TestBefore(models.Model):\n    def get_foo_bar_display(self):\n        return 'overridden_before'\n    foo_bar = models.CharField('foo', choices=[(1, 'foo'), (2, 'bar')])\n    # Returns 'overridden_before' \u2705\n\nclass TestDefault(models.Model):\n    foo_bar = models.CharField('foo', choices=[(1, 'foo'), (2, 'bar')])\n    # Returns 'foo' (default behavior) \u2705\n```\n\n## Concerns\n- None. The fix is minimal and follows existing patterns in the codebase.",
+      "created_at": "2026-01-17T00:58:11.838Z"
+    }
+  ]
+}

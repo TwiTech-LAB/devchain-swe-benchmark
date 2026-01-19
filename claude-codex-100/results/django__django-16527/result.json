@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-16527",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/templatetags/admin_modify.py b/django/contrib/admin/templatetags/admin_modify.py\nindex 9df4b7aadb..5b742af46a 100644\n--- a/django/contrib/admin/templatetags/admin_modify.py\n+++ b/django/contrib/admin/templatetags/admin_modify.py\n@@ -100,6 +100,7 @@ def submit_row(context):\n                 and context.get(\"show_delete\", True)\n             ),\n             \"show_save_as_new\": not is_popup\n+            and has_add_permission\n             and has_change_permission\n             and change\n             and save_as,\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:43:45.002219",
+  "end_time": "2026-01-16T07:47:27.985374",
+  "duration_seconds": 222.983155,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-16527",
+  "epic_comments": [
+    {
+      "epic_id": "4e43e883-f3dd-4e78-8218-9bc543437ab0",
+      "epic_title": "Fix: django__django-16527",
+      "comment_id": "9f1ce0ba-cc00-4815-b930-187b99e2db30",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `has_add_permission` check to the `show_save_as_new` condition in the admin submit row template tag. The \"Save as New\" functionality creates a new object which requires add permission, but the button was previously shown to users who only had change permission.\n\n## Files Modified\n- `django/contrib/admin/templatetags/admin_modify.py`: Added `and has_add_permission` to the `show_save_as_new` condition (line 103)\n\n## Test Results\n- **Test file:** tests/admin_views/test_templatetags.py, tests/admin_views/tests.py\n- **Baseline (before fix):** 12 tests passed, 0 failed, 0 errors\n- **After fix:** 12 tests passed, 0 failed, 0 errors\n- **Full admin_views suite:** 441 tests passed, 0 failed, 34 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified fix logic directly:\n- User with change but NOT add permission: `show_save_as_new = False` \u2713\n- User with BOTH add and change permissions: `show_save_as_new = True` \u2713\n- User with add but NOT change permission: `show_save_as_new = False` \u2713\n\n## Concerns\n- None. This is a minimal, focused fix that follows the existing pattern in the codebase (e.g., `can_save_and_add_another` already checks `has_add_permission`)",
+      "created_at": "2026-01-16T06:46:18.971Z"
+    },
+    {
+      "epic_id": "4e43e883-f3dd-4e78-8218-9bc543437ab0",
+      "epic_title": "Fix: django__django-16527",
+      "comment_id": "ac9f1210-f2a5-4ef0-8ca7-851b71869127",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly adds `has_add_permission` to `show_save_as_new` in `django/contrib/admin/templatetags/admin_modify.py`.\n- No test files were modified.\n- Verification includes baseline vs after-fix results and running the relevant admin views tests.",
+      "created_at": "2026-01-16T06:47:19.709Z"
+    }
+  ]
+}

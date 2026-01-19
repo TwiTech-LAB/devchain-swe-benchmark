@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-13741",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/auth/forms.py b/django/contrib/auth/forms.py\nindex b9eb33329f..9a6614a809 100644\n--- a/django/contrib/auth/forms.py\n+++ b/django/contrib/auth/forms.py\n@@ -56,6 +56,7 @@ class ReadOnlyPasswordHashField(forms.Field):\n \n     def __init__(self, *args, **kwargs):\n         kwargs.setdefault(\"required\", False)\n+        kwargs.setdefault(\"disabled\", True)\n         super().__init__(*args, **kwargs)\n \n     def bound_data(self, data, initial):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T11:16:15.654446",
+  "end_time": "2026-01-17T11:20:42.686867",
+  "duration_seconds": 267.032421,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-13741",
+  "epic_comments": [
+    {
+      "epic_id": "65a35d0e-6c7b-4605-b277-00333150cccf",
+      "epic_title": "Fix: django__django-13741",
+      "comment_id": "7e275418-f87a-40b1-9863-ce3353c90eab",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nSet `disabled=True` by default on `ReadOnlyPasswordHashField` to prevent accidental password changes. This makes the field use Django's built-in disabled behavior, which ignores any tampered values and uses the form's initial data instead.\n\nThe fix adds `kwargs.setdefault(\"disabled\", True)` in the `ReadOnlyPasswordHashField.__init__` method. This makes the `clean_password` method in `UserChangeForm` technically redundant, but it's kept for backwards compatibility.\n\n## Files Modified\n- `django/contrib/auth/forms.py`: Added `kwargs.setdefault(\"disabled\", True)` in `ReadOnlyPasswordHashField.__init__`\n\n## Test Results\n- **Test file:** `tests/auth_tests/test_forms.py`\n- **Baseline (before fix):** 83 passed, 0 failed, 0 errors\n- **After fix:** 83 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\n- Verified `field.disabled` is `True` by default\n- Verified `disabled` can be overridden to `False` if needed\n- Verified `required` is still `False` by default (unchanged behavior)\n\n## Concerns\n- None. This is a minimal, focused change that doesn't break backwards compatibility.",
+      "created_at": "2026-01-17T10:18:46.982Z"
+    },
+    {
+      "epic_id": "65a35d0e-6c7b-4605-b277-00333150cccf",
+      "epic_title": "Fix: django__django-13741",
+      "comment_id": "d55b88df-ce49-48c8-8dbc-94c8bd2a05ac",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and targets the root issue by making `ReadOnlyPasswordHashField` ignore tampered POSTed values via `disabled=True` by default.\n- Only source file changed (`django/contrib/auth/forms.py`); no tests/build config modifications.\n- Verification includes baseline vs after running `tests/auth_tests/test_forms.py` (83 passed both times).",
+      "created_at": "2026-01-17T10:20:36.394Z"
+    }
+  ]
+}

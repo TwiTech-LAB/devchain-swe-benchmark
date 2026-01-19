@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-12708",
+  "status": "completed",
+  "patch": "diff --git a/django/db/backends/base/schema.py b/django/db/backends/base/schema.py\nindex 61f88401ab..1f521cfc5c 100644\n--- a/django/db/backends/base/schema.py\n+++ b/django/db/backends/base/schema.py\n@@ -393,7 +393,7 @@ class BaseDatabaseSchemaEditor:\n         news = {tuple(fields) for fields in new_index_together}\n         # Deleted indexes\n         for fields in olds.difference(news):\n-            self._delete_composed_index(model, fields, {'index': True}, self.sql_delete_index)\n+            self._delete_composed_index(model, fields, {'index': True, 'unique': False}, self.sql_delete_index)\n         # Created indexes\n         for field_names in news.difference(olds):\n             fields = [model._meta.get_field(field) for field in field_names]\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:55:22.895022",
+  "end_time": "2026-01-17T01:57:46.327263",
+  "duration_seconds": 143.432241,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12708",
+  "epic_comments": [
+    {
+      "epic_id": "d30bb002-a269-41d8-a4c2-103c8be891b5",
+      "epic_title": "Fix: django__django-12708",
+      "comment_id": "4b1af725-acd8-4b18-abfe-d76762735c3b",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the migration crash that occurred when deleting `index_together` while `unique_together` exists on the same fields.\n\n**Root Cause:** In `alter_index_together()`, when calling `_delete_composed_index()` to find and delete the index, only `{'index': True}` was passed as the filter criteria. Since unique constraints in databases also have the `index=True` property, the method found BOTH the index (from `index_together`) AND the unique constraint (from `unique_together`), causing the \"Found wrong number (2) of constraints\" ValueError.\n\n**Fix:** Added `unique=False` to the constraint kwargs when deleting indexes for `index_together`, changing from `{'index': True}` to `{'index': True, 'unique': False}`. This ensures only non-unique indexes are matched when removing an `index_together`.\n\n## Files Modified\n- `django/db/backends/base/schema.py`: Line 396 - Added `'unique': False` to the constraint filter in `alter_index_together()`.\n\n## Test Results\n- **Test file:** tests/schema/tests.py\n- **Baseline (before fix):** 131 passed, 0 failed, 0 errors (24 skipped)\n- **After fix:** 131 passed, 0 failed, 0 errors (24 skipped)\n- **Regression check:** No new failures introduced\n\n- **Additional test file:** tests/migrations tests\n- **Result:** 533 passed, 0 failed, 0 errors\n\n## Additional Verification\nRan a custom script to reproduce the exact issue described in the problem statement:\n1. Created a model with both `unique_together` and `index_together` on the same fields\n2. Called `alter_index_together()` to remove the `index_together`\n3. Result: SUCCESS - index_together removed without error\n\n## Concerns\n- None. The fix is minimal and targeted, only affecting the `index_together` removal logic to exclude unique constraints from consideration.",
+      "created_at": "2026-01-17T00:57:39.396Z"
+    }
+  ]
+}

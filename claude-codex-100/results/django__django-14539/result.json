@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14539",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/html.py b/django/utils/html.py\nindex 3bc02b8dd3..bd58317a79 100644\n--- a/django/utils/html.py\n+++ b/django/utils/html.py\n@@ -283,8 +283,9 @@ def urlize(text, trim_url_limit=None, nofollow=False, autoescape=False):\n             middle_unescaped = html.unescape(middle)\n             stripped = middle_unescaped.rstrip(TRAILING_PUNCTUATION_CHARS)\n             if middle_unescaped != stripped:\n-                trail = middle[len(stripped):] + trail\n-                middle = middle[:len(stripped) - len(middle_unescaped)]\n+                punctuation_count = len(middle_unescaped) - len(stripped)\n+                trail = middle[-punctuation_count:] + trail\n+                middle = middle[:-punctuation_count]\n                 trimmed_something = True\n         return lead, middle, trail\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T13:46:40.103918",
+  "end_time": "2026-01-16T13:54:04.275142",
+  "duration_seconds": 444.171224,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14539",
+  "epic_comments": [
+    {
+      "epic_id": "e16a65df-3944-4a56-bde1-f81fa946f882",
+      "epic_title": "Fix: django__django-14539",
+      "comment_id": "d3eceb69-562b-4dfa-98d8-f5bcd21225e1",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the `urlize()` function to correctly handle HTML escaped strings and trailing punctuation.\n\n**Root Cause:** When trimming trailing punctuation, the code was using `len(stripped)` from the unescaped string to index into the original escaped string. Since HTML entities like `&lt` (3 chars) unescape to single characters like `<` (1 char), this caused index misalignment, resulting in part of the entity being duplicated in the trailing text.\n\n**Fix:** Calculate the punctuation count from the unescaped string length difference, then use negative indexing to extract the correct trailing portion from the original escaped string.\n\n## Files Modified\n- `django/utils/html.py`: Modified `trim_punctuation()` inner function in `urlize()` (lines 286-288)\n\nChanged from:\n```python\ntrail = middle[len(stripped):] + trail\nmiddle = middle[:len(stripped) - len(middle_unescaped)]\n```\n\nTo:\n```python\npunctuation_count = len(middle_unescaped) - len(stripped)\ntrail = middle[-punctuation_count:] + trail\nmiddle = middle[:-punctuation_count]\n```\n\n## Test Results\n- **Test file:** utils_tests.test_html\n- **Baseline (before fix):** 16 passed, 0 failed, 0 errors\n- **After fix:** 16 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the fix with the exact example from the problem statement:\n- Input: `urlize('Search for google.com/?q=1&lt! and see.')`\n- Before fix: `'Search for <a href=\"http://google.com/?q=1%3C\">google.com/?q=1&lt</a>lt! and see.'` (incorrect - `lt` duplicated)\n- After fix: `'Search for <a href=\"http://google.com/?q=1%3C\">google.com/?q=1&lt</a>! and see.'` (correct)\n\nAlso tested edge cases:\n- Multiple trailing punctuation (`!!`) - works correctly\n- Normal URLs without HTML entities - works correctly\n- URLs with `&amp;` entity - works correctly\n\n## Concerns\n- None. The fix is minimal and uses the same logic pattern, just with correct indexing.",
+      "created_at": "2026-01-16T12:51:47.984Z"
+    },
+    {
+      "epic_id": "e16a65df-3944-4a56-bde1-f81fa946f882",
+      "epic_title": "Fix: django__django-14539",
+      "comment_id": "61ce3690-4f1e-413c-9584-40e67e8caf3a",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly fixes the escaped/unescaped length mismatch in `urlize()` trailing-punctuation trimming.\n- Only `django/utils/html.py` was modified (no test/build config changes).\n- Verification looks appropriate: baseline vs after-fix results provided, and the referenced label `utils_tests.test_html` corresponds to `tests/utils_tests/test_html.py`.",
+      "created_at": "2026-01-16T12:53:56.421Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-15127",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/messages/storage/base.py b/django/contrib/messages/storage/base.py\nindex 01422066a6..f547472661 100644\n--- a/django/contrib/messages/storage/base.py\n+++ b/django/contrib/messages/storage/base.py\n@@ -1,9 +1,18 @@\n from django.conf import settings\n from django.contrib.messages import constants, utils\n+from django.core.signals import setting_changed\n+from django.dispatch import receiver\n \n LEVEL_TAGS = utils.get_level_tags()\n \n \n+@receiver(setting_changed)\n+def update_level_tags(*, setting, **kwargs):\n+    if setting == 'MESSAGE_TAGS':\n+        global LEVEL_TAGS\n+        LEVEL_TAGS = utils.get_level_tags()\n+\n+\n class Message:\n     \"\"\"\n     Represent an actual message that can be stored in any of the supported\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:14:54.435408",
+  "end_time": "2026-01-16T20:17:36.678243",
+  "duration_seconds": 162.242835,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15127",
+  "epic_comments": [
+    {
+      "epic_id": "e5890c09-c8ac-47cb-b335-a24ede5625e1",
+      "epic_title": "Fix: django__django-15127",
+      "comment_id": "dd6cf0b1-17b9-40e8-af77-0987b0ecae4e",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded a `setting_changed` signal receiver to update `LEVEL_TAGS` when `MESSAGE_TAGS` setting is changed via `@override_settings`.\n\nThe root cause was that `LEVEL_TAGS` was computed once at module import time using `utils.get_level_tags()` and never updated when `MESSAGE_TAGS` changed. This caused `Message.level_tag` property to return stale values (or empty strings for custom tags) during tests that use `@override_settings`.\n\nThe fix follows the same pattern used in `django/contrib/auth/hashers.py` for handling the `PASSWORD_HASHERS` setting change.\n\n## Files Modified\n- `django/contrib/messages/storage/base.py`: Added `setting_changed` signal receiver that updates `LEVEL_TAGS` when `MESSAGE_TAGS` changes\n\n## Test Results\n- **Test file:** tests/messages_tests/\n- **Baseline (before fix):** 96 passed, 0 failed, 0 errors\n- **After fix:** 96 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified with a test script demonstrating:\n- Before override: `level_tag` returns `'info'`\n- During `@override_settings(MESSAGE_TAGS={INFO: 'custom'})`: `level_tag` returns `'custom'`\n- After override: `level_tag` returns `'info'` again\n\n## Concerns\nNone - this follows the established Django pattern for handling settings changes in tests.",
+      "created_at": "2026-01-16T19:17:23.664Z"
+    }
+  ]
+}

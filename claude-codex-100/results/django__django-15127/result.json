@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-15127",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/messages/storage/base.py b/django/contrib/messages/storage/base.py\nindex 01422066a6..f547472661 100644\n--- a/django/contrib/messages/storage/base.py\n+++ b/django/contrib/messages/storage/base.py\n@@ -1,9 +1,18 @@\n from django.conf import settings\n from django.contrib.messages import constants, utils\n+from django.core.signals import setting_changed\n+from django.dispatch import receiver\n \n LEVEL_TAGS = utils.get_level_tags()\n \n \n+@receiver(setting_changed)\n+def update_level_tags(*, setting, **kwargs):\n+    if setting == 'MESSAGE_TAGS':\n+        global LEVEL_TAGS\n+        LEVEL_TAGS = utils.get_level_tags()\n+\n+\n class Message:\n     \"\"\"\n     Represent an actual message that can be stored in any of the supported\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-15T23:49:25.103998",
+  "end_time": "2026-01-15T23:53:41.468042",
+  "duration_seconds": 256.364044,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15127",
+  "epic_comments": [
+    {
+      "epic_id": "0375ea7d-a6ba-4981-926a-551516399b72",
+      "epic_title": "Fix: django__django-15127",
+      "comment_id": "59f9ad2a-7b45-4c83-885d-05049c951708",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded a `setting_changed` signal receiver to update `LEVEL_TAGS` when `MESSAGE_TAGS` is modified via `@override_settings`. The fix follows the existing Django pattern used in `django.contrib.auth.hashers`.\n\n**Root Cause:** `LEVEL_TAGS` was a module-level constant computed once at import time. When `@override_settings` changed `MESSAGE_TAGS`, the `LEVEL_TAGS` constant was never updated, causing `Message.level_tag` to return empty strings for custom message tags.\n\n**Solution:** Connected a `setting_changed` signal receiver that re-computes `LEVEL_TAGS` whenever `MESSAGE_TAGS` is modified.\n\n## Files Modified\n- `django/contrib/messages/storage/base.py`: Added `setting_changed` receiver to update `LEVEL_TAGS` when `MESSAGE_TAGS` changes\n\n## Test Results\n- **Test file:** tests/messages_tests (all test modules)\n- **Baseline (before fix):** 96 passed, 0 failed, 0 errors\n- **After fix:** 96 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the fix with a custom script:\n1. Initially, `LEVEL_TAGS` contains default tags (debug, info, success, warning, error)\n2. Inside `override_settings(MESSAGE_TAGS={35: 'custom'})`, `LEVEL_TAGS` is updated to include the custom tag\n3. `Message.level_tag` now correctly returns 'custom' for level 35 (was returning empty string before)\n4. After exiting `override_settings`, `LEVEL_TAGS` is correctly restored to defaults\n\n## Concerns\n- None. The fix is minimal and follows the established pattern used elsewhere in Django.",
+      "created_at": "2026-01-15T22:52:07.163Z"
+    },
+    {
+      "epic_id": "0375ea7d-a6ba-4981-926a-551516399b72",
+      "epic_title": "Fix: django__django-15127",
+      "comment_id": "f43d3869-90ae-4f6a-8340-da31eed90b0a",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- `git diff HEAD` shows a minimal, source-only change in `django/contrib/messages/storage/base.py`.\n- The `setting_changed` receiver recomputes `LEVEL_TAGS` when `MESSAGE_TAGS` is overridden, which addresses the reported stale module-level constant behavior.\n- Brainstormer provided baseline vs after-fix test results for `tests/messages_tests` (96 passed in both).",
+      "created_at": "2026-01-15T22:53:36.904Z"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "instance_id": "django__django-12419",
+  "status": "completed",
+  "patch": "diff --git a/django/conf/global_settings.py b/django/conf/global_settings.py\nindex 09c9b95d26..8bb59a4037 100644\n--- a/django/conf/global_settings.py\n+++ b/django/conf/global_settings.py\n@@ -637,6 +637,6 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = False\n SECURE_HSTS_PRELOAD = False\n SECURE_HSTS_SECONDS = 0\n SECURE_REDIRECT_EXEMPT = []\n-SECURE_REFERRER_POLICY = None\n+SECURE_REFERRER_POLICY = 'same-origin'\n SECURE_SSL_HOST = None\n SECURE_SSL_REDIRECT = False\ndiff --git a/docs/ref/settings.txt b/docs/ref/settings.txt\nindex b4a5bdc48f..4fe29aadc9 100644\n--- a/docs/ref/settings.txt\n+++ b/docs/ref/settings.txt\n@@ -2395,11 +2395,11 @@ from URL paths, so patterns shouldn't include them, e.g.\n \n .. versionadded:: 3.0\n \n-Default: ``None``\n+Default: ``'same-origin'``\n \n-If configured, the :class:`~django.middleware.security.SecurityMiddleware` sets\n-the :ref:`referrer-policy` header on all responses that do not already have it\n-to the value provided.\n+The :class:`~django.middleware.security.SecurityMiddleware` sets the\n+:ref:`referrer-policy` header on all responses that do not already have it to\n+the value provided. Set to ``None`` to disable setting the header.\n \n .. setting:: SECURE_SSL_HOST\n \ndiff --git a/docs/releases/3.1.txt b/docs/releases/3.1.txt\nindex 4a165156e1..d620e104fc 100644\n--- a/docs/releases/3.1.txt\n+++ b/docs/releases/3.1.txt\n@@ -388,6 +388,13 @@ Miscellaneous\n   Django 3.1, the first request to any previously cached template fragment will\n   be a cache miss.\n \n+* The default value of the :setting:`SECURE_REFERRER_POLICY` setting changed\n+  from ``None`` to ``'same-origin'``. With the\n+  :class:`~django.middleware.security.SecurityMiddleware` enabled, the\n+  ``Referrer-Policy`` header is now set to ``same-origin`` by default. See the\n+  :ref:`referrer-policy` section for more details on the header and potential\n+  impacts.\n+\n * The logic behind the decision to return a redirection fallback or a 204 HTTP\n   response from the :func:`~django.views.i18n.set_language` view is now based\n   on the ``Accept`` HTTP header instead of the ``X-Requested-With`` HTTP header\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T13:46:05.100568",
+  "end_time": "2026-01-16T13:53:29.845111",
+  "duration_seconds": 444.744543,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12419",
+  "epic_comments": [
+    {
+      "epic_id": "c0145286-d860-4321-b314-07ed71b21204",
+      "epic_title": "Fix: django__django-12419",
+      "comment_id": "967c070a-2221-40db-ab7f-91c114bb2886",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nChanged the default value of `SECURE_REFERRER_POLICY` from `None` to `'same-origin'` to implement a secure-by-default policy. This makes Django applications leak less referrer information to third party sites.\n\n## Files Modified\n- `django/conf/global_settings.py`: Changed `SECURE_REFERRER_POLICY = None` to `SECURE_REFERRER_POLICY = 'same-origin'` (line 640)\n\n## Test Results\n- **Test file 1:** tests/middleware/test_security.py\n- **Test file 2:** tests/check_framework/test_security.py\n- **Baseline (before fix):** 23 passed + 52 passed = 75 total, 0 failed, 0 errors\n- **After fix:** 23 passed + 52 passed = 75 total, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\n- Verified that `global_settings.SECURE_REFERRER_POLICY` now returns `'same-origin'`\n- `'same-origin'` is a valid value in `REFERRER_POLICY_VALUES` set\n\n## Concerns\n- Backward compatibility: This is a breaking change for users who relied on the default `None` value (no Referrer-Policy header). However, as noted in the hints, this fits Django's secure-by-default philosophy and the BC should be documented in release notes.",
+      "created_at": "2026-01-16T12:48:36.910Z"
+    },
+    {
+      "epic_id": "c0145286-d860-4321-b314-07ed71b21204",
+      "epic_title": "Fix: django__django-12419",
+      "comment_id": "9dcdda33-3a9c-4d35-bbbc-f48edb6d1b73",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- Documentation mismatch: after changing the default `SECURE_REFERRER_POLICY` to `'same-origin'`, `docs/ref/settings.txt` still states \u201cDefault: ``None``\u201d.\n- The hint explicitly calls out documenting this breaking-change in the release notes, but `docs/releases/3.1.txt` was not updated.\n\nRequired Changes:\n- Update `docs/ref/settings.txt` to reflect the new default for `SECURE_REFERRER_POLICY`.\n- Add a note to `docs/releases/3.1.txt` (Backwards incompatible changes \u2192 Miscellaneous) describing the new default Referrer-Policy behavior.\n\nNotes:\n- Code change in `django/conf/global_settings.py` is minimal and looks correct, and no test files were modified.\n- Test evidence provided includes baseline vs after runs for `tests/middleware/test_security.py` and `tests/check_framework/test_security.py` (no failures/errors).",
+      "created_at": "2026-01-16T12:50:58.836Z"
+    },
+    {
+      "epic_id": "c0145286-d860-4321-b314-07ed71b21204",
+      "epic_title": "Fix: django__django-12419",
+      "comment_id": "9fd719ce-22f6-4912-ad6b-935ec48811bc",
+      "author_name": "Brainstormer",
+      "content": "## Addressed Code Review Feedback\n\nFixed the documentation issues identified in review:\n\n### Changes Made:\n1. **docs/ref/settings.txt**: Updated `SECURE_REFERRER_POLICY` documentation:\n   - Changed default from ``None`` to ``'same-origin'``\n   - Updated description to indicate the header is now set by default\n   - Added note about setting to ``None`` to disable\n\n2. **docs/releases/3.1.txt**: Added backwards incompatible change note in the Miscellaneous section describing the new default Referrer-Policy behavior\n\n### All Files Modified:\n- `django/conf/global_settings.py`: Changed default from `None` to `'same-origin'`\n- `docs/ref/settings.txt`: Updated documentation to reflect new default\n- `docs/releases/3.1.txt`: Added BC change note\n\n### Test Results:\n- All 75 tests pass (middleware + check_framework security tests)\n- No regressions introduced",
+      "created_at": "2026-01-16T12:52:18.107Z"
+    },
+    {
+      "epic_id": "c0145286-d860-4321-b314-07ed71b21204",
+      "epic_title": "Fix: django__django-12419",
+      "comment_id": "7398b795-1eed-45fc-b85c-9975744f048c",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly updates the default `SECURE_REFERRER_POLICY` to `'same-origin'`.\n- No test files were modified.\n- Documentation and release notes are now consistent with the behavior change (`docs/ref/settings.txt`, `docs/releases/3.1.txt`).\n- Test evidence provided shows baseline vs after runs for the relevant security test modules with no failures/errors.",
+      "created_at": "2026-01-16T12:53:21.691Z"
+    }
+  ]
+}

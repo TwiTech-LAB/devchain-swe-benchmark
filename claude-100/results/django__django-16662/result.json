@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-16662",
+  "status": "completed",
+  "patch": "diff --git a/django/db/migrations/writer.py b/django/db/migrations/writer.py\nindex a59f0c8dcb..d924b94251 100644\n--- a/django/db/migrations/writer.py\n+++ b/django/db/migrations/writer.py\n@@ -175,7 +175,10 @@ class MigrationWriter:\n \n         # Sort imports by the package / module to be imported (the part after\n         # \"from\" in \"from ... import ...\" or after \"import\" in \"import ...\").\n-        sorted_imports = sorted(imports, key=lambda i: i.split()[1])\n+        # Place \"import\" statements before \"from X import Y\" statements.\n+        sorted_imports = sorted(\n+            imports, key=lambda i: (i.split()[0] == \"from\", i.split()[1])\n+        )\n         items[\"imports\"] = \"\\n\".join(sorted_imports) + \"\\n\" if imports else \"\"\n         if migration_imports:\n             items[\"imports\"] += (\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:20:07.878969",
+  "end_time": "2026-01-16T20:22:59.219068",
+  "duration_seconds": 171.340099,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-16662",
+  "epic_comments": [
+    {
+      "epic_id": "36a4b381-ae65-450e-bc29-7536f32e70ea",
+      "epic_title": "Fix: django__django-16662",
+      "comment_id": "d98fd230-e9fe-4442-9e33-48f244a8e8a2",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nModified the import sorting logic in `MigrationWriter.as_string()` to place all `import X` statements before `from X import Y` statements, following Django coding style and isort defaults.\n\nThe issue was that imports were sorted only by module name alphabetically, which caused mixed ordering like:\n```python\nimport datetime\nfrom django.db import migrations, models\nimport time\n```\n\nAfter the fix, imports are now sorted correctly:\n```python\nimport datetime\nimport time\nfrom django.db import migrations, models\n```\n\n## Files Modified\n- `django/db/migrations/writer.py`: Changed the sorting key on line 179-181 from `key=lambda i: i.split()[1]` to `key=lambda i: (i.split()[0] == \"from\", i.split()[1])`. This creates a tuple key where:\n  - First element: `False` for `import X` (sorted first), `True` for `from X import Y` (sorted second)\n  - Second element: module name for alphabetical sorting within each group\n\n## Test Results\n- **Test file:** tests/migrations/test_writer.py\n- **Baseline (before fix):** 52 passed, 0 failed, 0 errors\n- **After fix:** 52 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the fix manually by testing the sorting logic directly:\n- OLD: `import datetime`, `from django.db import ...`, `import time` (mixed)\n- NEW: `import datetime`, `import time`, `from django.db import ...` (correct)\n\n## Concerns\n- None. The fix is minimal and follows existing code patterns.",
+      "created_at": "2026-01-16T19:22:49.442Z"
+    }
+  ]
+}

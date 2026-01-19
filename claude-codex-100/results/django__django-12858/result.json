@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-12858",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/base.py b/django/db/models/base.py\nindex 6c9e9d3707..262312397f 100644\n--- a/django/db/models/base.py\n+++ b/django/db/models/base.py\n@@ -1747,7 +1747,10 @@ class Model(metaclass=ModelBase):\n                     else:\n                         _cls = None\n                 except (FieldDoesNotExist, AttributeError):\n-                    if fld is None or fld.get_transform(part) is None:\n+                    if fld is None or (\n+                        fld.get_transform(part) is None and\n+                        fld.get_lookup(part) is None\n+                    ):\n                         errors.append(\n                             checks.Error(\n                                 \"'ordering' refers to the nonexistent field, \"\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T13:46:35.103389",
+  "end_time": "2026-01-16T13:55:18.747988",
+  "duration_seconds": 523.644599,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12858",
+  "epic_comments": [
+    {
+      "epic_id": "e6a4a516-9fb5-401a-bfd7-58dacc0c4f37",
+      "epic_title": "Fix: django__django-12858",
+      "comment_id": "e34f649e-ebdb-4514-afa4-ed6ce0767992",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe `_check_ordering()` method in `django/db/models/base.py` was only checking for valid transforms when validating ordering fields with lookups (e.g., `supply__product__parent__isnull`). However, `isnull` is a **lookup** (not a transform), so it was incorrectly flagged as invalid.\n\nThe fix adds a check for lookups in addition to transforms: if a field part is neither a transform nor a lookup, only then raise E015.\n\n## Files Modified\n- `django/db/models/base.py`: Line 1750 - Added check for `fld.get_lookup(part)` in addition to `fld.get_transform(part)`\n\n## Test Results\n- **Test file:** `tests/invalid_models_tests/test_models.py`\n- **Baseline (before fix):** 75 tests, 73 passed, 2 skipped, 0 errors\n- **After fix:** 75 tests, 73 passed, 2 skipped, 0 errors\n- **Regression check:** No new failures introduced\n- **Additional tests:** `model_meta` (25 tests OK), `ordering` (26 tests OK)\n\n## Additional Verification\nCreated a reproduction script matching the issue:\n```python\nclass Stock(models.Model):\n    supply = models.ForeignKey(Supply, models.CASCADE)\n    class Meta:\n        ordering = ['supply__product__parent__isnull']\n```\n- Before fix: `models.E015` error raised\n- After fix: No errors - validation passes correctly\n\nAlso verified that invalid lookups (e.g., `__invalid_lookup`) still correctly raise E015.\n\n## Concerns\n- None - the fix is minimal and only extends the existing validation logic to also recognize lookups as valid",
+      "created_at": "2026-01-16T12:49:34.088Z"
+    },
+    {
+      "epic_id": "e6a4a516-9fb5-401a-bfd7-58dacc0c4f37",
+      "epic_title": "Fix: django__django-12858",
+      "comment_id": "f99afb2e-3d6a-4e70-8cc1-99a437ad0601",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Diff is minimal and scoped to `django/db/models/base.py` to treat `__isnull` (and other registered lookups) as valid when validating `Meta.ordering`, fixing the reported false-positive `models.E015`.\n- No tests or build/config files were modified.\n- Verification evidence includes baseline vs after-fix run of `tests/invalid_models_tests/test_models.py` with identical results, plus additional regression runs (`model_meta`, `ordering`).",
+      "created_at": "2026-01-16T12:55:12.513Z"
+    }
+  ]
+}

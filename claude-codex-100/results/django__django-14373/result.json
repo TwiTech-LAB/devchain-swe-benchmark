@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14373",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/dateformat.py b/django/utils/dateformat.py\nindex 38e89c47bb..7185c6921c 100644\n--- a/django/utils/dateformat.py\n+++ b/django/utils/dateformat.py\n@@ -314,7 +314,7 @@ class DateFormat(TimeFormat):\n \n     def Y(self):\n         \"Year, 4 digits; e.g. '1999'\"\n-        return self.data.year\n+        return '%04d' % self.data.year\n \n     def z(self):\n         \"\"\"Day of the year, i.e. 1 to 366.\"\"\"\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T11:16:25.655434",
+  "end_time": "2026-01-17T11:20:32.302409",
+  "duration_seconds": 246.646975,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14373",
+  "epic_comments": [
+    {
+      "epic_id": "ea860799-cd0e-42c9-baae-737ec25050d7",
+      "epic_title": "Fix: django__django-14373",
+      "comment_id": "206ee50b-7022-46fc-90cb-681a8b91f897",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe `DateFormat.Y()` method was returning `self.data.year` directly as an integer, which did not zero-pad years less than 1000. Changed to use `'%04d' % self.data.year` to ensure 4-digit zero-padded output.\n\n## Files Modified\n- `django/utils/dateformat.py`: Changed `Y()` method to return zero-padded 4-digit year using format string `'%04d'`\n\n## Test Results\n- **Test file:** tests/utils_tests/test_dateformat.py\n- **Baseline (before fix):** 19 passed, 0 failed, 0 errors\n- **After fix:** 19 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\nManual verification with various years:\n- Year 1 -> Y() = '0001' \u2713\n- Year 10 -> Y() = '0010' \u2713\n- Year 100 -> Y() = '0100' \u2713\n- Year 999 -> Y() = '0999' \u2713\n- Year 1000 -> Y() = '1000' \u2713\n- Year 2021 -> Y() = '2021' \u2713\n\n## Concerns\n- None. The fix is minimal and follows the same pattern used by `y()` method (`'%02d' % (self.data.year % 100)`) in the same file.",
+      "created_at": "2026-01-17T10:18:44.226Z"
+    },
+    {
+      "epic_id": "ea860799-cd0e-42c9-baae-737ec25050d7",
+      "epic_title": "Fix: django__django-14373",
+      "comment_id": "d78d902f-f304-428b-975c-7f87fc7acce0",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Problem: `DateFormat.Y()` wasn\u2019t zero-padding years < 1000.\n- Change is minimal and correct: `Y()` now returns `'%04d' % self.data.year`.\n- Verified no tests/build configs modified (only `django/utils/dateformat.py`).\n- Verification evidence provided: baseline and after-fix run of `tests/utils_tests/test_dateformat.py` with all passing, plus manual checks for years < 1000.",
+      "created_at": "2026-01-17T10:20:19.739Z"
+    }
+  ]
+}

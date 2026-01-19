@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-11179",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py\nindex 92fe4affb9..3a462f1c4c 100644\n--- a/django/db/models/deletion.py\n+++ b/django/db/models/deletion.py\n@@ -277,6 +277,7 @@ class Collector:\n             if self.can_fast_delete(instance):\n                 with transaction.mark_for_rollback_on_error():\n                     count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)\n+                setattr(instance, model._meta.pk.attname, None)\n                 return count, {model._meta.label: count}\n \n         with transaction.atomic(using=self.using, savepoint=False):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T19:59:54.718632",
+  "end_time": "2026-01-16T20:02:26.449137",
+  "duration_seconds": 151.730505,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11179",
+  "epic_comments": [
+    {
+      "epic_id": "ac59f563-fd49-4cd7-a315-229a103deb35",
+      "epic_title": "Fix: django__django-11179",
+      "comment_id": "0dcf7a05-de9b-423d-86d5-428a2ca68860",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the bug where `delete()` on instances of models without dependencies didn't clear the PK (primary key) to `None`. The issue was in the fast-delete optimization path at lines 274-281 of `django/db/models/deletion.py` which returned early without clearing the instance's PK.\n\nThe fix adds `setattr(instance, model._meta.pk.attname, None)` after the delete query but before the return, mimicking the behavior of the normal delete path at lines 324-326.\n\n## Files Modified\n- `django/db/models/deletion.py`: Added line 280 to clear the PK after fast-delete\n\n## Test Results\n- **Test file:** `/testbed/tests/delete/`\n- **Baseline (before fix):** 41 passed, 0 failed, 1 skipped\n- **After fix:** 41 passed, 0 failed, 1 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nCreated a simple test to verify the fix:\n```python\nobj = SimpleModel(name='test')\nobj.save()\nprint(f'Before delete: pk = {obj.pk}')  # pk = 1\nobj.delete()\nprint(f'After delete: pk = {obj.pk}')   # pk = None (SUCCESS!)\n```\n\n## Concerns\n- None. The fix is minimal and follows the existing pattern used for the normal (non-fast) delete path.",
+      "created_at": "2026-01-16T19:02:14.909Z"
+    }
+  ]
+}

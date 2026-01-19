@@ -1,0 +1,22 @@
+{
+  "instance_id": "astropy__astropy-14365",
+  "status": "completed",
+  "patch": "diff --git a/astropy/io/ascii/qdp.py b/astropy/io/ascii/qdp.py\nindex 83a4f004aa..768beb0de9 100644\n--- a/astropy/io/ascii/qdp.py\n+++ b/astropy/io/ascii/qdp.py\n@@ -68,7 +68,7 @@ def _line_type(line, delimiter=None):\n     _new_re = rf\"NO({sep}NO)+\"\n     _data_re = rf\"({_decimal_re}|NO|[-+]?nan)({sep}({_decimal_re}|NO|[-+]?nan))*)\"\n     _type_re = rf\"^\\s*((?P<command>{_command_re})|(?P<new>{_new_re})|(?P<data>{_data_re})?\\s*(\\!(?P<comment>.*))?\\s*$\"\n-    _line_type_re = re.compile(_type_re)\n+    _line_type_re = re.compile(_type_re, re.IGNORECASE)\n     line = line.strip()\n     if not line:\n         return \"comment\"\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T19:59:39.720694",
+  "end_time": "2026-01-16T20:01:39.333394",
+  "duration_seconds": 119.6127,
+  "error_message": null,
+  "workspace_path": "./workspaces/astropy__astropy-14365",
+  "epic_comments": [
+    {
+      "epic_id": "080519b5-fc1c-4f7e-83fb-e2b5403ac431",
+      "epic_title": "Fix: astropy__astropy-14365",
+      "comment_id": "38970f8c-8d6b-4b36-9ee7-6c44b7cd1ab4",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nMade QDP command parsing case-insensitive by adding `re.IGNORECASE` flag to the regex compilation. QDP files with lowercase commands like `read serr 1 2` now work correctly instead of throwing \"Unrecognized QDP line\" errors.\n\n## Files Modified\n- `astropy/io/ascii/qdp.py`: Added `re.IGNORECASE` flag to the regex compilation at line 71\n\n## Test Results\n- **Test file:** astropy/io/ascii/tests/test_qdp.py\n- **Baseline (before fix):** 8 passed\n- **After fix:** 8 passed\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested with the exact example from the problem statement:\n```python\nfrom astropy.table import Table\nqdp_content = '''read serr 1 2\n1 0.5 1 0.5'''\nt = Table.read(qdp_content, format='ascii.qdp')\n# Now works correctly, outputs table with columns: col1, col1_err, col2, col2_err\n```\n\nAlso verified:\n- Uppercase commands (READ SERR) still work\n- Mixed case commands (Read Serr) work\n- Lowercase TERR commands work\n\n## Concerns\nNone. The fix is minimal and focused - only one line changed.",
+      "created_at": "2026-01-16T19:01:28.790Z"
+    }
+  ]
+}

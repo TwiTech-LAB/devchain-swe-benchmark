@@ -1,0 +1,46 @@
+{
+  "instance_id": "django__django-11095",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py\nindex 5e7b23f9a0..bd461810e3 100644\n--- a/django/contrib/admin/options.py\n+++ b/django/contrib/admin/options.py\n@@ -580,9 +580,15 @@ class ModelAdmin(BaseModelAdmin):\n     def __str__(self):\n         return \"%s.%s\" % (self.model._meta.app_label, self.__class__.__name__)\n \n+    def get_inlines(self, request, obj=None):\n+        \"\"\"\n+        Hook for specifying custom inlines based on the request or model instance.\n+        \"\"\"\n+        return self.inlines\n+\n     def get_inline_instances(self, request, obj=None):\n         inline_instances = []\n-        for inline_class in self.inlines:\n+        for inline_class in self.get_inlines(request, obj):\n             inline = inline_class(self.model, self.admin_site)\n             if request:\n                 if not (inline.has_view_or_change_permission(request, obj) or\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:51:54.592133",
+  "end_time": "2026-01-16T12:58:28.823826",
+  "duration_seconds": 394.231693,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11095",
+  "epic_comments": [
+    {
+      "epic_id": "ec1fecab-729f-43f9-8f46-6c453befb2d0",
+      "epic_title": "Fix: django__django-11095",
+      "comment_id": "1a4862b9-cbae-41ff-8e87-e6f182cd3541",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded a new `get_inlines(self, request, obj)` hook method to `ModelAdmin` class that allows users to dynamically specify inlines based on the request or model instance. The `get_inline_instances` method now calls `get_inlines()` instead of directly accessing `self.inlines`.\n\n**Before:** Users had to override `get_inline_instances` and duplicate the for loop logic just to customize which inlines were used.\n\n**After:** Users can simply override `get_inlines(request, obj)` to return different inline classes based on request/obj without duplicating any boilerplate.\n\n## Files Modified\n- `django/contrib/admin/options.py`: Added `get_inlines(self, request, obj)` method and updated `get_inline_instances` to use it\n\n## Test Results\n- **Test file:** tests/admin_inlines, tests/modeladmin, tests/admin_checks\n- **Baseline (before fix):** admin_inlines: 55 passed (6 skipped), modeladmin: 155 passed, admin_checks: 54 passed\n- **After fix:** admin_inlines: 55 passed (6 skipped), modeladmin: 155 passed, admin_checks: 54 passed\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\n- Manually verified that `get_inlines()` returns `self.inlines` by default\n- Verified that overriding `get_inlines()` allows dynamic inline selection based on obj\n\n## Concerns\n- None. The change is minimal and follows Django's existing pattern of providing hooks (similar to `get_fieldsets`, `get_readonly_fields`, etc.)",
+      "created_at": "2026-01-16T11:54:34.852Z"
+    },
+    {
+      "epic_id": "ec1fecab-729f-43f9-8f46-6c453befb2d0",
+      "epic_title": "Fix: django__django-11095",
+      "comment_id": "2c6d37cf-e5ff-4eb2-8fbf-26b67d5d7317",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- `ModelAdmin.get_inlines()` signature is `def get_inlines(self, request, obj)` but the requested/public hook is `get_inlines(request, obj=None)` and Django\u2019s other `get_*` hooks consistently default `obj=None`. Hidden callers (or user code) may call it without `obj`.\n\nRequired Changes:\n- Change signature to `def get_inlines(self, request, obj=None):` (keep behavior unchanged).\n\nNotes:\n- Change is otherwise minimal and the baseline vs after test summary looks good; please re-run the same targeted tests after updating the signature.",
+      "created_at": "2026-01-16T11:56:24.313Z"
+    },
+    {
+      "epic_id": "ec1fecab-729f-43f9-8f46-6c453befb2d0",
+      "epic_title": "Fix: django__django-11095",
+      "comment_id": "9bf35292-7d00-4f05-b1db-cac8b5a48e18",
+      "author_name": "Brainstormer",
+      "content": "## Revision Applied\n\nFixed the signature as requested:\n\n**Before:** `def get_inlines(self, request, obj):`\n**After:** `def get_inlines(self, request, obj=None):`\n\nThis now matches Django's convention for other `get_*` hooks.\n\n## Test Results After Fix\n- **Tests run:** admin_inlines, modeladmin, admin_checks\n- **Result:** 264 tests passed (6 skipped), OK\n- **No regressions**",
+      "created_at": "2026-01-16T11:57:15.912Z"
+    },
+    {
+      "epic_id": "ec1fecab-729f-43f9-8f46-6c453befb2d0",
+      "epic_title": "Fix: django__django-11095",
+      "comment_id": "42ee7992-0461-44c3-a20c-b74c6cf73ec6",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED. `ModelAdmin.get_inlines(self, request, obj=None)` matches Django hook conventions, and `get_inline_instances()` now cleanly delegates to it. Only `django/contrib/admin/options.py` changed and the reported targeted admin test runs show no regressions.",
+      "created_at": "2026-01-16T11:58:21.578Z"
+    }
+  ]
+}

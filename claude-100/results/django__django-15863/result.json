@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-15863",
+  "status": "completed",
+  "patch": "diff --git a/django/template/defaultfilters.py b/django/template/defaultfilters.py\nindex 7a5b28d159..216c6dbdb6 100644\n--- a/django/template/defaultfilters.py\n+++ b/django/template/defaultfilters.py\n@@ -151,8 +151,11 @@ def floatformat(text, arg=-1):\n             use_l10n = False\n             arg = arg[:-1] or -1\n     try:\n-        input_val = repr(text)\n-        d = Decimal(input_val)\n+        if isinstance(text, Decimal):\n+            d = text\n+        else:\n+            d = Decimal(repr(text))\n+        input_val = str(text)\n     except InvalidOperation:\n         try:\n             d = Decimal(str(float(text)))\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:17:39.642563",
+  "end_time": "2026-01-16T20:20:31.618240",
+  "duration_seconds": 171.975677,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15863",
+  "epic_comments": [
+    {
+      "epic_id": "4fff543b-0a13-483e-92f0-510ba544bdf9",
+      "epic_title": "Fix: django__django-15863",
+      "comment_id": "11b86119-a480-47af-87e8-fc43afa7f9d3",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe `floatformat` template filter was losing precision when handling `Decimal` numbers because it was converting them to `float` before processing.\n\n**Root Cause:** When input is a `Decimal`, `repr(Decimal('42.123...'))` returns `\"Decimal('42.123...')\"` which can't be parsed by the `Decimal()` constructor. This triggered the fallback path that converted to float, losing precision.\n\n**Fix:** Check if the input is already a `Decimal` instance and use it directly, avoiding unnecessary conversion.\n\n## Files Modified\n- `django/template/defaultfilters.py`: Modified the `floatformat` function (lines 153-158) to preserve `Decimal` precision by detecting `Decimal` instances before attempting string conversion.\n\n## Test Results\n- **Test file:** tests/template_tests/filter_tests/test_floatformat.py\n- **Baseline (before fix):** 10 passed, 0 failed, 0 errors\n- **After fix:** 10 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested the specific issue case:\n- Input: `Decimal('42.12345678901234567890')` with `floatformat:20`\n- Before fix: `42.12345678901234400000` (precision lost)\n- After fix: `42.12345678901234567890` (precision preserved)\n\nAlso verified edge cases:\n- Negative Decimals: \u2705\n- Zero Decimal: \u2705\n- Integer Decimal: \u2705\n- Regular floats: \u2705 (backwards compatible)\n- String numbers: \u2705 (backwards compatible)\n- Decimal with negative arg: \u2705\n\n## Concerns\nNone - the fix is minimal and targeted, only affecting `Decimal` inputs while maintaining full backwards compatibility with other input types.",
+      "created_at": "2026-01-16T19:20:23.581Z"
+    }
+  ]
+}

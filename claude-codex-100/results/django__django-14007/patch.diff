@@ -1,0 +1,65 @@
+diff --git a/django/db/models/base.py b/django/db/models/base.py
+index 55b1691166..dff1f2fbc2 100644
+--- a/django/db/models/base.py
++++ b/django/db/models/base.py
+@@ -872,6 +872,13 @@ class Model(metaclass=ModelBase):
+             results = self._do_insert(cls._base_manager, using, fields, returning_fields, raw)
+             if results:
+                 for value, field in zip(results[0], returning_fields):
++                    expression = field.cached_col
++                    converters = (
++                        connections[using].ops.get_db_converters(expression) +
++                        expression.get_db_converters(connections[using])
++                    )
++                    for converter in converters:
++                        value = converter(value, expression, connections[using])
+                     setattr(self, field.attname, value)
+         return updated
+ 
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 387deca527..349f4c68d0 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -502,9 +502,20 @@ class QuerySet:
+                 returned_columns = self._batched_insert(
+                     objs_with_pk, fields, batch_size, ignore_conflicts=ignore_conflicts,
+                 )
++                # Precompute converters per field (indexed by position in db_returning_fields)
++                converters_map = {
++                    i: (
++                        field.cached_col,
++                        connection.ops.get_db_converters(field.cached_col) + field.cached_col.get_db_converters(connection),
++                    )
++                    for i, field in enumerate(opts.db_returning_fields)
++                }
+                 for obj_with_pk, results in zip(objs_with_pk, returned_columns):
+-                    for result, field in zip(results, opts.db_returning_fields):
++                    for i, (result, field) in enumerate(zip(results, opts.db_returning_fields)):
+                         if field != opts.pk:
++                            expression, converters = converters_map[i]
++                            for converter in converters:
++                                result = converter(result, expression, connection)
+                             setattr(obj_with_pk, field.attname, result)
+                 for obj_with_pk in objs_with_pk:
+                     obj_with_pk._state.adding = False
+@@ -516,8 +527,19 @@ class QuerySet:
+                 )
+                 if connection.features.can_return_rows_from_bulk_insert and not ignore_conflicts:
+                     assert len(returned_columns) == len(objs_without_pk)
++                # Precompute converters per field (indexed by position in db_returning_fields)
++                converters_map = {
++                    i: (
++                        field.cached_col,
++                        connection.ops.get_db_converters(field.cached_col) + field.cached_col.get_db_converters(connection),
++                    )
++                    for i, field in enumerate(opts.db_returning_fields)
++                }
+                 for obj_without_pk, results in zip(objs_without_pk, returned_columns):
+-                    for result, field in zip(results, opts.db_returning_fields):
++                    for i, (result, field) in enumerate(zip(results, opts.db_returning_fields)):
++                        expression, converters = converters_map[i]
++                        for converter in converters:
++                            result = converter(result, expression, connection)
+                         setattr(obj_without_pk, field.attname, result)
+                     obj_without_pk._state.adding = False
+                     obj_without_pk._state.db = self.db

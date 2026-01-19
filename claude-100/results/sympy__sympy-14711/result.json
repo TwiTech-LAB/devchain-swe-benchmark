@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-14711",
+  "status": "completed",
+  "patch": "diff --git a/sympy/physics/vector/vector.py b/sympy/physics/vector/vector.py\nindex a048ee57f1..8849119218 100644\n--- a/sympy/physics/vector/vector.py\n+++ b/sympy/physics/vector/vector.py\n@@ -57,6 +57,8 @@ def __hash__(self):\n \n     def __add__(self, other):\n         \"\"\"The add operator for Vector. \"\"\"\n+        if other == 0:\n+            return self\n         other = _check_vector(other)\n         return Vector(self.args + other.args)\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:37:51.893364",
+  "end_time": "2026-01-17T01:40:52.493328",
+  "duration_seconds": 180.599964,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-14711",
+  "epic_comments": [
+    {
+      "epic_id": "96a5d4cd-5e27-48d9-a021-8d820ba4faa0",
+      "epic_title": "Fix: sympy__sympy-14711",
+      "comment_id": "5cc365d7-4072-4998-8cbb-09b5f63257ef",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the `Vector.__add__` method to handle the case when `other == 0`. This allows `sum()` to work with lists of Vectors, since Python's `sum()` starts with 0 as the initial value and performs `0 + first_element`.\n\nThe fix adds a simple check at the beginning of `__add__`: if `other == 0`, return `self`. This works for both `N.x + 0` and `0 + N.x` (via `__radd__ = __add__`).\n\n## Files Modified\n- `sympy/physics/vector/vector.py`: Added check for `other == 0` in `__add__` method (lines 60-61)\n\n## Test Results\n- **Test file:** `sympy/physics/vector/tests/test_vector.py`\n- **Baseline (before fix):** 4 passed, 0 failed, 0 errors\n- **After fix:** 4 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested the following edge cases:\n- `sum([N.x, (0 * N.x)])` - Original bug case \u2713\n- `N.x + 0` - Direct addition with integer 0 \u2713\n- `0 + N.x` - Reverse addition (uses `__radd__`) \u2713\n- `N.x + Integer(0)` - SymPy Integer \u2713\n- `N.x + S.Zero` - SymPy Zero \u2713\n- `N.x + 0.0` - Float zero \u2713\n- `sum([N.x, N.y, N.z])` - Multiple vectors \u2713\n- `N.x + 'string'` - Still raises TypeError for invalid types \u2713\n\n## Concerns\n- None. The fix is minimal and follows existing patterns in the codebase (the `__eq__` method already handles `other == 0` similarly).",
+      "created_at": "2026-01-17T00:40:45.427Z"
+    }
+  ]
+}

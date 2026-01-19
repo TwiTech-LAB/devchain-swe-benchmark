@@ -1,0 +1,54 @@
+{
+  "instance_id": "pylint-dev__pylint-6386",
+  "status": "completed",
+  "patch": "diff --git a/pylint/config/utils.py b/pylint/config/utils.py\nindex 8c790416f..c0b862b44 100644\n--- a/pylint/config/utils.py\n+++ b/pylint/config/utils.py\n@@ -207,6 +207,7 @@ PREPROCESSABLE_OPTIONS: dict[\n     \"--output\": (True, _set_output),\n     \"--load-plugins\": (True, _add_plugins),\n     \"--verbose\": (False, _set_verbose_mode),\n+    \"-v\": (False, _set_verbose_mode),\n     \"--enable-all-extensions\": (False, _enable_all_extensions),\n }\n \n@@ -218,7 +219,7 @@ def _preprocess_options(run: Run, args: Sequence[str]) -> list[str]:\n     i = 0\n     while i < len(args):\n         argument = args[i]\n-        if not argument.startswith(\"--\"):\n+        if not argument.startswith(\"-\"):\n             processed_args.append(argument)\n             i += 1\n             continue\ndiff --git a/pylint/lint/base_options.py b/pylint/lint/base_options.py\nindex c793cc85a..ff3194699 100644\n--- a/pylint/lint/base_options.py\n+++ b/pylint/lint/base_options.py\n@@ -539,7 +539,7 @@ def _make_run_options(self: Run) -> Options:\n             \"verbose\",\n             {\n                 \"action\": _DoNothingAction,\n-                \"kwargs\": {},\n+                \"kwargs\": {\"nargs\": 0},\n                 \"short\": \"v\",\n                 \"help\": \"In verbose mode, extra non-checker-related info \"\n                 \"will be displayed.\",\n@@ -550,7 +550,7 @@ def _make_run_options(self: Run) -> Options:\n             \"enable-all-extensions\",\n             {\n                 \"action\": _DoNothingAction,\n-                \"kwargs\": {},\n+                \"kwargs\": {\"nargs\": 0},\n                 \"help\": \"Load and enable all available extensions. \"\n                 \"Use --list-extensions to see a list all available extensions.\",\n                 \"hide_from_config_file\": True,\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:51:49.593819",
+  "end_time": "2026-01-16T13:02:19.733293",
+  "duration_seconds": 630.139474,
+  "error_message": null,
+  "workspace_path": "./workspaces/pylint-dev__pylint-6386",
+  "epic_comments": [
+    {
+      "epic_id": "1236b92f-2c0c-4fab-925a-2191d114ebe1",
+      "epic_title": "Fix: pylint-dev__pylint-6386",
+      "comment_id": "0da03461-e44b-419c-8c73-0b8db2ffcdc9",
+      "author_name": "Code Reviewer",
+      "content": "Code Reviewer note: this epic is still `In Progress` and has no fix summary/verification comments yet.\n\nWhen ready for review, please:\n- Move status to `Review` and assign to `Code Reviewer`\n- Add a short fix summary (what/why, files changed)\n- Include baseline vs after-fix results from running the *actual* relevant pytest file(s) inside the container (not only custom scripts)\n- Confirm no test files were modified",
+      "created_at": "2026-01-16T11:53:11.436Z"
+    },
+    {
+      "epic_id": "1236b92f-2c0c-4fab-925a-2191d114ebe1",
+      "epic_title": "Fix: pylint-dev__pylint-6386",
+      "comment_id": "ab34b8d4-1522-40ae-8e94-aeedfc019edb",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe short option `-v` for verbose mode was expecting an argument while `--verbose` worked correctly without one. The fix addresses two issues:\n\n1. **`_DoNothingAction` class needed `nargs=0`**: The action class used by the verbose option inherited the default `nargs=None` from `argparse.Action`, which means \"one argument is expected\". Added an `__init__` method that explicitly sets `nargs=0` to indicate no argument is needed.\n\n2. **Pre-processing missing `-v` short option**: The `_preprocess_options` function only handled long options starting with `--` and only had `\"--verbose\"` in `PREPROCESSABLE_OPTIONS`. Fixed by:\n   - Adding `\"-v\"` to the `PREPROCESSABLE_OPTIONS` dictionary\n   - Changing the prefix check from `\"--\"` to `\"-\"` to also process short options\n\n## Files Modified\n- **pylint/config/callback_actions.py**: Added `__init__` method to `_DoNothingAction` class to set `nargs=0`\n- **pylint/config/utils.py**: Added `\"-v\"` entry to `PREPROCESSABLE_OPTIONS` and changed the prefix check from `\"--\"` to `\"-\"`\n\n## Test Results\n- **Test file:** tests/config/\n- **Baseline (before fix):** 65 passed, 0 failed, 0 errors\n- **After fix:** 65 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\n- Confirmed `-v` no longer throws \"expected one argument\" error\n- Confirmed `-v` now shows \"Using config file...\" verbose output (same as `--verbose`)\n- Confirmed help text correctly shows `--verbose, -v` without a value metavar\n\n## Concerns\n- None - this is a minimal fix that follows existing patterns in the codebase",
+      "created_at": "2026-01-16T11:55:16.048Z"
+    },
+    {
+      "epic_id": "1236b92f-2c0c-4fab-925a-2191d114ebe1",
+      "epic_title": "Fix: pylint-dev__pylint-6386",
+      "comment_id": "bbe13c05-c66f-4be5-acca-bb1ecce57699",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- `_DoNothingAction` now forces `nargs=0` for *all* uses, but this action is also used by options that require a value (`--rcfile`, `--output`, `--init-hook`). This breaks their help/CLI semantics: `python -m pylint --help` currently shows `--rcfile`/`--output`/`--init-hook` with no argument placeholder.\n- This change risks real parsing regressions in any code path where these options are not fully stripped by preprocessing.\n- Test evidence is not specific enough for the SOP: \u201cTest file: tests/config/\u201d doesn\u2019t include the exact `docker exec ... pytest ...` command nor the specific failing test file(s).\n\nRequired Changes:\n- Do not set `nargs=0` globally in `_DoNothingAction`. Instead, set `nargs=0` only for the no-argument options (e.g. `verbose`, `enable-all-extensions`) at the option definition layer (or use a dedicated no-arg do-nothing action).\n- Re-run and report baseline vs after-fix using the actual relevant pytest file(s) inside the container, including the exact command lines.\n",
+      "created_at": "2026-01-16T11:58:28.696Z"
+    },
+    {
+      "epic_id": "1236b92f-2c0c-4fab-925a-2191d114ebe1",
+      "epic_title": "Fix: pylint-dev__pylint-6386",
+      "comment_id": "6e4ed267-605a-4fae-9eca-d9039634da64",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary (Revised)\n\nAddressed Code Reviewer feedback. The previous fix incorrectly set `nargs=0` globally in `_DoNothingAction`, which broke options like `--rcfile`, `--output`, and `--init-hook` that require arguments.\n\n**New approach:** Set `nargs=0` only for the specific no-argument options at the definition layer.\n\n### Changes Made\n\n**1. `pylint/lint/base_options.py`:**\n- Added `\"nargs\": 0` to kwargs for `verbose` option (line 542)\n- Added `\"nargs\": 0` to kwargs for `enable-all-extensions` option (line 553)\n\n**2. `pylint/config/utils.py`:**\n- Added `\"-v\"` to `PREPROCESSABLE_OPTIONS` dictionary (line 210)\n- Changed prefix check from `\"--\"` to `\"-\"` in `_preprocess_options` (line 222) to also handle short options\n\n**3. Reverted `pylint/config/callback_actions.py`:**\n- Removed the `__init__` override in `_DoNothingAction` that was breaking options requiring arguments\n\n## Test Results\n\n**Test command:**\n```bash\ndocker exec swe-bench-pylint-dev__pylint-6386 /opt/miniconda3/envs/testbed/bin/pytest /testbed/tests/config/ -v --tb=short\n```\n\n**Results:**\n- **Baseline (before fix):** 65 passed, 0 failed, 0 errors\n- **After fix:** 65 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Verification\n\n1. **`-v` no longer throws error:**\n```bash\ndocker exec swe-bench-pylint-dev__pylint-6386 /opt/miniconda3/envs/testbed/bin/pylint /testbed/mytest.py -v\n# Output: \"Using config file /testbed/pylintrc\" (verbose mode works)\n```\n\n2. **`--verbose` still works:**\n```bash\ndocker exec swe-bench-pylint-dev__pylint-6386 /opt/miniconda3/envs/testbed/bin/pylint /testbed/mytest.py --verbose\n# Output: \"Using config file /testbed/pylintrc\" (verbose mode works)\n```\n\n3. **Options requiring arguments still work:**\n```bash\ndocker exec swe-bench-pylint-dev__pylint-6386 /opt/miniconda3/envs/testbed/bin/pylint /testbed/mytest.py --rcfile=/testbed/pylintrc\n# Works correctly\n\ndocker exec swe-bench-pylint-dev__pylint-6386 /opt/miniconda3/envs/testbed/bin/pylint /testbed/mytest.py --init-hook=\"import sys\"\n# Works correctly\n```\n\n4. **Help text correct:**\n- `--verbose, -v` shows without value placeholder\n- `--rcfile RCFILE` still shows with value placeholder\n- `--init-hook INIT_HOOK` still shows with value placeholder\n\n## Concerns\n- None - this fix is minimal and targeted to only the specific options that don't require arguments",
+      "created_at": "2026-01-16T12:01:04.485Z"
+    },
+    {
+      "epic_id": "1236b92f-2c0c-4fab-925a-2191d114ebe1",
+      "epic_title": "Fix: pylint-dev__pylint-6386",
+      "comment_id": "927cb8de-253b-40b9-b822-0006c37cd140",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED. Fix addresses the problem correctly.\n\nNotes:\n- Change is now correctly scoped: `nargs=0` is applied only to no-arg options (`verbose`, `enable-all-extensions`) in `pylint/lint/base_options.py`, avoiding regressions for `--rcfile/--output/--init-hook`.\n- `pylint/config/utils.py` preprocesses `-v` as well as `--verbose`.\n- No test files/build configs were modified; Brainstormer provided baseline vs after-fix pytest results and concrete CLI verification.",
+      "created_at": "2026-01-16T12:02:16.834Z"
+    }
+  ]
+}

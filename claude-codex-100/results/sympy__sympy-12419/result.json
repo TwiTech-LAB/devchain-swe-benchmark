@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-12419",
+  "status": "completed",
+  "patch": "diff --git a/sympy/matrices/expressions/matexpr.py b/sympy/matrices/expressions/matexpr.py\nindex b4d759836e..207d055c4b 100644\n--- a/sympy/matrices/expressions/matexpr.py\n+++ b/sympy/matrices/expressions/matexpr.py\n@@ -2,11 +2,12 @@\n \n from functools import wraps\n \n-from sympy.core import S, Symbol, Tuple, Integer, Basic, Expr\n+from sympy.core import S, Symbol, Tuple, Integer, Basic, Expr, Eq\n from sympy.core.decorators import call_highest_priority\n from sympy.core.compatibility import range\n from sympy.core.sympify import SympifyError, sympify\n from sympy.functions import conjugate, adjoint\n+from sympy.functions.special.tensor_functions import KroneckerDelta\n from sympy.matrices import ShapeError\n from sympy.simplify import simplify\n \n@@ -476,10 +477,12 @@ def conjugate(self):\n         return self\n \n     def _entry(self, i, j):\n-        if i == j:\n+        eq = Eq(i, j)\n+        if eq is S.true:\n             return S.One\n-        else:\n+        elif eq is S.false:\n             return S.Zero\n+        return KroneckerDelta(i, j)\n \n     def _eval_determinant(self):\n         return S.One\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:23:35.632635",
+  "end_time": "2026-01-16T07:28:28.998238",
+  "duration_seconds": 293.365603,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-12419",
+  "epic_comments": [
+    {
+      "epic_id": "4e592f9b-6eda-4a19-b181-ab162e318540",
+      "epic_title": "Fix: sympy__sympy-12419",
+      "comment_id": "4901f37c-b583-4e5a-8ebf-6a176a7d14c9",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe issue was in the `_entry` method of the `Identity` class. When indices `i` and `j` are symbolic (not concrete values), Python's `==` comparison doesn't work properly - it always returns the `else` branch causing all elements to be treated as 0 when summed.\n\nThe fix uses `Eq(i, j)` to compare indices:\n- Returns `S.One` if equality is definitively true (e.g., comparing same literal numbers)\n- Returns `S.Zero` if equality is definitively false (e.g., comparing different numbers)\n- Returns `KroneckerDelta(i, j)` when equality cannot be determined (symbolic indices)\n\nThis allows symbolic sums to properly handle the case where i might equal j.\n\n## Files Modified\n- `sympy/matrices/expressions/matexpr.py`:\n  - Added import for `Eq` from `sympy.core` \n  - Added import for `KroneckerDelta` from `sympy.functions.special.tensor_functions`\n  - Updated `_entry` method of `Identity` class to use `Eq` comparison and return `KroneckerDelta(i, j)` for symbolic indices\n\n## Test Results\n- **Test file:** `sympy/matrices/expressions/tests/test_matexpr.py`\n- **Baseline (before fix):** 27 passed, 0 failed, 0 errors\n- **After fix:** 27 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Additional test file:** `sympy/matrices/expressions/tests/test_indexing.py` - 9 passed\n\n## Additional Verification\nVerified the fix works for all scenarios from the issue:\n- `I[i,j]` now returns `KroneckerDelta(i, j)` instead of `0`\n- `Sum(Sum(e[i, j], (i, 0, n-1)), (j, 0, n-1)).doit()` evaluates correctly (was 0, now gives correct Piecewise that evaluates to n)\n- `Sum(I[0,i],(i,0,n-1))` = 1 (was 0)\n- `Sum(I[i,0],(i,0,n-1))` = 1 (was 0)\n- Concrete substitutions work: n=3 gives 3, n=5 gives 5\n\n## Concerns\n- None. The fix follows the pattern suggested in the issue hints and uses KroneckerDelta which properly integrates with SymPy's Sum evaluation.",
+      "created_at": "2026-01-16T06:27:03.039Z"
+    },
+    {
+      "epic_id": "4e592f9b-6eda-4a19-b181-ab162e318540",
+      "epic_title": "Fix: sympy__sympy-12419",
+      "comment_id": "d2c33641-bcd0-4328-9270-fc5882e3b219",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Problem: `Identity._entry` used structural `i == j`, so `I[i, j]` became `0` for distinct symbolic indices, breaking nested sums (expected `n`, got `0`).\n- Fix: uses `Eq(i, j)` and returns `1/0` for definite cases, otherwise `KroneckerDelta(i, j)`; this matches SymPy\u2019s intended semantics and allows `Sum` to handle the diagonal case.\n- Diff check: only `sympy/matrices/expressions/matexpr.py` modified; no tests/build configs touched.\n- Verification: Brainstormer reports baseline vs after-fix runs of `sympy/matrices/expressions/tests/test_matexpr.py` and `sympy/matrices/expressions/tests/test_indexing.py`, all passing.",
+      "created_at": "2026-01-16T06:28:17.236Z"
+    }
+  ]
+}

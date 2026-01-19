@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14122",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py\nindex 850734709d..f6cd8d3052 100644\n--- a/django/db/models/sql/compiler.py\n+++ b/django/db/models/sql/compiler.py\n@@ -125,11 +125,12 @@ class SQLCompiler:\n             cols = expr.get_group_by_cols()\n             for col in cols:\n                 expressions.append(col)\n-        for expr, (sql, params, is_ref) in order_by:\n-            # Skip References to the select clause, as all expressions in the\n-            # select clause are already part of the group by.\n-            if not is_ref:\n-                expressions.extend(expr.get_group_by_cols())\n+        if not self._meta_ordering:\n+            for expr, (sql, params, is_ref) in order_by:\n+                # Skip References to the select clause, as all expressions in the\n+                # select clause are already part of the group by.\n+                if not is_ref:\n+                    expressions.extend(expr.get_group_by_cols())\n         having_group_by = self.having.get_group_by_cols() if self.having else ()\n         for expr in having_group_by:\n             expressions.append(expr)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:24:30.223020",
+  "end_time": "2026-01-16T12:30:27.972504",
+  "duration_seconds": 357.749484,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14122",
+  "epic_comments": [
+    {
+      "epic_id": "306b7ded-1778-4e4b-b675-58b27bfd1e68",
+      "epic_title": "Fix: django__django-14122",
+      "comment_id": "9a842161-a81c-4be0-a4af-7b9868ec2b85",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the issue where `Meta.ordering` fields were incorrectly being added to the GROUP BY clause during aggregation queries.\n\nThe problem was in `get_group_by()` method in `compiler.py`. When `get_order_by()` was called, it would set `self._meta_ordering` if ordering came from `Meta.ordering`. However, `get_group_by()` was still adding those ordering fields to the GROUP BY clause (lines 128-132), even though the ORDER BY clause would later be removed (lines 599-600 in SQL generation).\n\nThe fix adds a conditional check to skip adding order_by columns to GROUP BY when `_meta_ordering` is set, since those fields will be removed from ORDER BY anyway.\n\n## Files Modified\n- `django/db/models/sql/compiler.py`: Added conditional `if not self._meta_ordering:` around the loop that adds order_by columns to GROUP BY (line 128)\n\n## Test Results\n- **Test file:** Django test suite\n- **Baseline (before fix):** All tests pass\n- **After fix:** All tests pass\n- **Regression check:** No new failures introduced\n\n| Test Suite | Before | After |\n|------------|--------|-------|\n| aggregation | 85 OK | 85 OK |\n| aggregation_regress | 64 OK, 5 skipped | 64 OK, 5 skipped |\n| ordering | 26 OK | 26 OK |\n| queries | 408 OK, 13 skipped | 408 OK, 13 skipped |\n| expressions | 157 OK, 2 skipped | 157 OK, 2 skipped |\n\n## Additional Verification\nCreated a test script that confirms:\n1. Query with `GROUP BY` and `Meta.ordering` no longer includes ordering field in GROUP BY\n2. Query SQL: `SELECT \"category\", COUNT(\"id\") AS \"count\" FROM \"test_testmodel\" GROUP BY \"category\"` (no `name` field from Meta.ordering)\n\n## Concerns\n- None. The fix is minimal and targeted, only affecting GROUP BY construction when ordering comes from `Meta.ordering`.",
+      "created_at": "2026-01-16T11:28:33.021Z"
+    },
+    {
+      "epic_id": "306b7ded-1778-4e4b-b675-58b27bfd1e68",
+      "epic_title": "Fix: django__django-14122",
+      "comment_id": "e5e99379-3719-4ff9-a11a-72729c2e8498",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal (only `django/db/models/sql/compiler.py`) and doesn\u2019t touch tests/build config.\n- Skipping `order_by` expressions in `get_group_by()` when `self._meta_ordering` is set matches the intended behavior (ORDER BY later dropped) and prevents Meta.ordering columns from polluting GROUP BY/aggregation.\n- No obvious edge-case regressions spotted for explicit `.order_by()` or non-meta ordering paths.",
+      "created_at": "2026-01-16T11:30:16.552Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-13974",
+  "status": "completed",
+  "patch": "diff --git a/sympy/physics/quantum/tensorproduct.py b/sympy/physics/quantum/tensorproduct.py\nindex 9dd10d219e..c07b657209 100644\n--- a/sympy/physics/quantum/tensorproduct.py\n+++ b/sympy/physics/quantum/tensorproduct.py\n@@ -345,6 +345,48 @@ def tensor_product_simp_Mul(e):\n         return e\n \n \n+def tensor_product_simp_Pow(e):\n+    \"\"\"Simplify a Pow with TensorProducts.\n+\n+    Distributes the exponent to each argument of the TensorProduct.\n+\n+    Parameters\n+    ==========\n+\n+    e : Expr\n+        A ``Pow`` with a ``TensorProduct`` as base to be simplified.\n+\n+    Returns\n+    =======\n+\n+    e : Expr\n+        A ``TensorProduct`` with the exponent applied to each argument.\n+\n+    Examples\n+    ========\n+\n+        >>> from sympy.physics.quantum.tensorproduct import \\\n+                    tensor_product_simp_Pow, TensorProduct\n+        >>> from sympy import Symbol\n+        >>> A = Symbol('A',commutative=False)\n+        >>> B = Symbol('B',commutative=False)\n+        >>> e = TensorProduct(A, B)**2\n+        >>> e\n+        AxB**2\n+        >>> tensor_product_simp_Pow(e)\n+        A**2xB**2\n+\n+    \"\"\"\n+    if not isinstance(e, Pow):\n+        return e\n+    base, exp = e.base, e.exp\n+    base = tensor_product_simp(base)\n+    if isinstance(base, TensorProduct):\n+        return TensorProduct(*[arg**exp for arg in base.args])\n+    else:\n+        return base**exp\n+\n+\n def tensor_product_simp(e, **hints):\n     \"\"\"Try to simplify and combine TensorProducts.\n \n@@ -382,7 +424,7 @@ def tensor_product_simp(e, **hints):\n     if isinstance(e, Add):\n         return Add(*[tensor_product_simp(arg) for arg in e.args])\n     elif isinstance(e, Pow):\n-        return tensor_product_simp(e.base) ** e.exp\n+        return tensor_product_simp_Pow(e)\n     elif isinstance(e, Mul):\n         return tensor_product_simp_Mul(e)\n     elif isinstance(e, Commutator):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:37:32.327643",
+  "end_time": "2026-01-17T01:40:52.466474",
+  "duration_seconds": 200.138831,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-13974",
+  "epic_comments": [
+    {
+      "epic_id": "21d0180b-ea74-4aef-b861-36a94acc36bf",
+      "epic_title": "Fix: sympy__sympy-13974",
+      "comment_id": "2db32ee6-2575-4395-ac18-f781c378d1a6",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `tensor_product_simp_Pow` function to handle power simplification of TensorProducts. When a `Pow` expression has a `TensorProduct` as its base, the exponent is now distributed to each argument. For example, `tp(a, b)**n` becomes `tp(a**n, b**n)`.\n\nThe fix follows the existing pattern of `tensor_product_simp_Mul` and integrates with the main `tensor_product_simp` function.\n\n## Files Modified\n- `sympy/physics/quantum/tensorproduct.py`: Added `tensor_product_simp_Pow` function (lines 348-387) and updated `tensor_product_simp` to use it (line 427)\n\n## Test Results\n- **Test file:** /testbed/sympy/physics/quantum/tests/test_tensorproduct.py\n- **Baseline (before fix):** 7 passed\n- **After fix:** 7 passed\n- **Regression check:** No new failures introduced\n\nAlso ran additional tests:\n- test_qapply.py: 11 passed\n- test_pauli.py: 9 passed\n\n## Additional Verification\nVerified all cases from the problem statement:\n- `tps(tp(1,1)*tp(1,1))` -> `1x1` (was `1x1**2`)\n- `tps(tp(1,1)**2)` -> `1x1` (was `1x1**2`)\n- `tps(tp(1,Pauli(3))*tp(1,Pauli(3)))` -> `1x1` (was `1xsigma3**2`)\n- `tps(tp(a,b)**n)` -> `(a**n)x(b**n)` (was `axb**n`)\n\nEdge cases verified:\n- 3-argument tensor products\n- Mul containing Pow\n- Add with powers\n- Non-TensorProduct Pow (unchanged - correct)\n- Commutator with TensorProduct powers\n\n## Concerns\nNone. The fix is minimal and focused, following the existing code patterns.",
+      "created_at": "2026-01-17T00:40:46.986Z"
+    }
+  ]
+}

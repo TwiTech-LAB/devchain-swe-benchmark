@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-17087",
+  "status": "completed",
+  "patch": "diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py\nindex d88cda6e20..06657ebaab 100644\n--- a/django/db/migrations/serializer.py\n+++ b/django/db/migrations/serializer.py\n@@ -168,7 +168,7 @@ class FunctionTypeSerializer(BaseSerializer):\n         ):\n             klass = self.value.__self__\n             module = klass.__module__\n-            return \"%s.%s.%s\" % (module, klass.__name__, self.value.__name__), {\n+            return \"%s.%s.%s\" % (module, klass.__qualname__, self.value.__name__), {\n                 \"import %s\" % module\n             }\n         # Further error checking\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T13:46:45.105483",
+  "end_time": "2026-01-16T13:50:51.024462",
+  "duration_seconds": 245.918979,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-17087",
+  "epic_comments": [
+    {
+      "epic_id": "c7e7c09f-0ebb-425f-9e8d-68d1be2b1c58",
+      "epic_title": "Fix: django__django-17087",
+      "comment_id": "1637ee9d-7195-499b-b3a7-e203b12386cb",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the issue where class methods from nested classes cannot be used as `Field.default`. The problem was that `FunctionTypeSerializer` was using `klass.__name__` which only returns the class name (e.g., `Capability`), instead of `klass.__qualname__` which returns the fully qualified name including the enclosing class (e.g., `Profile.Capability`).\n\n## Files Modified\n- `django/db/migrations/serializer.py`: Changed `klass.__name__` to `klass.__qualname__` in `FunctionTypeSerializer.serialize()` at line 171\n\n## Test Results\n- **Test file:** `tests/migrations/test_writer.py`\n- **Baseline (before fix):** 53 passed, 0 failed, 0 errors\n- **After fix:** 53 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Broader test (all migrations):** 737 passed, 0 failed, 2 skipped\n\n## Additional Verification\nCustom verification script confirmed the fix:\n```python\n# Testing nested class method serialization\nresult, imports = serializer_factory(Profile.Capability.default).serialize()\n# Result: '__main__.Profile.Capability.default' (correctly includes Profile)\n```\n\n## Concerns\n- None. The fix is minimal and follows the existing pattern used elsewhere in the codebase (e.g., `EnumSerializer` at line 144 already uses `__qualname__` for similar purposes).",
+      "created_at": "2026-01-16T12:49:25.233Z"
+    },
+    {
+      "epic_id": "c7e7c09f-0ebb-425f-9e8d-68d1be2b1c58",
+      "epic_title": "Fix: django__django-17087",
+      "comment_id": "f1e50c44-0c50-4b0a-97bc-a784911d2de9",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- `git diff` shows a single, minimal source change: `django/db/migrations/serializer.py` switches `klass.__name__` \u2192 `klass.__qualname__` for bound class methods, which matches the reported migration serialization bug for nested classes.\n- No test files modified.\n- Verification is sufficient: baseline vs after-fix results provided, and the actual Django test file `tests/migrations/test_writer.py` was run.\n\nOptional note (not blocking): consider mirroring the existing `<locals>` guard for `klass.__qualname__` in the bound-method branch, to avoid serializing methods on locally-defined classes/functions if that scenario is meant to raise.",
+      "created_at": "2026-01-16T12:50:36.656Z"
+    }
+  ]
+}

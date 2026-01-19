@@ -1,0 +1,22 @@
+{
+  "instance_id": "sphinx-doc__sphinx-7590",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/domains/cpp.py b/sphinx/domains/cpp.py\nindex fe52d881d..88523f4cb 100644\n--- a/sphinx/domains/cpp.py\n+++ b/sphinx/domains/cpp.py\n@@ -4664,6 +4664,12 @@ class DefinitionParser(BaseParser):\n             if self.match(regex):\n                 while self.current_char in 'uUlLfF':\n                     self.pos += 1\n+                # Parse user-defined literal suffix (e.g., _km, q_J, etc.)\n+                if self.current_char != 'EOF' and (self.current_char == '_' or\n+                                                    self.current_char.isalpha()):\n+                    while self.current_char != 'EOF' and (self.current_char.isalnum() or\n+                                                          self.current_char == '_'):\n+                        self.pos += 1\n                 return ASTNumberLiteral(self.definition[pos:self.pos])\n \n         string = self._parse_string()\ndiff --git a/tox.ini b/tox.ini\nindex d9f040544..bf39854b6 100644\n--- a/tox.ini\n+++ b/tox.ini\n@@ -28,7 +28,7 @@ extras =\n setenv =\n     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils\n commands=\n-    pytest --durations 25 {posargs}\n+    pytest -rA --durations 25 {posargs}\n \n [testenv:flake8]\n basepython = python3\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:35:37.157753",
+  "end_time": "2026-01-17T01:39:17.246422",
+  "duration_seconds": 220.088669,
+  "error_message": null,
+  "workspace_path": "./workspaces/sphinx-doc__sphinx-7590",
+  "epic_comments": [
+    {
+      "epic_id": "5b969c25-73da-4afd-9c3e-4ae1eb0ae6e6",
+      "epic_title": "Fix: sphinx-doc__sphinx-7590",
+      "comment_id": "cf943d8d-388e-4902-bdd3-03b28ec58ad6",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded support for C++ User Defined Literals (UDLs) in the C++ domain parser. The parser now correctly handles numeric literals with UDL suffixes like `6.62607015e-34q_J` and `1q_s`.\n\nThe issue was in the `_parse_literal` function which only handled standard numeric suffixes (`uUlLfF`) but did not consume UDL suffixes (identifiers following the literal).\n\n## Files Modified\n- `sphinx/domains/cpp.py`: Added UDL suffix parsing after standard numeric suffixes in the `_parse_literal` function (lines 4668-4672)\n\n## Test Results\n- **Test file:** tests/test_domain_cpp.py\n- **Baseline (before fix):** 25 passed, 0 failed, 0 errors\n- **After fix:** 25 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\nAdditional tests also pass:\n- tests/test_domain_c.py: 17 passed\n\n## Additional Verification\nManually tested the fix with various UDL cases:\n- `constexpr auto planck_constant = 6.62607015e-34q_J * 1q_s` \u2713\n- Integer UDLs: `123_km`, `0x10_hex`, `0b101_bin`, `0777_oct` \u2713\n- Float UDLs: `1.5_s`, `1e10_m`, `.5_ratio` \u2713\n- Standard suffix + UDL: `123ULL_suffix`, `1.5f_custom` \u2713\n- UDL starting with underscore: `42_`, `42__test` \u2713\n- Standard suffixes without UDL still work: `123ULL`, `1.5f` \u2713\n\n## Concerns\n- None. The fix is minimal and follows the existing code pattern for handling literal suffixes.",
+      "created_at": "2026-01-17T00:39:11.444Z"
+    }
+  ]
+}

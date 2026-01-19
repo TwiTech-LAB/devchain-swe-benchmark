@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-12143",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py\nindex 137e6faa0f..a100f1c499 100644\n--- a/django/contrib/admin/options.py\n+++ b/django/contrib/admin/options.py\n@@ -1631,7 +1631,7 @@ class ModelAdmin(BaseModelAdmin):\n \n     def _get_edited_object_pks(self, request, prefix):\n         \"\"\"Return POST data values of list_editable primary keys.\"\"\"\n-        pk_pattern = re.compile(r'{}-\\d+-{}$'.format(prefix, self.model._meta.pk.name))\n+        pk_pattern = re.compile(r'{}-\\d+-{}$'.format(re.escape(prefix), self.model._meta.pk.name))\n         return [value for key, value in request.POST.items() if pk_pattern.match(key)]\n \n     def _get_list_editable_queryset(self, request, prefix):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:24:15.224248",
+  "end_time": "2026-01-16T12:27:38.775046",
+  "duration_seconds": 203.550798,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12143",
+  "epic_comments": [
+    {
+      "epic_id": "b315bdac-cdac-463b-8272-6677295e08b1",
+      "epic_title": "Fix: django__django-12143",
+      "comment_id": "b2809ab7-9d16-4cb3-9d55-4f9e24d0cd99",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed potential data loss issue in admin changelist view when using regex special characters in formset prefix. The bug was in `_get_edited_object_pks()` method where the `prefix` parameter was used directly in a regex pattern without escaping, causing incorrect pattern matching when the prefix contains special regex characters like `+`, `*`, `.`, `(`, `)`, etc.\n\nThe fix uses `re.escape(prefix)` to properly escape any regex special characters in the prefix before building the pattern.\n\n## Files Modified\n- `django/contrib/admin/options.py` (line 1634): Added `re.escape()` around `prefix` in the regex pattern\n\n## Test Results\n- **Test file:** tests/admin_changelist/\n- **Baseline (before fix):** 57 tests, 56 passed, 1 skipped\n- **After fix:** 57 tests, 56 passed, 1 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the fix handles regex special characters correctly:\n- Old pattern `form+(test)-\\d+-id$` would NOT match the intended literal string `form+(test)-0-id`\n- New pattern `form\\+\\(test\\)-\\d+-id$` correctly matches `form+(test)-0-id`\n\n## Concerns\n- None. This is a straightforward fix following the suggestion in the bug report.",
+      "created_at": "2026-01-16T11:26:01.859Z"
+    },
+    {
+      "epic_id": "b315bdac-cdac-463b-8272-6677295e08b1",
+      "epic_title": "Fix: django__django-12143",
+      "comment_id": "dfdcaa5f-5742-4562-8fdc-b9616eed7fcd",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and targets the reported root cause: `prefix` is now escaped before being interpolated into a regex in `ModelAdmin._get_edited_object_pks()`.\n- `git diff` shows only `django/contrib/admin/options.py` changed; no tests/build configs modified.\n- Brainstormer provided before/after results for the relevant admin changelist tests with no regressions reported.",
+      "created_at": "2026-01-16T11:27:29.385Z"
+    }
+  ]
+}

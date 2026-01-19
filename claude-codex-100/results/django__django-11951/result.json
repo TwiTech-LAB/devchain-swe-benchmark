@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-11951",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/query.py b/django/db/models/query.py\nindex 794e0faae7..92349cd0c5 100644\n--- a/django/db/models/query.py\n+++ b/django/db/models/query.py\n@@ -1209,7 +1209,8 @@ class QuerySet:\n         if ignore_conflicts and not connections[self.db].features.supports_ignore_conflicts:\n             raise NotSupportedError('This database backend does not support ignoring conflicts.')\n         ops = connections[self.db].ops\n-        batch_size = (batch_size or max(ops.bulk_batch_size(fields, objs), 1))\n+        max_batch_size = max(ops.bulk_batch_size(fields, objs), 1)\n+        batch_size = min(batch_size, max_batch_size) if batch_size else max_batch_size\n         inserted_rows = []\n         bulk_return = connections[self.db].features.can_return_rows_from_bulk_insert\n         for item in [objs[i:i + batch_size] for i in range(0, len(objs), batch_size)]:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-15T23:49:40.091983",
+  "end_time": "2026-01-15T23:53:53.263128",
+  "duration_seconds": 253.171145,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11951",
+  "epic_comments": [
+    {
+      "epic_id": "fc4b664f-fb83-4773-9897-a856be55dc6f",
+      "epic_title": "Fix: django__django-11951",
+      "comment_id": "3ae69e83-9dde-4e33-aca6-4ce9afaf42c8",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the `bulk_create` batch_size parameter to respect the database's compatible batch size limit, matching the behavior already implemented in `bulk_update`.\n\n**Problem:** In `_batched_insert`, the `batch_size` parameter was used directly when provided, potentially exceeding database limits. The code used `batch_size or max(...)` which bypasses the max calculation when batch_size is truthy.\n\n**Solution:** Changed to use `min(batch_size, max_batch_size) if batch_size else max_batch_size` pattern, same as `bulk_update` uses.\n\n## Files Modified\n- `django/db/models/query.py`: Modified `_batched_insert` method (line 1212-1213)\n  - Changed: `batch_size = (batch_size or max(ops.bulk_batch_size(fields, objs), 1))`\n  - To: \n    ```python\n    max_batch_size = max(ops.bulk_batch_size(fields, objs), 1)\n    batch_size = min(batch_size, max_batch_size) if batch_size else max_batch_size\n    ```\n\n## Test Results\n- **Test file:** tests/bulk_create/tests.py and tests/queries/test_bulk_update.py\n- **Baseline (before fix):** 50 passed, 0 failed, 5 skipped\n- **After fix:** 50 passed, 0 failed, 5 skipped\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\n- Verified the fix matches the pattern used in `bulk_update` (line 522-523)\n- Confirmed the logic correctly handles both cases: when batch_size is provided and when it's None\n\n## Concerns\n- None. This is a minimal, focused fix that aligns `bulk_create` behavior with `bulk_update`.",
+      "created_at": "2026-01-15T22:52:50.872Z"
+    },
+    {
+      "epic_id": "fc4b664f-fb83-4773-9897-a856be55dc6f",
+      "epic_title": "Fix: django__django-11951",
+      "comment_id": "57c5801c-d1e8-45db-8f97-c71f90228358",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- `git diff` shows only `django/db/models/query.py` changed (no tests/build configs).\n- `_batched_insert()` now caps user-provided `batch_size` to `ops.bulk_batch_size(...)`, matching `bulk_update`\u2019s `min(batch_size, max_batch_size)` behavior.\n- Brainstormer provided baseline vs post-fix runs of the relevant Django test files with no new failures.",
+      "created_at": "2026-01-15T22:53:47.060Z"
+    }
+  ]
+}

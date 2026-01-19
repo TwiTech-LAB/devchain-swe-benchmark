@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-11066",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/contenttypes/management/__init__.py b/django/contrib/contenttypes/management/__init__.py\nindex 2b5f688136..563cba2fdf 100644\n--- a/django/contrib/contenttypes/management/__init__.py\n+++ b/django/contrib/contenttypes/management/__init__.py\n@@ -24,7 +24,7 @@ class RenameContentType(migrations.RunPython):\n             content_type.model = new_model\n             try:\n                 with transaction.atomic(using=db):\n-                    content_type.save(update_fields={'model'})\n+                    content_type.save(using=db, update_fields={'model'})\n             except IntegrityError:\n                 # Gracefully fallback if a stale content type causes a\n                 # conflict as remove_stale_contenttypes will take care of\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:54:52.893040",
+  "end_time": "2026-01-17T01:56:33.674153",
+  "duration_seconds": 100.781113,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11066",
+  "epic_comments": [
+    {
+      "epic_id": "2a90cec1-c20a-4bad-818a-5bafcf956aa7",
+      "epic_title": "Fix: django__django-11066",
+      "comment_id": "d1ed6bb8-fcd2-4795-888d-1b174622a0cf",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe `RenameContentType._rename()` method was not passing the `using=db` parameter to the `content_type.save()` call, causing the save to be directed to the default database instead of the intended database specified by `schema_editor.connection.alias`.\n\nChanged line 27 from:\n```python\ncontent_type.save(update_fields={'model'})\n```\nto:\n```python\ncontent_type.save(using=db, update_fields={'model'})\n```\n\n## Files Modified\n- `django/contrib/contenttypes/management/__init__.py`: Added `using=db` parameter to `content_type.save()` call in `_rename()` method\n\n## Test Results\n- **Test file:** `tests/contenttypes_tests/test_management.py` and `tests/contenttypes_tests/test_operations.py`\n- **Baseline (before fix):** 8 passed, 0 failed, 0 errors\n- **After fix:** 8 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nThe fix is consistent with Django's existing patterns:\n- Line 20 already uses `ContentType.objects.db_manager(db).get_by_natural_key()` to fetch from the correct database\n- The `transaction.atomic(using=db)` context manager only controls transaction boundaries, not query routing\n- The `save(using=db)` parameter is required to actually route the write operation to the correct database\n\n## Concerns\n- None. This is a minimal, focused fix that matches the exact solution proposed in the linked PR (https://github.com/django/django/pull/10332)",
+      "created_at": "2026-01-17T00:56:29.238Z"
+    }
+  ]
+}

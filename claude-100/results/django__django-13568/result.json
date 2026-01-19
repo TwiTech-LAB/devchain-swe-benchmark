@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-13568",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/auth/checks.py b/django/contrib/auth/checks.py\nindex 65fc266f7e..4836c03779 100644\n--- a/django/contrib/auth/checks.py\n+++ b/django/contrib/auth/checks.py\n@@ -4,10 +4,25 @@ from types import MethodType\n from django.apps import apps\n from django.conf import settings\n from django.core import checks\n+from django.db.models import UniqueConstraint\n \n from .management import _get_builtin_permissions\n \n \n+def _check_field_has_unique_constraint(cls, field_name):\n+    \"\"\"\n+    Check if a field has a total (unconditional) UniqueConstraint.\n+    \"\"\"\n+    for constraint in cls._meta.constraints:\n+        if (\n+            isinstance(constraint, UniqueConstraint) and\n+            constraint.fields == (field_name,) and\n+            constraint.condition is None\n+        ):\n+            return True\n+    return False\n+\n+\n def check_user_model(app_configs=None, **kwargs):\n     if app_configs is None:\n         cls = apps.get_model(settings.AUTH_USER_MODEL)\n@@ -52,7 +67,7 @@ def check_user_model(app_configs=None, **kwargs):\n         )\n \n     # Check that the username field is unique\n-    if not cls._meta.get_field(cls.USERNAME_FIELD).unique:\n+    if not cls._meta.get_field(cls.USERNAME_FIELD).unique and not _check_field_has_unique_constraint(cls, cls.USERNAME_FIELD):\n         if (settings.AUTHENTICATION_BACKENDS ==\n                 ['django.contrib.auth.backends.ModelBackend']):\n             errors.append(\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:09:29.855857",
+  "end_time": "2026-01-16T20:12:51.483367",
+  "duration_seconds": 201.62751,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-13568",
+  "epic_comments": [
+    {
+      "epic_id": "08247ec9-5095-4b1a-970a-839b5e315e74",
+      "epic_title": "Fix: django__django-13568",
+      "comment_id": "cc6ebf12-e396-438f-acf3-7beab559f2a5",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nExtended the auth.E003 system check to also accept `UniqueConstraint` in `Meta.constraints` as a valid way to ensure uniqueness for `USERNAME_FIELD`, not just `unique=True` on the field.\n\nThe fix adds a helper function `_check_field_has_unique_constraint()` that checks if a field has a **total** (unconditional) `UniqueConstraint`. Only total constraints (with `condition=None`) satisfy the uniqueness requirement - partial/conditional constraints do not.\n\n## Files Modified\n- `django/contrib/auth/checks.py`: Added import for `UniqueConstraint`, added helper function `_check_field_has_unique_constraint()`, and updated the uniqueness check condition on line 70\n\n## Test Results\n- **Test file:** `tests/auth_tests/test_checks.py`\n- **Baseline (before fix):** 12 passed, 0 failed, 0 errors\n- **After fix:** 12 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nCustom verification script tested 6 scenarios:\n1. \u2705 User with total `UniqueConstraint` - no auth.E003 error\n2. \u2705 User with conditional `UniqueConstraint` - auth.E003 raised (partial constraints not sufficient)\n3. \u2705 User without any uniqueness - auth.E003 raised\n4. \u2705 User with `unique=True` - no auth.E003 error\n5. \u2705 UniqueConstraint with custom auth backend - no auth.W004 warning\n6. \u2705 No uniqueness with custom auth backend - auth.W004 warning raised\n\n## Concerns\n- Only single-field total (unconditional) `UniqueConstraint` is accepted. Multi-field constraints or partial/conditional constraints won't satisfy the check (which is the correct behavior).",
+      "created_at": "2026-01-16T19:12:39.275Z"
+    }
+  ]
+}

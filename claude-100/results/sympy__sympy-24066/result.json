@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-24066",
+  "status": "completed",
+  "patch": "diff --git a/sympy/physics/units/unitsystem.py b/sympy/physics/units/unitsystem.py\nindex 3daf84c108..23985d7c34 100644\n--- a/sympy/physics/units/unitsystem.py\n+++ b/sympy/physics/units/unitsystem.py\n@@ -192,8 +192,9 @@ def _collect_factor_and_dimension(self, expr):\n         elif isinstance(expr, Function):\n             fds = [self._collect_factor_and_dimension(\n                 arg) for arg in expr.args]\n+            dims = [Dimension(1) if self.get_dimension_system().is_dimensionless(d[1]) else d[1] for d in fds]\n             return (expr.func(*(f[0] for f in fds)),\n-                    *(d[1] for d in fds))\n+                    *dims)\n         elif isinstance(expr, Dimension):\n             return S.One, expr\n         else:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:41:02.663515",
+  "end_time": "2026-01-17T01:45:53.604140",
+  "duration_seconds": 290.940625,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-24066",
+  "epic_comments": [
+    {
+      "epic_id": "696f0566-85a2-4979-84c5-a5ef1235910e",
+      "epic_title": "Fix: sympy__sympy-24066",
+      "comment_id": "e202f1eb-82bb-4e7b-ada3-13655161a0a9",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe `_collect_factor_and_dimension` method in `UnitSystem` was not properly detecting when function arguments have dimensionless dimensions. \n\nThe issue was in the `Function` handler which returned the raw dimension of function arguments without checking if they were actually dimensionless (using `is_dimensionless`). This caused problems when:\n1. An expression like `second / (ohm * farad)` evaluates to a dimension `time/(capacitance*impedance)` \n2. This dimension IS dimensionless (is_dimensionless returns True) because the units cancel out\n3. But when used in `exp(expr)`, the raw dimension was passed through instead of being normalized to `Dimension(1)`\n4. When adding `100 + exp(expr)`, a ValueError was raised because `Dimension(1) != Dimension(time/(capacitance*impedance))`\n\nThe fix follows the same pattern used in the `Pow` handler (line 170): check if the dimension is dimensionless using `is_dimensionless`, and if so, normalize it to `Dimension(1)`.\n\n## Files Modified\n- `sympy/physics/units/unitsystem.py`: Modified the `Function` handler in `_collect_factor_and_dimension` to check if argument dimensions are dimensionless and normalize them to `Dimension(1)`.\n\n## Test Results\n- **Test file:** sympy/physics/units/tests/test_quantities.py\n- **Baseline (before fix):** 31 passed, 1 expected to fail\n- **After fix:** 31 passed, 1 expected to fail\n- **Regression check:** No new failures introduced\n\n**Broader test suite:** sympy/physics/units/tests/ - 70 passed, 1 expected to fail\n\n## Additional Verification\nTested the following edge cases:\n- Original bug: `100 + exp(s/(ohm*farad))` now returns `(E + 100, Dimension(1))` \u2713\n- `sin(m/m)` returns `Dimension(1)` \u2713\n- `cos(m/m)` returns `Dimension(1)` \u2713\n- `1 + sin(m/m) + cos(m/m)` works correctly \u2713\n- Nested functions `exp(sin(m/m))` works correctly \u2713\n- Non-dimensionless args like `exp(meter)` still pass through their dimension \u2713\n- `1 + exp(meter)` correctly raises ValueError \u2713\n\n## Concerns\n- None. The fix is minimal and follows existing patterns in the codebase.",
+      "created_at": "2026-01-17T00:45:44.776Z"
+    }
+  ]
+}

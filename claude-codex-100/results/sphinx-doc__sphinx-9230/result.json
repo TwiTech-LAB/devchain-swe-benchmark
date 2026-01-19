@@ -1,0 +1,54 @@
+{
+  "instance_id": "sphinx-doc__sphinx-9230",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/util/docfields.py b/sphinx/util/docfields.py\nindex 3a3367ebe..6d48e910c 100644\n--- a/sphinx/util/docfields.py\n+++ b/sphinx/util/docfields.py\n@@ -298,7 +298,7 @@ class DocFieldTransformer:\n             # also support syntax like ``:param type name:``\n             if typedesc.is_typed:\n                 try:\n-                    argtype, argname = fieldarg.split(None, 1)\n+                    argtype, argname = fieldarg.rsplit(None, 1)\n                 except ValueError:\n                     pass\n                 else:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T13:45:50.099134",
+  "end_time": "2026-01-16T13:54:23.453009",
+  "duration_seconds": 513.353875,
+  "error_message": null,
+  "workspace_path": "./workspaces/sphinx-doc__sphinx-9230",
+  "epic_comments": [
+    {
+      "epic_id": "4c48d565-8033-4da6-b573-bb9ed80eb0ab",
+      "epic_title": "Fix: sphinx-doc__sphinx-9230",
+      "comment_id": "4a63aca5-86a2-4d22-96b1-0745ccbe513a",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- No fix-related source changes present yet; current working tree only changes `setup.py` and `tox.ini`.\n- `tox.ini` modification is not part of the requested fix and violates the \u201cno build/config changes\u201d rule.\n\nRequired Changes:\n- Implement the actual fix for `:param dict(str, str) opc_meta:` rendering (likely in `sphinx/util/docfields.py` / docfields parsing).\n- Revert `tox.ini` (and avoid `setup.py` changes unless strictly required).\n- Provide baseline vs after-fix test output and run the relevant existing pytest file(s) inside the container (not just ad-hoc scripts).",
+      "created_at": "2026-01-16T12:47:58.558Z"
+    },
+    {
+      "epic_id": "4c48d565-8033-4da6-b573-bb9ed80eb0ab",
+      "epic_title": "Fix: sphinx-doc__sphinx-9230",
+      "comment_id": "5f32c5b2-27fa-4566-9b24-24c83374aa1d",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed incorrect parsing of `:param` type annotations containing spaces (e.g., `dict(str, str)`).\n\n**Root Cause:** The code in `sphinx/util/docfields.py` line 301 used `split(None, 1)` to separate the type from the parameter name in `:param type name:` syntax. This splits on the **first** whitespace, which breaks when the type contains spaces like `dict(str, str)`.\n\n**Fix:** Changed `split(None, 1)` to `rsplit(None, 1)` to split on the **last** whitespace instead.\n\n- Input: `:param dict(str, str) opc_meta: (optional)`\n- Before fix (buggy): `argtype='dict(str,'`, `argname='str) opc_meta'` \u2192 renders as `str) opc_meta (dict(str,)`\n- After fix: `argtype='dict(str, str)'`, `argname='opc_meta'` \u2192 renders as `opc_meta (dict(str, str))`\n\n## Files Modified\n- `sphinx/util/docfields.py`: Line 301 - changed `fieldarg.split(None, 1)` to `fieldarg.rsplit(None, 1)`\n\n## Test Results\n- **Test file:** `/testbed/tests/test_domain_py.py`\n- **Baseline (before fix):** 45 passed, 0 failed, 0 errors\n- **After fix:** 45 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\nCreated a test Sphinx project with `:param dict(str, str) opc_meta: (optional)` and verified:\n- Bug patterns NOT found in output: `\"str) opc_meta\"`, `\"dict(str,)\"`\n- Correct rendering: `<strong>opc_meta</strong> (<em>dict</em><em>(</em><em>str</em><em>, </em><em>str</em><em>)</em>) \u2013 (optional)`\n\n## Concerns\n- Edge case: If someone uses a parameter name with spaces (unlikely but technically possible in reST), they would need to use the separate `:type:` directive instead. This is consistent with how complex types should be documented anyway.",
+      "created_at": "2026-01-16T12:50:48.112Z"
+    },
+    {
+      "epic_id": "4c48d565-8033-4da6-b573-bb9ed80eb0ab",
+      "epic_title": "Fix: sphinx-doc__sphinx-9230",
+      "comment_id": "70b03100-34b4-4a28-a890-7daf30cf2de5",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- `setup.py` and `tox.ini` are modified in the working tree (`git diff HEAD`), which violates the task rule to avoid build/config changes and is unrelated to the docfields rendering bug.\n- Your epic comment lists only `sphinx/util/docfields.py` as modified, but the diff includes the two config files above.\n\nFix Review Notes:\n- The `fieldarg.rsplit(None, 1)` change in `sphinx/util/docfields.py` looks like the right minimal fix for types containing spaces (including the reported `dict(str, str)` case).\n\nRequired Changes:\n- Revert `setup.py` and `tox.ini` so the patch only includes the source fix in `sphinx/util/docfields.py`.\n- Update the fix summary/test report accordingly and move back to Review.",
+      "created_at": "2026-01-16T12:52:16.994Z"
+    },
+    {
+      "epic_id": "4c48d565-8033-4da6-b573-bb9ed80eb0ab",
+      "epic_title": "Fix: sphinx-doc__sphinx-9230",
+      "comment_id": "2390a663-8bc2-4233-890d-1541e153d11a",
+      "author_name": "Brainstormer",
+      "content": "## Review Feedback Addressed\n\nReverted the unrelated `setup.py` and `tox.ini` changes. These were pre-existing modifications in the working tree before I started.\n\n**Current git status:**\n```\nmodified:   sphinx/util/docfields.py\n\n1 file changed, 1 insertion(+), 1 deletion(-)\n```\n\n**Clean diff:**\n```diff\n-                    argtype, argname = fieldarg.split(None, 1)\n+                    argtype, argname = fieldarg.rsplit(None, 1)\n```\n\nThe patch now only contains the minimal fix for the bug.",
+      "created_at": "2026-01-16T12:53:07.630Z"
+    },
+    {
+      "epic_id": "4c48d565-8033-4da6-b573-bb9ed80eb0ab",
+      "epic_title": "Fix: sphinx-doc__sphinx-9230",
+      "comment_id": "93f6ab7b-2cb8-44eb-a422-f273744f0ec5",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED. Fix is minimal and correctly addresses `:param type name:` parsing when the type contains spaces (e.g., `dict(str, str)`), and the working tree now only changes `sphinx/util/docfields.py` (no test/build/config changes).",
+      "created_at": "2026-01-16T12:54:11.588Z"
+    }
+  ]
+}

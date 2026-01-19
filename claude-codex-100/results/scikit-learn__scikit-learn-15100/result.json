@@ -1,0 +1,30 @@
+{
+  "instance_id": "scikit-learn__scikit-learn-15100",
+  "status": "completed",
+  "patch": "diff --git a/sklearn/feature_extraction/text.py b/sklearn/feature_extraction/text.py\nindex bb5a9d646..11236d958 100644\n--- a/sklearn/feature_extraction/text.py\n+++ b/sklearn/feature_extraction/text.py\n@@ -130,10 +130,7 @@ def strip_accents_unicode(s):\n         ASCII equivalent.\n     \"\"\"\n     normalized = unicodedata.normalize('NFKD', s)\n-    if normalized == s:\n-        return s\n-    else:\n-        return ''.join([c for c in normalized if not unicodedata.combining(c)])\n+    return ''.join([c for c in normalized if not unicodedata.combining(c)])\n \n \n def strip_accents_ascii(s):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:52:29.624235",
+  "end_time": "2026-01-16T12:55:59.022646",
+  "duration_seconds": 209.398411,
+  "error_message": null,
+  "workspace_path": "./workspaces/scikit-learn__scikit-learn-15100",
+  "epic_comments": [
+    {
+      "epic_id": "64df5a87-83a3-44e1-b45f-8f153c9bc519",
+      "epic_title": "Fix: scikit-learn__scikit-learn-15100",
+      "comment_id": "3cbce9ea-736c-4b62-8dcb-f2b19fa4c84a",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe `strip_accents_unicode` function had a bug where it would return the string unchanged if it was already in NFKD form. This was incorrect because even NFKD-normalized strings can contain combining characters (accents) that should be stripped.\n\n**Root cause:** The function checked `if normalized == s: return s` which skipped the combining character filtering for already-normalized strings.\n\n**Fix:** Removed the conditional check and always filter out combining characters from the normalized string.\n\n## Files Modified\n- `sklearn/feature_extraction/text.py`: Removed the `if normalized == s: return s` branch from `strip_accents_unicode` function (lines 132-136 \u2192 132-133)\n\n## Test Results\n- **Test file:** sklearn/feature_extraction/tests/test_text.py\n- **Baseline (before fix):** 107 passed, 4 xfailed, 5 warnings\n- **After fix:** 107 passed, 4 xfailed, 5 warnings\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None (xfailed tests are expected failures)\n\n## Additional Verification\nVerified the specific bug fix:\n```\nTest s1 (composed form chr(241)): PASS \u2192 'n'\nTest s2 (decomposed NFKD form chr(110)+chr(771)): PASS \u2192 'n'\nBoth strings now correctly normalize to 'n'\n```\n\n## Concerns\n- None. The fix is minimal and follows the solution proposed in the issue discussion.\n- The change only removes unnecessary optimization that was causing the bug.",
+      "created_at": "2026-01-16T11:54:37.257Z"
+    },
+    {
+      "epic_id": "64df5a87-83a3-44e1-b45f-8f153c9bc519",
+      "epic_title": "Fix: scikit-learn__scikit-learn-15100",
+      "comment_id": "77caa171-fe85-4d10-9a85-9ea1ee8e3d2c",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- `git diff` shows only `sklearn/feature_extraction/text.py` changed (no tests/build configs modified).\n- Fix removes the incorrect `if normalized == s: return s` early-return so NFKD strings with combining marks (e.g., `n` + COMBINING TILDE) are properly stripped.\n- Verification evidence includes running the actual test file `sklearn/feature_extraction/tests/test_text.py` with baseline vs after-fix counts unchanged, plus a direct reproduction check for the reported inputs.",
+      "created_at": "2026-01-16T11:55:50.423Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-17087",
+  "status": "completed",
+  "patch": "diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py\nindex d88cda6e20..06657ebaab 100644\n--- a/django/db/migrations/serializer.py\n+++ b/django/db/migrations/serializer.py\n@@ -168,7 +168,7 @@ class FunctionTypeSerializer(BaseSerializer):\n         ):\n             klass = self.value.__self__\n             module = klass.__module__\n-            return \"%s.%s.%s\" % (module, klass.__name__, self.value.__name__), {\n+            return \"%s.%s.%s\" % (module, klass.__qualname__, self.value.__name__), {\n                 \"import %s\" % module\n             }\n         # Further error checking\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:20:36.484760",
+  "end_time": "2026-01-16T20:22:38.310701",
+  "duration_seconds": 121.825941,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-17087",
+  "epic_comments": [
+    {
+      "epic_id": "ebc88c8b-e30d-43d7-b03a-fd40e1828b0a",
+      "epic_title": "Fix: django__django-17087",
+      "comment_id": "cabba9a6-d060-4710-b854-3db9cb0e4a5b",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the FunctionTypeSerializer to use `__qualname__` instead of `__name__` when serializing class methods. This ensures nested classes are properly serialized with their full qualified path (e.g., `Profile.Capability.default` instead of just `Capability.default`).\n\n## Files Modified\n- `django/db/migrations/serializer.py`: Changed line 171 from `klass.__name__` to `klass.__qualname__` in the FunctionTypeSerializer.serialize() method.\n\n## Test Results\n- **Test file:** tests/migrations/test_writer.py\n- **Baseline (before fix):** 53 passed, 0 failed, 0 errors\n- **After fix:** 53 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nRan a custom script to verify the fix:\n```python\nclass Profile:\n    class Capability:\n        @classmethod\n        def default(cls):\n            return ['BASIC']\n\nmethod = Profile.Capability.default\nresult, imports = serializer_factory(method).serialize()\n# Result: __main__.Profile.Capability.default (correct!)\n```\n\n## Concerns\n- None. The fix is minimal and follows the existing pattern already used elsewhere in the codebase (e.g., EnumSerializer at line 144 and TypeSerializer at line 322 both use `__qualname__`).",
+      "created_at": "2026-01-16T19:22:28.711Z"
+    }
+  ]
+}

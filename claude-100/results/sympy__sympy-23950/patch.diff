@@ -1,0 +1,19 @@
+diff --git a/sympy/sets/contains.py b/sympy/sets/contains.py
+index b2d4268d12..91eeed5567 100644
+--- a/sympy/sets/contains.py
++++ b/sympy/sets/contains.py
+@@ -44,5 +44,12 @@ def binary_symbols(self):
+             if i.is_Boolean or i.is_Symbol or
+             isinstance(i, (Eq, Ne))])
+ 
+-    def as_set(self):
+-        raise NotImplementedError()
++    def _eval_as_set(self):
++        from sympy.sets.conditionset import ConditionSet
++        element, set_ = self.args
++        sym = list(self.free_symbols)[0]
++        # If the element being checked is exactly the symbol, return the set
++        if element == sym:
++            return set_
++        # Otherwise, fall back to ConditionSet
++        return ConditionSet(sym, self)

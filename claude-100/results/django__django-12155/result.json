@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-12155",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admindocs/utils.py b/django/contrib/admindocs/utils.py\nindex 4c0e7e2a56..aa663ead5b 100644\n--- a/django/contrib/admindocs/utils.py\n+++ b/django/contrib/admindocs/utils.py\n@@ -34,7 +34,7 @@ def trim_docstring(docstring):\n         return ''\n     # Convert tabs to spaces and split into lines\n     lines = docstring.expandtabs().splitlines()\n-    indent = min(len(line) - len(line.lstrip()) for line in lines if line.lstrip())\n+    indent = min((len(line) - len(line.lstrip()) for line in lines[1:] if line.lstrip()), default=0)\n     trimmed = [lines[0].lstrip()] + [line[indent:].rstrip() for line in lines[1:]]\n     return \"\\n\".join(trimmed).strip()\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:00:19.720535",
+  "end_time": "2026-01-16T20:03:23.452747",
+  "duration_seconds": 183.732212,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12155",
+  "epic_comments": [
+    {
+      "epic_id": "17e33f5e-e72e-4666-b22a-ceb543899741",
+      "epic_title": "Fix: django__django-12155",
+      "comment_id": "b4fbbab6-a4e1-4473-b5d4-5f4a2c50f0bc",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the `trim_docstring` function to correctly handle docstrings where the first line contains text (not empty). The issue was that the indentation calculation included the first line, which has 0 indentation, causing docutils rendering errors.\n\nThe fix skips the first line when calculating minimum indentation and uses `default=0` to handle edge cases (single-line docstrings or docstrings with only a first line).\n\n## Files Modified\n- `django/contrib/admindocs/utils.py`: Changed line 37 from:\n  ```python\n  indent = min(len(line) - len(line.lstrip()) for line in lines if line.lstrip())\n  ```\n  to:\n  ```python\n  indent = min((len(line) - len(line.lstrip()) for line in lines[1:] if line.lstrip()), default=0)\n  ```\n\n## Test Results\n- **Test file:** tests/admin_docs/test_utils.py (and full admin_docs suite)\n- **Baseline (before fix):** 7 passed (test_utils.py), 57 passed (full suite)\n- **After fix:** 7 passed (test_utils.py), 57 passed (full suite)\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested various docstring formats:\n1. Text on first line (the reported bug) - now works correctly\n2. Traditional Django-style docstring (empty first line) - still works\n3. Single line docstring - works\n4. Empty docstring - works\n5. Only first line content - works (handled by `default=0`)\n\n## Concerns\n- None. The fix follows the suggestion from the hints and implements PEP 257's algorithm correctly by skipping the first line for indentation calculation.",
+      "created_at": "2026-01-16T19:03:09.868Z"
+    }
+  ]
+}

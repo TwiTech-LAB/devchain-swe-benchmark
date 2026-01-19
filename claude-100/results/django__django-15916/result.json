@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-15916",
+  "status": "completed",
+  "patch": "diff --git a/django/forms/models.py b/django/forms/models.py\nindex 192d9fad94..1852220fe6 100644\n--- a/django/forms/models.py\n+++ b/django/forms/models.py\n@@ -636,7 +636,9 @@ def modelform_factory(\n     class_name = model.__name__ + \"Form\"\n \n     # Class attributes for the new form class.\n-    form_class_attrs = {\"Meta\": Meta, \"formfield_callback\": formfield_callback}\n+    form_class_attrs = {\"Meta\": Meta}\n+    if formfield_callback is not None:\n+        form_class_attrs[\"formfield_callback\"] = formfield_callback\n \n     if getattr(Meta, \"fields\", None) is None and getattr(Meta, \"exclude\", None) is None:\n         raise ImproperlyConfigured(\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:17:47.273172",
+  "end_time": "2026-01-16T20:20:48.615675",
+  "duration_seconds": 181.342503,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15916",
+  "epic_comments": [
+    {
+      "epic_id": "33a4176f-b2b0-467a-819a-a96437bdd9c6",
+      "epic_title": "Fix: django__django-15916",
+      "comment_id": "9690a5a0-9910-43fd-93f3-1adb61ea35d0",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `modelform_factory` to respect the `formfield_callback` defined in the base form's `Meta` class when no explicit callback is provided.\n\n**Root Cause:** In `modelform_factory`, the line `form_class_attrs = {\"Meta\": Meta, \"formfield_callback\": formfield_callback}` always sets `formfield_callback` (even when `None`), which overrides the `ModelFormMetaclass`'s ability to inherit the callback from the base form's Meta.\n\n**Fix:** Only include `formfield_callback` in `form_class_attrs` when it's explicitly provided (not `None`). This allows the metaclass to properly inherit the callback from the parent form's Meta.\n\n## Files Modified\n- `django/forms/models.py`: Changed line 639 to conditionally add `formfield_callback` to `form_class_attrs` only when it's not `None`\n\n## Test Results\n- **Test file:** tests/model_forms/\n- **Baseline (before fix):** 177 passed, 0 failed, 0 errors\n- **After fix:** 177 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\nAdditional test modules verified:\n- `model_formsets`: 74 tests passed\n- `model_formsets_regress`: 22 tests passed\n\n## Additional Verification\nCustom test script verified:\n- `modelform_factory` without explicit `formfield_callback` now correctly inherits the callback from the base form's Meta\n- Fields processed by the callback have the expected modifications (e.g., `required=True`)\n\n## Concerns\n- None - the fix is minimal and only affects the case when `formfield_callback=None` is passed to `modelform_factory`",
+      "created_at": "2026-01-16T19:20:44.831Z"
+    }
+  ]
+}

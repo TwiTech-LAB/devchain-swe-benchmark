@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-12774",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/query.py b/django/db/models/query.py\nindex d9c9b0db04..ba70742633 100644\n--- a/django/db/models/query.py\n+++ b/django/db/models/query.py\n@@ -689,8 +689,14 @@ class QuerySet:\n         \"\"\"\n         assert not self.query.is_sliced, \\\n             \"Cannot use 'limit' or 'offset' with in_bulk\"\n-        if field_name != 'pk' and not self.model._meta.get_field(field_name).unique:\n-            raise ValueError(\"in_bulk()'s field_name must be a unique field but %r isn't.\" % field_name)\n+        opts = self.model._meta\n+        if field_name != 'pk' and not opts.get_field(field_name).unique:\n+            # Check if field is covered by a single-field UniqueConstraint.\n+            if not any(\n+                constraint.fields == (field_name,)\n+                for constraint in opts.total_unique_constraints\n+            ):\n+                raise ValueError(\"in_bulk()'s field_name must be a unique field but %r isn't.\" % field_name)\n         if id_list is not None:\n             if not id_list:\n                 return {}\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T10:19:05.302653",
+  "end_time": "2026-01-17T10:25:07.368694",
+  "duration_seconds": 362.066041,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12774",
+  "epic_comments": [
+    {
+      "epic_id": "96670c7c-2687-4410-a7d6-94d499ff0628",
+      "epic_title": "Fix: django__django-12774",
+      "comment_id": "b692ad00-cfec-4645-ab1f-2205979b8626",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nModified `QuerySet.in_bulk()` to accept fields covered by a single-field `UniqueConstraint` (without condition), in addition to fields with `unique=True`.\n\nThe fix uses the existing `total_unique_constraints` property from `model._meta` which returns all `UniqueConstraint` objects without a condition (i.e., total unique constraints that apply to all rows).\n\n## Files Modified\n- **django/db/models/query.py**: Modified `in_bulk()` method (line 692-699) to check if a field is covered by a single-field `UniqueConstraint` when the field doesn't have `unique=True`.\n\n## Test Results\n- **Test file:** tests/lookup (via runtests.py)\n- **Baseline (before fix):** 48 passed, 0 failed, 0 errors\n- **After fix:** 48 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Additional tests run:** tests/constraints - 24 passed, 0 failed, 0 errors\n\n## Additional Verification\nManually verified the fix works correctly:\n1. \u2705 `in_bulk()` now works with fields that have a single-field `UniqueConstraint` without condition\n2. \u2705 Still raises `ValueError` for non-unique fields\n3. \u2705 Still raises `ValueError` for partial unique constraints (with condition), since they don't guarantee uniqueness for all rows\n\n## Concerns\n- None. The fix is minimal and leverages existing infrastructure (`total_unique_constraints` property).",
+      "created_at": "2026-01-17T09:22:23.111Z"
+    },
+    {
+      "epic_id": "96670c7c-2687-4410-a7d6-94d499ff0628",
+      "epic_title": "Fix: django__django-12774",
+      "comment_id": "31ce84ca-3af7-4d27-8298-da9a66902905",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change in `django/db/models/query.py` correctly allows `QuerySet.in_bulk(field_name=...)` when `field_name` is covered by a single-field *total* `UniqueConstraint` (no condition), matching the problem statement.\n- No test files/build configs modified.\n- Verified tests run in container:\n  - `python tests/runtests.py lookup` (48 tests) OK\n  - `python tests/runtests.py constraints` (24 tests) OK",
+      "created_at": "2026-01-17T09:24:56.480Z"
+    }
+  ]
+}

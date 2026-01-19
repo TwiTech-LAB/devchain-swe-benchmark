@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14500",
+  "status": "completed",
+  "patch": "diff --git a/django/db/migrations/executor.py b/django/db/migrations/executor.py\nindex 57042a8690..b9ff04c057 100644\n--- a/django/db/migrations/executor.py\n+++ b/django/db/migrations/executor.py\n@@ -263,7 +263,8 @@ class MigrationExecutor:\n \n     def check_replacements(self):\n         \"\"\"\n-        Mark replacement migrations applied if their replaced set all are.\n+        Mark replacement migrations applied if their replaced set all are,\n+        or unapplied if any of the replaced set are unapplied.\n \n         Do this unconditionally on every migrate, rather than just when\n         migrations are applied or unapplied, to correctly handle the case\n@@ -277,6 +278,8 @@ class MigrationExecutor:\n             all_applied = all(m in applied for m in migration.replaces)\n             if all_applied and key not in applied:\n                 self.recorder.record_applied(*key)\n+            elif not all_applied and key in applied:\n+                self.recorder.record_unapplied(*key)\n \n     def detect_soft_applied(self, project_state, migration):\n         \"\"\"\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-15T23:49:00.091786",
+  "end_time": "2026-01-15T23:53:49.944435",
+  "duration_seconds": 289.852649,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14500",
+  "epic_comments": [
+    {
+      "epic_id": "7ee7f94f-d9b9-418e-ac96-54ee05c5af8d",
+      "epic_title": "Fix: django__django-14500",
+      "comment_id": "80a206cb-80e7-4c98-ad90-b4fd0fe6bf96",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe `check_replacements` method in `MigrationExecutor` was only marking squashed migrations as applied when all their replaced migrations were applied. It was missing the reverse logic - marking the squashed migration as unapplied when any of the replaced migrations are unapplied.\n\nWhen unapplying migrations, the `unapply_migration` method only records individual replaced migrations as unapplied (not the squash migration itself). The `check_replacements` method is called after migrate, but it previously only checked if it needed to mark the squash as applied, never as unapplied.\n\nThe fix adds an `elif` clause to mark the squashed migration as unapplied when not all of its replaced migrations are applied.\n\n## Files Modified\n- `django/db/migrations/executor.py`: Added logic to `check_replacements` method to mark squashed migration as unapplied when not all replaced migrations are applied\n\n## Test Results\n- **Test file:** tests/migrations/test_executor.py\n- **Baseline (before fix):** 21 passed, 0 failed, 0 errors\n- **After fix:** 21 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Full migrations test suite:** 577 passed, 1 skipped, 0 failed\n\n## Additional Verification\n- Verified the fix is present by inspecting the method source code\n- The `check_replacements` method now includes `record_unapplied` call\n\n## Concerns\n- None - this is a minimal and focused fix that aligns with the existing code pattern",
+      "created_at": "2026-01-15T22:52:16.503Z"
+    },
+    {
+      "epic_id": "7ee7f94f-d9b9-418e-ac96-54ee05c5af8d",
+      "epic_title": "Fix: django__django-14500",
+      "comment_id": "5b20822c-ecbb-4596-97ac-67f7e741e511",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly updates `MigrationExecutor.check_replacements()` to also call `record_unapplied()` when a squash migration is currently marked applied but not all replaced migrations are applied.\n- No test or build-config files modified (only `django/db/migrations/executor.py`).\n- Verification provided includes baseline vs after results for `tests/migrations/test_executor.py`, plus a broader migrations suite run.",
+      "created_at": "2026-01-15T22:53:38.443Z"
+    }
+  ]
+}

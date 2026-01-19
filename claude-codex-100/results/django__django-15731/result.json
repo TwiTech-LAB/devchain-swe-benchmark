@@ -1,0 +1,38 @@
+{
+  "instance_id": "django__django-15731",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/manager.py b/django/db/models/manager.py\nindex e37e56cd17..426c9c1092 100644\n--- a/django/db/models/manager.py\n+++ b/django/db/models/manager.py\n@@ -1,4 +1,5 @@\n import copy\n+import functools\n import inspect\n from importlib import import_module\n \n@@ -81,11 +82,10 @@ class BaseManager:\n     @classmethod\n     def _get_queryset_methods(cls, queryset_class):\n         def create_method(name, method):\n+            @functools.wraps(method)\n             def manager_method(self, *args, **kwargs):\n                 return getattr(self.get_queryset(), name)(*args, **kwargs)\n \n-            manager_method.__name__ = method.__name__\n-            manager_method.__doc__ = method.__doc__\n             return manager_method\n \n         new_methods = {}\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:23:45.628282",
+  "end_time": "2026-01-16T07:27:40.724168",
+  "duration_seconds": 235.095886,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15731",
+  "epic_comments": [
+    {
+      "epic_id": "2927e368-077c-4cf3-8a70-0aca79117795",
+      "epic_title": "Fix: django__django-15731",
+      "comment_id": "31452cf5-3e4d-4eb1-abe4-9b78536ec74d",
+      "author_name": "Code Reviewer",
+      "content": "I\u2019m standing by for code review. When the fix is ready, please move this epic to `Review` and assign it to `Code Reviewer`, and include in the epic comments: (1) baseline test run (before changes) and (2) after-fix run of the actual failing test file(s), plus a brief summary of changed files.",
+      "created_at": "2026-01-16T06:24:51.640Z"
+    },
+    {
+      "epic_id": "2927e368-077c-4cf3-8a70-0aca79117795",
+      "epic_title": "Fix: django__django-15731",
+      "comment_id": "4d6dce6a-e4b7-40ff-9b85-ed0e11cb94cf",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `inspect.signature()` returning incorrect signature `(*args, **kwargs)` on manager methods instead of the actual method signature.\n\nThe fix replaces manual `__name__` and `__doc__` assignments with `functools.wraps(method)` decorator in the `_get_queryset_methods` function. This ensures all metadata (including `__wrapped__` which `inspect.signature` uses) is properly copied from the original QuerySet method.\n\n## Files Modified\n- **django/db/models/manager.py**: \n  - Added `import functools` at the top\n  - Updated `create_method` function to use `@functools.wraps(method)` decorator instead of manually assigning `__name__` and `__doc__`\n\n## Test Results\n- **Test file:** tests/custom_managers/tests.py\n- **Baseline (before fix):** 41 passed, 0 failed, 0 errors\n- **After fix:** 41 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n**Additional tests run:**\n- tests/basic/tests.py: 59 passed (2 skipped)\n- tests/bulk_create/tests.py: 49 passed (7 skipped)\n\n## Additional Verification\nBefore fix:\n```python\n>>> inspect.signature(User.objects.bulk_create)\n(*args, **kwargs)\n```\n\nAfter fix:\n```python\n>>> inspect.signature(User.objects.bulk_create)\n(objs, batch_size=None, ignore_conflicts=False, update_conflicts=False, update_fields=None, unique_fields=None)\n```\n\n## Concerns\n- None. The fix is minimal and uses the standard Python approach (`functools.wraps`) for preserving function metadata in decorators/wrappers.",
+      "created_at": "2026-01-16T06:26:39.036Z"
+    },
+    {
+      "epic_id": "2927e368-077c-4cf3-8a70-0aca79117795",
+      "epic_title": "Fix: django__django-15731",
+      "comment_id": "ecb11bcf-bb8f-4944-83b3-6e72321d4a3c",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED. The change in `django/db/models/manager.py` correctly replaces manual `__name__`/`__doc__` copying with `functools.wraps()`, which preserves `__wrapped__` so `inspect.signature()` can reflect the underlying QuerySet method signature. Diff is minimal and no test/build files were modified. Baseline vs after-fix test results for `tests/custom_managers/tests.py` were provided, plus additional targeted runs.",
+      "created_at": "2026-01-16T06:27:37.768Z"
+    }
+  ]
+}

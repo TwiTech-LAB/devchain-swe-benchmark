@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-13109",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/fields/related.py b/django/db/models/fields/related.py\nindex d517d7269b..c2aea9c730 100644\n--- a/django/db/models/fields/related.py\n+++ b/django/db/models/fields/related.py\n@@ -914,7 +914,7 @@ class ForeignKey(ForeignObject):\n             return\n \n         using = router.db_for_read(self.remote_field.model, instance=model_instance)\n-        qs = self.remote_field.model._default_manager.using(using).filter(\n+        qs = self.remote_field.model._base_manager.using(using).filter(\n             **{self.remote_field.field_name: value}\n         )\n         qs = qs.complex_filter(self.get_limit_choices_to())\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:09:14.857006",
+  "end_time": "2026-01-16T20:12:36.029994",
+  "duration_seconds": 201.172988,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-13109",
+  "epic_comments": [
+    {
+      "epic_id": "8ad8912b-f1de-4266-a765-ee52ed5b4dbe",
+      "epic_title": "Fix: django__django-13109",
+      "comment_id": "285a48c1-c8f1-4b5f-8067-29e52c916c2c",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nChanged `ForeignKey.validate()` to use `_base_manager` instead of `_default_manager` when validating foreign key references.\n\n**Root Cause:** The ForeignKey validation was using `_default_manager` which may have custom filters (e.g., excluding archived records). This caused validation to fail for records that exist in the database but are filtered out by the default manager, even when a form explicitly uses `_base_manager` to include those records.\n\n**Solution:** Use `_base_manager` for validation since it provides access to all records without custom filtering. The base manager is the correct choice for validation because we're checking if the referenced record exists in the database (avoiding DB errors), not enforcing business logic.\n\n## Files Modified\n- `django/db/models/fields/related.py`: Changed line 917 from `_default_manager` to `_base_manager` in the `validate()` method\n\n## Test Results\n- **Test file:** model_fields.test_foreignkey\n- **Baseline (before fix):** 10 passed, 0 failed, 0 errors\n- **After fix:** 10 passed, 0 failed, 0 errors\n- **Regression check:** No new failures\n\n- **Test file:** validation\n- **Baseline:** 52 passed, 0 failed, 0 errors\n- **After fix:** 52 passed, 0 failed, 0 errors\n\n- **Test file:** custom_managers + model_fields (broad test)\n- **After fix:** 430 passed, 0 failed, 0 errors (5 skipped)\n\n## Additional Verification\nThe fix aligns with the linked PR #12923 and the accepted ticket discussion. Using `_base_manager` ensures that ForeignKey validation can find all existing records regardless of any filtering applied by custom default managers.\n\n## Concerns\n- None. This is a minimal, focused change that aligns with Django's design philosophy where `_base_manager` is meant for ORM-level operations and `_default_manager` is for application-level filtering.",
+      "created_at": "2026-01-16T19:12:24.619Z"
+    }
+  ]
+}

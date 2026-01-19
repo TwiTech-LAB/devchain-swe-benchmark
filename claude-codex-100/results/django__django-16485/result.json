@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-16485",
+  "status": "completed",
+  "patch": "diff --git a/django/template/defaultfilters.py b/django/template/defaultfilters.py\nindex 23c3a08c67..7ace6675d5 100644\n--- a/django/template/defaultfilters.py\n+++ b/django/template/defaultfilters.py\n@@ -183,7 +183,7 @@ def floatformat(text, arg=-1):\n     tupl = d.as_tuple()\n     units = len(tupl[1])\n     units += -tupl[2] if m else tupl[2]\n-    prec = abs(p) + units + 1\n+    prec = max(abs(p) + units + 1, 1)\n \n     # Avoid conversion to scientific notation by accessing `sign`, `digits`,\n     # and `exponent` from Decimal.as_tuple() directly.\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:24:20.221866",
+  "end_time": "2026-01-16T12:38:04.045770",
+  "duration_seconds": 823.823904,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-16485",
+  "epic_comments": [
+    {
+      "epic_id": "52002e30-8ba9-4218-a28a-8d2da1a6573c",
+      "epic_title": "Fix: django__django-16485",
+      "comment_id": "1683a82d-5616-4878-a9af-bc1c1c986921",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `floatformat()` crashing on \"0.00\" with `ValueError: valid range for prec is [1, MAX_PREC]`.\n\nThe issue occurred when calling `floatformat('0.00', 0)` or `floatformat(Decimal('0.00'), 0)`. The root cause was that the precision calculation at line 186 could result in 0 when:\n- `p = 0` (0 decimal places requested)\n- `units` became negative due to the tuple exponent calculation\n\nThe fix ensures `prec` is always at least 1 by using `max(abs(p) + units + 1, 1)`.\n\n## Files Modified\n- `django/template/defaultfilters.py`: Changed line 186 from `prec = abs(p) + units + 1` to `prec = max(abs(p) + units + 1, 1)`\n\n## Test Results\n- **Test file:** tests/template_tests/filter_tests/test_floatformat.py\n- **Baseline (before fix):** 10 passed, 0 failed, 0 errors\n- **After fix:** 10 passed, 0 failed, 0 errors\n- **Broader filter tests:** 448 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the fix with multiple edge cases:\n```\nfloatformat(\"0.00\", 0) = '0'\nfloatformat(Decimal(\"0.00\"), 0) = '0'\nfloatformat(\"0\", 0) = '0'\nfloatformat(\"0.0\", 0) = '0'\nfloatformat(\"0.000\", 0) = '0'\nfloatformat(\"1.00\", 0) = '1'\nfloatformat(\"-0.00\", 0) = '0'\nfloatformat(\"0.50\", 0) = '1'\n```\n\nStandard use cases continue to work correctly:\n```\nfloatformat(34.23234) = '34.2'\nfloatformat(34.00000) = '34'\nfloatformat(34.26000) = '34.3'\nfloatformat(34.23234, 3) = '34.232'\nfloatformat(34.00000, 3) = '34.000'\n```\n\n## Concerns\n- None. The fix is minimal and only adds a lower bound to the precision value, which is the correct behavior for `Decimal.Context(prec=...)`.\n",
+      "created_at": "2026-01-16T11:27:16.764Z"
+    },
+    {
+      "epic_id": "52002e30-8ba9-4218-a28a-8d2da1a6573c",
+      "epic_title": "Fix: django__django-16485",
+      "comment_id": "10db9680-9752-46b9-83c4-1ed960d8925f",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly prevents `Decimal.Context(prec=0)` for cases like `floatformat('0.00', 0)` by clamping `prec` to at least 1.\n- Only source file modified (`django/template/defaultfilters.py`); no tests/build config touched.\n- Verification includes baseline vs after on the actual test file and broader filter tests with no new failures.",
+      "created_at": "2026-01-16T11:37:54.546Z"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+diff --git a/sympy/physics/quantum/tensorproduct.py b/sympy/physics/quantum/tensorproduct.py
+index 9dd10d219e..c07b657209 100644
+--- a/sympy/physics/quantum/tensorproduct.py
++++ b/sympy/physics/quantum/tensorproduct.py
+@@ -345,6 +345,48 @@ def tensor_product_simp_Mul(e):
+         return e
+ 
+ 
++def tensor_product_simp_Pow(e):
++    """Simplify a Pow with TensorProducts.
++
++    Distributes the exponent to each argument of the TensorProduct.
++
++    Parameters
++    ==========
++
++    e : Expr
++        A ``Pow`` with a ``TensorProduct`` as base to be simplified.
++
++    Returns
++    =======
++
++    e : Expr
++        A ``TensorProduct`` with the exponent applied to each argument.
++
++    Examples
++    ========
++
++        >>> from sympy.physics.quantum.tensorproduct import \
++                    tensor_product_simp_Pow, TensorProduct
++        >>> from sympy import Symbol
++        >>> A = Symbol('A',commutative=False)
++        >>> B = Symbol('B',commutative=False)
++        >>> e = TensorProduct(A, B)**2
++        >>> e
++        AxB**2
++        >>> tensor_product_simp_Pow(e)
++        A**2xB**2
++
++    """
++    if not isinstance(e, Pow):
++        return e
++    base, exp = e.base, e.exp
++    base = tensor_product_simp(base)
++    if isinstance(base, TensorProduct):
++        return TensorProduct(*[arg**exp for arg in base.args])
++    else:
++        return base**exp
++
++
+ def tensor_product_simp(e, **hints):
+     """Try to simplify and combine TensorProducts.
+ 
+@@ -382,7 +424,7 @@ def tensor_product_simp(e, **hints):
+     if isinstance(e, Add):
+         return Add(*[tensor_product_simp(arg) for arg in e.args])
+     elif isinstance(e, Pow):
+-        return tensor_product_simp(e.base) ** e.exp
++        return tensor_product_simp_Pow(e)
+     elif isinstance(e, Mul):
+         return tensor_product_simp_Mul(e)
+     elif isinstance(e, Commutator):

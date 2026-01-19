@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-14976",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/pycode.py b/sympy/printing/pycode.py\nindex d06901425d..8829d8be54 100644\n--- a/sympy/printing/pycode.py\n+++ b/sympy/printing/pycode.py\n@@ -353,6 +353,11 @@ def _print_log1p(self, e):\n         return '{0}({1}+1)'.format(\n             self._module_format('mpmath.log'), self._print(e.args[0]))\n \n+    def _print_Rational(self, e):\n+        p, q = int(e.p), int(e.q)\n+        return '{0}({1})/{0}({2})'.format(\n+            self._module_format('mpmath.mpf'), p, q)\n+\n for k in MpmathPrinter._kf:\n     setattr(MpmathPrinter, '_print_%s' % k, _print_known_func)\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-15T23:49:05.094716",
+  "end_time": "2026-01-15T23:55:08.702846",
+  "duration_seconds": 363.60813,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-14976",
+  "epic_comments": [
+    {
+      "epic_id": "8ce00532-b34a-4017-adb8-5c97516cc6f2",
+      "epic_title": "Fix: sympy__sympy-14976",
+      "comment_id": "3bdd4777-09df-45a3-8cb3-0d9a4c9d2edc",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded a `_print_Rational` method to `MpmathPrinter` class to wrap rational numbers with `mpmath.mpf` for arbitrary precision arithmetic.\n\n**Root Cause:** When `lambdify(modules='mpmath')` was called, the `MpmathPrinter` had a `_print_Float` method to handle floats but no corresponding `_print_Rational` method. This caused rational numbers like `232/3` to be printed as plain Python division, which evaluates to a Python float and loses precision.\n\n**Fix:** Added `_print_Rational` method that outputs `mpf(p)/mpf(q)` format, ensuring both numerator and denominator are mpmath arbitrary precision floats before division.\n\n## Files Modified\n- `sympy/printing/pycode.py`: Added `_print_Rational` method to `MpmathPrinter` class (lines 356-359)\n\n## Test Results\n- **Test file:** `sympy/printing/tests/test_pycode.py`\n- **Baseline (before fix):** 8 passed\n- **After fix:** 8 passed\n- **Regression check:** No new failures introduced\n\n- **Test file:** `sympy/utilities/tests/test_lambdify.py`\n- **Baseline (before fix):** 54 passed, 29 skipped\n- **After fix:** 54 passed, 29 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the original problem statement is fixed:\n- **Before fix:** `rf(18, x0).evalf(64)` returned `77.33333333333332859638176159933209419250488281250000000000000000` (precision lost)\n- **After fix:** `rf(18, x0).evalf(64)` returns `77.33333333333333333333333333333333333333333333333333333333333333` (full precision)\n\nThe lambdified function now outputs:\n```python\n# Before: RisingFactorial(18, x) - 232/3\n# After:  RisingFactorial(18, x) + mpf(-232)/mpf(3)\n```\n\n## Concerns\nNone. The fix is minimal and follows the existing pattern used by `_print_Float` in the same class.",
+      "created_at": "2026-01-15T22:53:02.270Z"
+    },
+    {
+      "epic_id": "8ce00532-b34a-4017-adb8-5c97516cc6f2",
+      "epic_title": "Fix: sympy__sympy-14976",
+      "comment_id": "86c2223b-989c-49d4-9b9d-eb74bf837019",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal (only `sympy/printing/pycode.py`) and adds `MpmathPrinter._print_Rational` so rationals are emitted as `mpmath.mpf(p)/mpmath.mpf(q)`, preventing loss of precision from Python float division.\n- Brainstormer provided before/after baseline runs of the actual test files and verified the original `nsolve` precision issue is resolved.",
+      "created_at": "2026-01-15T22:54:57.357Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-13569",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py\nindex 04e430a42e..5546d68791 100644\n--- a/django/db/models/sql/compiler.py\n+++ b/django/db/models/sql/compiler.py\n@@ -129,7 +129,13 @@ class SQLCompiler:\n             # Skip References to the select clause, as all expressions in the\n             # select clause are already part of the group by.\n             if not is_ref:\n-                expressions.extend(expr.get_group_by_cols())\n+                # Expressions with no column references do not affect the GROUP\n+                # BY clause (e.g., Random()). However, RawSQL must be included\n+                # since we can't analyze raw SQL strings.\n+                cols = expr.get_group_by_cols()\n+                for col in cols:\n+                    if isinstance(col, RawSQL) or col.contains_column_references:\n+                        expressions.append(col)\n         having_group_by = self.having.get_group_by_cols() if self.having else ()\n         for expr in having_group_by:\n             expressions.append(expr)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:09:34.856920",
+  "end_time": "2026-01-16T20:14:16.432537",
+  "duration_seconds": 281.575617,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-13569",
+  "epic_comments": [
+    {
+      "epic_id": "f32d77ff-ed49-4271-9c56-174a568c5eea",
+      "epic_title": "Fix: django__django-13569",
+      "comment_id": "e114b743-5e77-47e0-965a-3c57135ab155",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the issue where `order_by('?')` was unexpectedly breaking queryset aggregation by including `RANDOM()` in the GROUP BY clause.\n\nThe root cause was in `django/db/models/sql/compiler.py` in the `get_group_by` method. The code was adding all non-reference order_by expressions to the GROUP BY clause, including expressions like `Random()` that have no column references and shouldn't affect grouping.\n\n**The fix:** Modified the loop that processes order_by expressions to filter out expressions that don't contain column references, while still including `RawSQL` expressions (since we can't analyze raw SQL strings).\n\n## Files Modified\n- `django/db/models/sql/compiler.py`: Modified `get_group_by` method (lines 128-137) to check `contains_column_references` and `isinstance(col, RawSQL)` before adding expressions to GROUP BY.\n\n## Test Results\n- **Test files:** aggregation, ordering, aggregation_regress, expressions, queries, db_functions.math.test_random\n- **Baseline (before fix):** All tests passed\n- **After fix:** All tests passed (81 aggregation, 26 ordering, 64 aggregation_regress, 553 expressions/queries)\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n- Verified that `Random().contains_column_references` returns `False` (correctly filters out Random)\n- Verified that `RawSQL` instances are still included in GROUP BY (safety for raw SQL)\n- Verified that column expressions with `contains_column_references=True` are still included\n\n## Implementation Details\nThe fix follows the approach suggested in the hints: \"skip all expressions that have no cols as source expressions (plus, we need to include any raw sql)\". This is implemented by:\n1. Getting the columns from `expr.get_group_by_cols()`\n2. For each column, checking if it's a `RawSQL` instance OR if `col.contains_column_references` is `True`\n3. Only adding columns that pass this check to the GROUP BY expressions",
+      "created_at": "2026-01-16T19:14:00.724Z"
+    }
+  ]
+}

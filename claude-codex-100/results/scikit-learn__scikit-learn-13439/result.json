@@ -1,0 +1,30 @@
+{
+  "instance_id": "scikit-learn__scikit-learn-13439",
+  "status": "completed",
+  "patch": "diff --git a/sklearn/pipeline.py b/sklearn/pipeline.py\nindex 7eaf9a46f..fe79cfa0a 100644\n--- a/sklearn/pipeline.py\n+++ b/sklearn/pipeline.py\n@@ -219,6 +219,12 @@ class Pipeline(_BaseComposition):\n             return self.named_steps[ind]\n         return est\n \n+    def __len__(self):\n+        \"\"\"\n+        Returns the length of the Pipeline\n+        \"\"\"\n+        return len(self.steps)\n+\n     @property\n     def _estimator_type(self):\n         return self.steps[-1][1]._estimator_type\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:52:09.627318",
+  "end_time": "2026-01-16T12:56:19.088309",
+  "duration_seconds": 249.460991,
+  "error_message": null,
+  "workspace_path": "./workspaces/scikit-learn__scikit-learn-13439",
+  "epic_comments": [
+    {
+      "epic_id": "a21e94b4-07ae-4e39-ac80-79d8f15d4ff8",
+      "epic_title": "Fix: scikit-learn__scikit-learn-13439",
+      "comment_id": "2d63a98a-ee30-44d3-a853-0de2d47a82c2",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `__len__` method to the Pipeline class so that `len(pipe)` returns the number of steps in the pipeline. This enables usage like `pipe[:len(pipe)]` which was requested in the issue.\n\n## Files Modified\n- `sklearn/pipeline.py`: Added `__len__` method (lines 222-226) that returns `len(self.steps)`\n\n## Test Results\n- **Test file:** sklearn/tests/test_pipeline.py\n- **Baseline (before fix):** 41 passed, 0 failed, 0 errors\n- **After fix:** 41 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\nTested the exact code from the problem statement:\n```python\nfrom sklearn.pipeline import Pipeline\npipe = Pipeline([('anova', anova_filter), ('svc', clf)])\nlen(pipe)  # Returns 2\npipe[:len(pipe)]  # Works correctly, returns same Pipeline\n```\n\nAlso verified edge cases:\n- Single step pipeline: `len()` returns 1\n- Three step pipeline: `len()` returns 3\n- Slicing with `len()` works correctly\n\n## Concerns\n- None. The fix is minimal and follows the existing code pattern (uses `self.steps` which is already used throughout the class)",
+      "created_at": "2026-01-16T11:54:41.389Z"
+    },
+    {
+      "epic_id": "a21e94b4-07ae-4e39-ac80-79d8f15d4ff8",
+      "epic_title": "Fix: scikit-learn__scikit-learn-13439",
+      "comment_id": "3415f709-f4cc-4d3c-bd9e-098723c013a4",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Only source change is `sklearn/pipeline.py` adding `Pipeline.__len__` returning `len(self.steps)`; no tests/build configs touched.\n- Fix directly addresses the reported failure (`len(pipe)` now works, enabling `pipe[:len(pipe)]`).\n- Brainstormer reports running the actual test file `sklearn/tests/test_pipeline.py` with baseline vs after-fix both clean (41 passed).",
+      "created_at": "2026-01-16T11:56:06.912Z"
+    }
+  ]
+}

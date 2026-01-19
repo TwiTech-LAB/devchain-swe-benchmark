@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-11099",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/auth/validators.py b/django/contrib/auth/validators.py\nindex b4878cfd45..1304f20a60 100644\n--- a/django/contrib/auth/validators.py\n+++ b/django/contrib/auth/validators.py\n@@ -7,7 +7,7 @@ from django.utils.translation import gettext_lazy as _\n \n @deconstructible\n class ASCIIUsernameValidator(validators.RegexValidator):\n-    regex = r'^[\\w.@+-]+$'\n+    regex = r'\\A[\\w.@+-]+\\Z'\n     message = _(\n         'Enter a valid username. This value may contain only English letters, '\n         'numbers, and @/./+/-/_ characters.'\n@@ -17,7 +17,7 @@ class ASCIIUsernameValidator(validators.RegexValidator):\n \n @deconstructible\n class UnicodeUsernameValidator(validators.RegexValidator):\n-    regex = r'^[\\w.@+-]+$'\n+    regex = r'\\A[\\w.@+-]+\\Z'\n     message = _(\n         'Enter a valid username. This value may contain only letters, '\n         'numbers, and @/./+/-/_ characters.'\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T13:46:00.100211",
+  "end_time": "2026-01-16T13:50:23.338425",
+  "duration_seconds": 263.238214,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11099",
+  "epic_comments": [
+    {
+      "epic_id": "c50b43ba-2eca-4ce1-b1f8-6dc7843259e7",
+      "epic_title": "Fix: django__django-11099",
+      "comment_id": "ef73811b-a6b4-4fd6-9956-986e560d1eb7",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nChanged the regex pattern in both `ASCIIUsernameValidator` and `UnicodeUsernameValidator` from `r'^[\\w.@+-]+$'` to `r'\\A[\\w.@+-]+\\Z'`.\n\n**Root Cause:** In Python, `$` matches both end-of-string AND before a trailing newline, allowing usernames like `\"validuser\\n\"` to pass validation incorrectly.\n\n**Solution:** Using `\\A` (start of string) and `\\Z` (end of string, not before trailing newline) ensures only the exact string is matched without allowing trailing newlines.\n\n## Files Modified\n- `django/contrib/auth/validators.py`: Changed regex in both `ASCIIUsernameValidator` (line 10) and `UnicodeUsernameValidator` (line 20)\n\n## Test Results\n- **Test file:** `tests/auth_tests/test_validators.py`\n- **Baseline (before fix):** 22 passed, 0 failed, 0 errors\n- **After fix:** 22 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nManual testing confirmed:\n- `'validuser'` = VALID (correct)\n- `'validuser\\n'` = **REJECTED** (previously was incorrectly accepted)\n- `'invalid\\nuser'` = REJECTED (correct)\n\n## Concerns\n- None. This is a minimal, focused fix that addresses the exact issue described.",
+      "created_at": "2026-01-16T12:48:14.101Z"
+    },
+    {
+      "epic_id": "c50b43ba-2eca-4ce1-b1f8-6dc7843259e7",
+      "epic_title": "Fix: django__django-11099",
+      "comment_id": "1126084a-8a0d-45a1-965d-79024a5f0595",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly replaces `^...$` with `\\A...\\Z` in `ASCIIUsernameValidator` and `UnicodeUsernameValidator`, preventing `$` from matching before a trailing newline.\n- Verified only `django/contrib/auth/validators.py` changed; no tests/build configs modified.\n- Local verification: `python /testbed/tests/runtests.py auth_tests.test_validators` runs clean (22 tests OK). Note: `pytest` doesn\u2019t appear installed in this container, so `runtests.py` is the appropriate runner here.",
+      "created_at": "2026-01-16T12:50:13.818Z"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+diff --git a/sphinx/util/docfields.py b/sphinx/util/docfields.py
+index 3a3367ebe..6a39d5fa9 100644
+--- a/sphinx/util/docfields.py
++++ b/sphinx/util/docfields.py
+@@ -22,6 +22,36 @@ if TYPE_CHECKING:
+     from sphinx.directive import ObjectDescription
+ 
+ 
++def _parse_field_type_and_name(fieldarg: str) -> Tuple[str, str]:
++    """Parse a field argument like "type name" into (type, name).
++
++    This handles nested parentheses and brackets in the type, e.g.,
++    "dict(str, str) name" -> ("dict(str, str)", "name")
++
++    Raises ValueError if no split point is found.
++    """
++    depth = 0
++    last_space_at_depth_zero = -1
++    for i, char in enumerate(fieldarg):
++        if char in '([':
++            depth += 1
++        elif char in ')]':
++            depth -= 1
++        elif char == ' ' and depth == 0:
++            last_space_at_depth_zero = i
++
++    if last_space_at_depth_zero == -1:
++        raise ValueError('No space found at depth zero')
++
++    argtype = fieldarg[:last_space_at_depth_zero].strip()
++    argname = fieldarg[last_space_at_depth_zero + 1:].strip()
++
++    if not argtype or not argname:
++        raise ValueError('Empty type or name')
++
++    return argtype, argname
++
++
+ def _is_single_paragraph(node: nodes.field_body) -> bool:
+     """True if the node only contains one paragraph (and system messages)."""
+     if len(node) == 0:
+@@ -298,7 +328,7 @@ class DocFieldTransformer:
+             # also support syntax like ``:param type name:``
+             if typedesc.is_typed:
+                 try:
+-                    argtype, argname = fieldarg.split(None, 1)
++                    argtype, argname = _parse_field_type_and_name(fieldarg)
+                 except ValueError:
+                     pass
+                 else:
+diff --git a/tox.ini b/tox.ini
+index a363e187f..3b8bc12d0 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

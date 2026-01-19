@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-23950",
+  "status": "completed",
+  "patch": "diff --git a/sympy/sets/contains.py b/sympy/sets/contains.py\nindex b2d4268d12..b175905530 100644\n--- a/sympy/sets/contains.py\n+++ b/sympy/sets/contains.py\n@@ -45,4 +45,9 @@ def binary_symbols(self):\n             isinstance(i, (Eq, Ne))])\n \n     def as_set(self):\n+        x, s = self.args\n+        # If x is the only free symbol, then the set of values\n+        # for which 'x in s' is true is just s itself\n+        if self.free_symbols == {x}:\n+            return s\n         raise NotImplementedError()\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-15T23:49:45.091719",
+  "end_time": "2026-01-15T23:57:30.856973",
+  "duration_seconds": 465.765254,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-23950",
+  "epic_comments": [
+    {
+      "epic_id": "2afd5c21-98c0-4f1e-98ec-9936b4c34203",
+      "epic_title": "Fix: sympy__sympy-23950",
+      "comment_id": "a5c8b4ff-0579-456a-b093-154dbf18be79",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `Contains.as_set()` to properly return the underlying set instead of raising `NotImplementedError`.\n\nThe fix is based on the insight from the issue hints: for `Contains(x, S)`, if `x` is the only free symbol, then the set of values for which \"x \u2208 S\" is true is simply `S` itself.\n\n## Files Modified\n- `sympy/sets/contains.py`: Updated `as_set()` method to return the set when the first argument is the only free symbol\n\n## Implementation Details\nThe change is minimal:\n```python\ndef as_set(self):\n    x, s = self.args\n    # If x is the only free symbol, then the set of values\n    # for which 'x in s' is true is just s itself\n    if self.free_symbols == {x}:\n        return s\n    raise NotImplementedError()\n```\n\nThis ensures:\n- `Contains(x, Reals).as_set()` returns `Reals`\n- `Contains(x, Integers).as_set()` returns `Integers`\n- `Contains(x, Interval(0, 1)).as_set()` returns `Interval(0, 1)`\n- `Contains(x, FiniteSet(y)).as_set()` still raises `NotImplementedError` (multiple free symbols)\n\n## Test Results\n- **Test file:** sympy/sets/tests/test_contains.py\n- **Baseline (before fix):** 6 passed\n- **After fix:** 6 passed\n- **Regression check:** No new failures introduced\n\nAdditional test suites:\n- sympy/sets/tests/test_conditionset.py: 15 passed\n- sympy/sets/tests/test_sets.py: 106 passed, 5 expected to fail\n- sympy/logic/tests/test_boolalg.py: 80 passed, 1 skipped, 1 expected to fail\n- sympy/functions/elementary/tests/test_piecewise.py: 59 passed, 4 skipped\n\n## Additional Verification\nVerified the fix handles the problem cases:\n1. `Contains(x, Reals).as_set()` now returns `Reals` (a proper Set)\n2. The returned set has `as_relational` method: `Reals.as_relational(x)` returns `(-oo < x) & (x < oo)`\n3. `Piecewise((6, Contains(x, Reals)), (7, True))` works without errors\n\n## Concerns\n- None. The fix is minimal and follows the existing code patterns.",
+      "created_at": "2026-01-15T22:55:06.749Z"
+    },
+    {
+      "epic_id": "2afd5c21-98c0-4f1e-98ec-9936b4c34203",
+      "epic_title": "Fix: sympy__sympy-23950",
+      "comment_id": "63182ec4-62f5-42ca-8c8a-ce2869c97d9d",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly makes `Contains(x, S).as_set()` return `S` when `x` is the sole free symbol, fixing the `Piecewise`/`as_relational` crash described in the problem statement.\n- Only source file modified (`sympy/sets/contains.py`); no tests/build configs touched.\n- Verification includes baseline vs after running the actual SymPy test files (not custom scripts).",
+      "created_at": "2026-01-15T22:57:20.097Z"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "instance_id": "sphinx-doc__sphinx-8035",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py\nindex 8c3509c3b..772a8543e 100644\n--- a/sphinx/ext/autodoc/__init__.py\n+++ b/sphinx/ext/autodoc/__init__.py\n@@ -648,16 +648,25 @@ class Documenter:\n                         keep = has_doc or self.options.undoc_members\n             elif (namespace, membername) in attr_docs:\n                 if want_all and isprivate:\n-                    # ignore members whose name starts with _ by default\n-                    keep = self.options.private_members\n+                    if self.options.private_members is ALL:\n+                        keep = True\n+                    elif self.options.private_members:\n+                        keep = membername in self.options.private_members\n+                    else:\n+                        keep = False\n                 else:\n                     # keep documented attributes\n                     keep = True\n                 isattr = True\n             elif want_all and isprivate:\n                 # ignore members whose name starts with _ by default\n-                keep = self.options.private_members and \\\n-                    (has_doc or self.options.undoc_members)\n+                if self.options.private_members is ALL:\n+                    keep = has_doc or self.options.undoc_members\n+                elif self.options.private_members:\n+                    keep = membername in self.options.private_members and \\\n+                        (has_doc or self.options.undoc_members)\n+                else:\n+                    keep = False\n             else:\n                 if self.options.members is ALL and is_filtered_inherited_member(membername):\n                     keep = False\n@@ -859,7 +868,7 @@ class ModuleDocumenter(Documenter):\n         'show-inheritance': bool_option, 'synopsis': identity,\n         'platform': identity, 'deprecated': bool_option,\n         'member-order': member_order_option, 'exclude-members': members_set_option,\n-        'private-members': bool_option, 'special-members': members_option,\n+        'private-members': members_option, 'special-members': members_option,\n         'imported-members': bool_option, 'ignore-module-all': bool_option\n     }  # type: Dict[str, Callable]\n \n@@ -1279,7 +1288,7 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type:\n         'noindex': bool_option, 'inherited-members': inherited_members_option,\n         'show-inheritance': bool_option, 'member-order': member_order_option,\n         'exclude-members': members_set_option,\n-        'private-members': bool_option, 'special-members': members_option,\n+        'private-members': members_option, 'special-members': members_option,\n     }  # type: Dict[str, Callable]\n \n     _signature_class = None  # type: Any\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:24:25.236131",
+  "end_time": "2026-01-16T12:42:18.061587",
+  "duration_seconds": 1072.825456,
+  "error_message": null,
+  "workspace_path": "./workspaces/sphinx-doc__sphinx-8035",
+  "epic_comments": [
+    {
+      "epic_id": "98bd9b77-5fda-4ad8-b853-cea6f4bbb845",
+      "epic_title": "Fix: sphinx-doc__sphinx-8035",
+      "comment_id": "ac53cc4e-d0ca-4389-9669-cced376e0f8f",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nImplemented support for defining specific `:private-members:` for autodoc. Previously, `:private-members:` was a boolean flag that documented ALL private members or none. Now it accepts optional arguments like `:members:` does.\n\n**How it works now:**\n- `:private-members:` (no argument) - documents ALL private members (backward compatible)\n- `:private-members: _private1` - documents only `_private1`\n- `:private-members: _private1, _private2` - documents `_private1` and `_private2`\n\n## Files Modified\n- `sphinx/ext/autodoc/__init__.py`:\n  - Changed `'private-members': bool_option` to `'private-members': members_option` in both `ModuleDocumenter.option_spec` (line 871) and `ClassDocumenter.option_spec` (line 1291)\n  - Updated `filter_members()` method to handle both `ALL` (all private members) and a list of specific member names in two places (lines 651-669)\n\n## Test Results\n- **Test file:** `tests/test_ext_autodoc_private_members.py`\n- **Baseline (before fix):** 2 passed, 0 failed, 0 errors\n- **After fix:** 2 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n- **Test file:** `tests/test_ext_autodoc.py`\n- **Baseline:** 61 passed, 1 failed (pre-existing)\n- **After fix:** 61 passed, 1 failed (same pre-existing failure)\n\n## Additional Verification\n- Verified `members_option` correctly handles: `None` \u2192 `ALL`, comma-separated string \u2192 list of names\n- Verified both `ClassDocumenter` and `ModuleDocumenter` now use `members_option` for `private-members`\n\n## Concerns\n- None. The change follows the exact same pattern as `:special-members:` which already supports specifying specific members.",
+      "created_at": "2026-01-16T11:27:37.432Z"
+    },
+    {
+      "epic_id": "98bd9b77-5fda-4ad8-b853-cea6f4bbb845",
+      "epic_title": "Fix: sphinx-doc__sphinx-8035",
+      "comment_id": "bab58737-a8c1-4e0c-848e-ee40811bf1b5",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- `git diff` shows additional changes to `setup.py` and `tox.ini` that were not listed in the fix summary. These are build/test config changes and should not be part of this fix (and `tox.ini` is not in the auto-excluded build-config list).\n\nRequired Changes:\n- Revert the unrelated changes in `setup.py` and `tox.ini` (keep the patch focused on `sphinx/ext/autodoc/__init__.py`).\n- Re-run the same baseline vs after-fix tests inside the container and update the fix summary with the accurate modified-file list (`git diff --stat`).",
+      "created_at": "2026-01-16T11:38:40.165Z"
+    },
+    {
+      "epic_id": "98bd9b77-5fda-4ad8-b853-cea6f4bbb845",
+      "epic_title": "Fix: sphinx-doc__sphinx-8035",
+      "comment_id": "01d7fd56-bce5-49ed-837d-14cd87f038ad",
+      "author_name": "Brainstormer",
+      "content": "## Addressed Code Review Feedback\n\nReverted unrelated changes to `setup.py` and `tox.ini` that were pre-existing in the workspace.\n\n## Updated Git Diff Stat\n```\nsphinx/ext/autodoc/__init__.py | 21 +++++++++++++++------\n1 file changed, 15 insertions(+), 6 deletions(-)\n```\n\n## Files Modified (Verified)\n- `sphinx/ext/autodoc/__init__.py` only:\n  - Line 868: Changed `'private-members': bool_option` to `'private-members': members_option` in `ModuleDocumenter.option_spec`\n  - Line 1288: Changed `'private-members': bool_option` to `'private-members': members_option` in `ClassDocumenter.option_spec`\n  - Lines 651-669: Updated `filter_members()` to handle both `ALL` and specific member names\n\n## Re-Verified Test Results\n- **tests/test_ext_autodoc_private_members.py:** 2 passed\n- **tests/test_ext_autodoc.py:** 61 passed, 1 failed (pre-existing failure)\n- No regressions introduced",
+      "created_at": "2026-01-16T11:39:50.175Z"
+    },
+    {
+      "epic_id": "98bd9b77-5fda-4ad8-b853-cea6f4bbb845",
+      "epic_title": "Fix: sphinx-doc__sphinx-8035",
+      "comment_id": "7f03d38f-7658-43a3-855b-7d7226c9ee29",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED. \n\n- `git diff` now shows only `sphinx/ext/autodoc/__init__.py` changed (no test/config file changes).\n- Implementation looks correct/minimal: `private-members` uses `members_option` and `filter_members()` handles `ALL` vs specific-name lists.\n- Verification noted: `tests/test_ext_autodoc_private_members.py` passes; `tests/test_ext_autodoc.py` unchanged with the same pre-existing failure.",
+      "created_at": "2026-01-16T11:42:10.485Z"
+    }
+  ]
+}

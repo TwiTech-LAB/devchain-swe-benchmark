@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-15499",
+  "status": "completed",
+  "patch": "diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py\nindex 90fc31bee5..8a5c04393b 100644\n--- a/django/db/migrations/operations/models.py\n+++ b/django/db/migrations/operations/models.py\n@@ -170,6 +170,19 @@ class CreateModel(ModelOperation):\n                     managers=self.managers,\n                 ),\n             ]\n+        elif (\n+            isinstance(operation, AlterModelManagers)\n+            and self.name_lower == operation.name_lower\n+        ):\n+            return [\n+                CreateModel(\n+                    self.name,\n+                    fields=self.fields,\n+                    options=self.options,\n+                    bases=self.bases,\n+                    managers=operation.managers,\n+                ),\n+            ]\n         elif (\n             isinstance(operation, AlterTogetherOptionOperation)\n             and self.name_lower == operation.name_lower\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:23:00.628547",
+  "end_time": "2026-01-16T07:28:25.046232",
+  "duration_seconds": 324.417685,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15499",
+  "epic_comments": [
+    {
+      "epic_id": "f043a2c1-3aaf-41a1-9156-2845b02e0f44",
+      "epic_title": "Fix: django__django-15499",
+      "comment_id": "0cbb1320-8feb-486b-8969-6c7ca0727ac2",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded optimization to combine `CreateModel` + `AlterModelManagers` into a single `CreateModel` operation during migration optimization.\n\nThis mirrors the existing optimization for `CreateModel` + `AlterModelOptions`, following the same pattern established in the codebase. When a `CreateModel` operation is followed by an `AlterModelManagers` operation on the same model, they are now reduced to a single `CreateModel` with the managers from `AlterModelManagers`.\n\n## Files Modified\n- `django/db/migrations/operations/models.py`: Added handling for `AlterModelManagers` in `CreateModel.reduce()` method (lines 173-183)\n\n## Test Results\n- **Test file:** `/testbed/tests/migrations/test_optimizer.py`\n- **Baseline (before fix):** 35 passed, 0 failed, 0 errors\n- **After fix:** 35 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n- **Test file:** `/testbed/tests/migrations/test_operations.py`\n- **After fix:** 121 passed, 0 failed, 0 errors (1 skipped)\n\n## Additional Verification\n```python\n# Test demonstrating the fix works:\nfrom django.db import migrations, models\nfrom django.db.migrations.optimizer import MigrationOptimizer\n\nclass CustomManager(models.Manager):\n    pass\n\noperations = [\n    migrations.CreateModel('Foo', fields=[('name', models.CharField(max_length=255))]),\n    migrations.AlterModelManagers('Foo', managers=[('custom', CustomManager())]),\n]\n\noptimizer = MigrationOptimizer()\nresult = optimizer.optimize(operations, 'test_app')\n# Result: 1 CreateModel operation with managers=[('custom', CustomManager())]\n```\n\n## Concerns\n- None. The implementation follows the exact same pattern as the existing `AlterModelOptions` optimization.",
+      "created_at": "2026-01-16T06:26:30.929Z"
+    },
+    {
+      "epic_id": "f043a2c1-3aaf-41a1-9156-2845b02e0f44",
+      "epic_title": "Fix: django__django-15499",
+      "comment_id": "35292d9d-f75c-4f65-93b1-507e2e5d8890",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and follows the existing `CreateModel.reduce()` optimization pattern (mirrors `AlterModelOptions`).\n- `CreateModel` + `AlterModelManagers` reduction correctly preserves the final managers by overriding `CreateModel.managers` with `AlterModelManagers.managers`.\n- No test files/build configs modified (only `django/db/migrations/operations/models.py`).\n- Verification reported: `/testbed/tests/migrations/test_optimizer.py` baseline vs after (all pass) and `/testbed/tests/migrations/test_operations.py` after-fix (all pass).",
+      "created_at": "2026-01-16T06:28:19.776Z"
+    }
+  ]
+}

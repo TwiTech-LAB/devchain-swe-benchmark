@@ -1,0 +1,30 @@
+{
+  "instance_id": "pallets__flask-5014",
+  "status": "completed",
+  "patch": "diff --git a/src/flask/blueprints.py b/src/flask/blueprints.py\nindex eb50585d..1aa82562 100644\n--- a/src/flask/blueprints.py\n+++ b/src/flask/blueprints.py\n@@ -190,6 +190,9 @@ class Blueprint(Scaffold):\n             root_path=root_path,\n         )\n \n+        if not name:\n+            raise ValueError(\"'name' may not be empty.\")\n+\n         if \".\" in name:\n             raise ValueError(\"'name' may not contain a dot '.' character.\")\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:24:40.224288",
+  "end_time": "2026-01-16T12:28:19.049683",
+  "duration_seconds": 218.825395,
+  "error_message": null,
+  "workspace_path": "./workspaces/pallets__flask-5014",
+  "epic_comments": [
+    {
+      "epic_id": "c09c80c2-9ac1-4a4a-b609-d49d6c00e5f4",
+      "epic_title": "Fix: pallets__flask-5014",
+      "comment_id": "fb4536d4-a71d-4ee6-9c2c-a906a5f6fe70",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded validation in the `Blueprint.__init__` method to raise a `ValueError` when an empty name is provided. This prevents issues that occur when a Blueprint is given an empty name (as referenced in issue #4944).\n\nThe fix checks `if not name:` before assigning the name, which catches empty strings. This validation is placed right before the existing dot character validation, following the same pattern.\n\n## Files Modified\n- `src/flask/blueprints.py`: Added empty name validation in `Blueprint.__init__` (line 193-194)\n\n## Test Results\n- **Test file:** tests/test_blueprints.py\n- **Baseline (before fix):** 59 passed, 0 failed, 0 errors\n- **After fix:** 59 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nManually tested the fix:\n- Empty string `''` raises `ValueError: 'name' may not be empty.` \u2713\n- Valid name `'valid_name'` works correctly \u2713\n- Name with dot `'invalid.name'` still raises appropriate error \u2713\n\n## Concerns\n- None. This is a minimal, focused fix that follows the existing validation pattern in the codebase.",
+      "created_at": "2026-01-16T11:26:36.379Z"
+    },
+    {
+      "epic_id": "c09c80c2-9ac1-4a4a-b609-d49d6c00e5f4",
+      "epic_title": "Fix: pallets__flask-5014",
+      "comment_id": "54445621-becf-46ee-b702-516e520f542d",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly raises `ValueError` for empty blueprint names.\n- No test files modified (only `src/flask/blueprints.py`).\n- Verified `tests/test_blueprints.py` passes (59 passed).",
+      "created_at": "2026-01-16T11:28:10.417Z"
+    }
+  ]
+}

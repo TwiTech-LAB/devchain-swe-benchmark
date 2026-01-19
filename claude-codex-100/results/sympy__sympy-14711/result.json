@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-14711",
+  "status": "completed",
+  "patch": "diff --git a/sympy/physics/vector/vector.py b/sympy/physics/vector/vector.py\nindex a048ee57f1..8849119218 100644\n--- a/sympy/physics/vector/vector.py\n+++ b/sympy/physics/vector/vector.py\n@@ -57,6 +57,8 @@ def __hash__(self):\n \n     def __add__(self, other):\n         \"\"\"The add operator for Vector. \"\"\"\n+        if other == 0:\n+            return self\n         other = _check_vector(other)\n         return Vector(self.args + other.args)\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:24:45.223866",
+  "end_time": "2026-01-16T12:28:37.566551",
+  "duration_seconds": 232.342685,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-14711",
+  "epic_comments": [
+    {
+      "epic_id": "28fb39b4-6457-4c83-ac75-92aa44d5d4d4",
+      "epic_title": "Fix: sympy__sympy-14711",
+      "comment_id": "e3601aba-2fce-434d-9a2d-73f1dc4a035a",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the `__add__` method in Vector class to handle integer 0 as the operand. When Python's `sum()` function is used with a list of Vectors, it starts with 0 (integer) as the initial accumulator and tries to compute `0 + vector`. The fix adds a check at the beginning of `__add__` to return `self` unchanged when `other == 0`.\n\nThis is consistent with:\n- The commented hint in the original traceback (`#if other == 0: return self`)\n- How `__eq__` already handles the 0 case (line 124-125)\n\n## Files Modified\n- `sympy/physics/vector/vector.py`: Added `if other == 0: return self` check in `__add__` method (line 60-61)\n\n## Test Results\n- **Test file:** sympy/physics/vector/tests/test_vector.py\n- **Baseline (before fix):** 4 passed, 0 failed, 0 errors\n- **After fix:** 4 passed, 0 failed, 0 errors\n- **Full module test:** 46 passed (all tests in sympy/physics/vector/)\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified fix handles all edge cases:\n- `sum([N.x, (0 * N.x)])` \u2192 `N.x` (the original failing case)\n- `N.x + 0` \u2192 `N.x`\n- `0 + N.x` \u2192 `N.x` (via `__radd__` which delegates to `__add__`)\n- `sum([N.x, N.y, N.z])` \u2192 `N.x + N.y + N.z`\n- `N.x + Vector(0)` \u2192 `N.x`\n\n## Concerns\n- None. The fix is minimal and focused on the reported issue.",
+      "created_at": "2026-01-16T11:27:23.632Z"
+    },
+    {
+      "epic_id": "28fb39b4-6457-4c83-ac75-92aa44d5d4d4",
+      "epic_title": "Fix: sympy__sympy-14711",
+      "comment_id": "272b9b11-5c76-4317-b9d2-71bab2c223bd",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly handles the `sum()` initial accumulator case (`0 + Vector`) by treating `other == 0` as identity in `Vector.__add__`.\n- Only source file `sympy/physics/vector/vector.py` modified; no tests/build configs touched.\n- Verification looks sufficient: baseline vs after-fix and actual test file/module tests reported.",
+      "created_at": "2026-01-16T11:28:26.097Z"
+    }
+  ]
+}

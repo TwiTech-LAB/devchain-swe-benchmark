@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-13023",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py\nindex 0fd69059ee..28374272f4 100644\n--- a/django/db/models/fields/__init__.py\n+++ b/django/db/models/fields/__init__.py\n@@ -1501,7 +1501,7 @@ class DecimalField(Field):\n             return self.context.create_decimal_from_float(value)\n         try:\n             return decimal.Decimal(value)\n-        except decimal.InvalidOperation:\n+        except (decimal.InvalidOperation, TypeError, ValueError):\n             raise exceptions.ValidationError(\n                 self.error_messages['invalid'],\n                 code='invalid',\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T10:24:36.051744",
+  "end_time": "2026-01-17T10:28:57.898745",
+  "duration_seconds": 261.847001,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-13023",
+  "epic_comments": [
+    {
+      "epic_id": "dcf0554e-b3bd-4602-9b1d-91a5c9b6d7bc",
+      "epic_title": "Fix: django__django-13023",
+      "comment_id": "e905034b-e434-4e51-ac28-67f8395d0e6f",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `DecimalField.to_python()` to raise `ValidationError` instead of `TypeError` when passed invalid types like dict values.\n\nThe issue was that `decimal.Decimal(value)` raises `TypeError` for unsupported types (like dicts), but the except clause only caught `InvalidOperation`. Added `TypeError` and `ValueError` to the exception handling to properly convert these to `ValidationError`.\n\n## Files Modified\n- `django/db/models/fields/__init__.py`: Added `TypeError` and `ValueError` to the except clause in `DecimalField.to_python()` (line 1504)\n\n## Test Results\n- **Test file:** `tests/model_fields/test_decimalfield.py`\n- **Baseline (before fix):** 10 passed, 1 skipped, 0 errors\n- **After fix:** 10 passed, 1 skipped, 0 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n- **Forms test file:** `tests/forms_tests/field_tests/test_decimalfield.py`\n- **After fix:** 13 passed, 0 errors\n\n## Additional Verification\nCustom verification confirmed:\n- Dict values now raise `ValidationError` (PASS)\n- List values now raise `ValidationError` (PASS)\n- String values still work correctly (PASS)\n- Float values still work correctly (PASS)\n- None values still work correctly (PASS)\n\n## Concerns\n- None. The fix is minimal and only catches additional exception types that could occur with invalid input types.",
+      "created_at": "2026-01-17T09:27:37.099Z"
+    },
+    {
+      "epic_id": "dcf0554e-b3bd-4602-9b1d-91a5c9b6d7bc",
+      "epic_title": "Fix: django__django-13023",
+      "comment_id": "84bfe001-f54c-4eee-a8f8-969da18bad70",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- `git diff` shows a minimal, focused change in `django/db/models/fields/__init__.py` catching `(decimal.InvalidOperation, TypeError, ValueError)` and re-raising as `ValidationError`, which directly addresses the reported `TypeError` for dict/invalid types.\n- No test files were modified.\n- Verification summary includes baseline vs after-fix for `tests/model_fields/test_decimalfield.py` and additional decimalfield-related coverage.",
+      "created_at": "2026-01-17T09:28:48.694Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-11099",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/auth/validators.py b/django/contrib/auth/validators.py\nindex b4878cfd45..1304f20a60 100644\n--- a/django/contrib/auth/validators.py\n+++ b/django/contrib/auth/validators.py\n@@ -7,7 +7,7 @@ from django.utils.translation import gettext_lazy as _\n \n @deconstructible\n class ASCIIUsernameValidator(validators.RegexValidator):\n-    regex = r'^[\\w.@+-]+$'\n+    regex = r'\\A[\\w.@+-]+\\Z'\n     message = _(\n         'Enter a valid username. This value may contain only English letters, '\n         'numbers, and @/./+/-/_ characters.'\n@@ -17,7 +17,7 @@ class ASCIIUsernameValidator(validators.RegexValidator):\n \n @deconstructible\n class UnicodeUsernameValidator(validators.RegexValidator):\n-    regex = r'^[\\w.@+-]+$'\n+    regex = r'\\A[\\w.@+-]+\\Z'\n     message = _(\n         'Enter a valid username. This value may contain only letters, '\n         'numbers, and @/./+/-/_ characters.'\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T19:59:49.718209",
+  "end_time": "2026-01-16T20:02:31.251422",
+  "duration_seconds": 161.533213,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11099",
+  "epic_comments": [
+    {
+      "epic_id": "a6c02073-ea7f-4a69-8128-05489dc9765c",
+      "epic_title": "Fix: django__django-11099",
+      "comment_id": "540f9edf-43c6-4c1a-86d8-8aad73a6e698",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nChanged the regex in `ASCIIUsernameValidator` and `UnicodeUsernameValidator` from `r'^[\\w.@+-]+$'` to `r'\\A[\\w.@+-]+\\Z'` to prevent trailing newlines from being accepted in usernames.\n\nIn Python regex, `$` matches not only the end of the string but also a trailing newline. Using `\\A` (start of string) and `\\Z` (end of string without accepting trailing newline) ensures strict boundary matching.\n\n## Files Modified\n- `django/contrib/auth/validators.py`: Updated regex patterns in both `ASCIIUsernameValidator` (line 10) and `UnicodeUsernameValidator` (line 20)\n\n## Test Results\n- **Test file:** `tests/auth_tests/test_validators.py`\n- **Baseline (before fix):** 22 passed, 0 failed, 0 errors\n- **After fix:** 22 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nManually verified the fix:\n- Valid username `\"testuser\"` \u2192 Accepted (correct)\n- Username with trailing newline `\"testuser\\n\"` \u2192 Rejected (correct - this was previously incorrectly accepted)\n\n## Concerns\n- None. The fix is minimal and follows the exact recommendation in the problem statement.",
+      "created_at": "2026-01-16T19:02:26.717Z"
+    }
+  ]
+}

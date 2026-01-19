@@ -1,0 +1,22 @@
+{
+  "instance_id": "astropy__astropy-14182",
+  "status": "completed",
+  "patch": "diff --git a/astropy/io/ascii/rst.py b/astropy/io/ascii/rst.py\nindex abdeba8efb..0cd478eefd 100644\n--- a/astropy/io/ascii/rst.py\n+++ b/astropy/io/ascii/rst.py\n@@ -57,10 +57,11 @@ class RST(FixedWidth):\n     data_class = SimpleRSTData\n     header_class = SimpleRSTHeader\n \n-    def __init__(self):\n-        super().__init__(delimiter_pad=None, bookend=False)\n+    def __init__(self, header_rows=None):\n+        super().__init__(delimiter_pad=None, bookend=False, header_rows=header_rows)\n \n     def write(self, lines):\n         lines = super().write(lines)\n-        lines = [lines[1]] + lines + [lines[1]]\n+        idx = len(self.data.header_rows)\n+        lines = [lines[idx]] + lines + [lines[idx]]\n         return lines\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T19:53:11.481259",
+  "end_time": "2026-01-16T19:57:25.055522",
+  "duration_seconds": 253.574263,
+  "error_message": null,
+  "workspace_path": "./workspaces/astropy__astropy-14182",
+  "epic_comments": [
+    {
+      "epic_id": "7ec1468e-2086-4415-9ae2-a35ebc3c2b61",
+      "epic_title": "Fix: astropy__astropy-14182",
+      "comment_id": "96bc961f-24e5-489e-9d65-6f5cbcc2d809",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded support for `header_rows` parameter in the RST (reStructuredText) table writer. The RST class now accepts and forwards the `header_rows` parameter to its parent `FixedWidth` class, allowing users to output tables with multiple header rows (e.g., column name and unit).\n\nThe fix required two changes:\n1. Modified `RST.__init__` to accept and forward `header_rows` parameter\n2. Updated `RST.write` to correctly locate the separator line based on the number of header rows\n\n## Files Modified\n- `astropy/io/ascii/rst.py`: Updated `__init__` and `write` methods in the RST class\n\n## Test Results\n- **Test file:** astropy/io/ascii/tests/test_rst.py\n- **Baseline (before fix):** 9 passed\n- **After fix:** 9 passed\n- **Regression check:** No new failures introduced\n\nAlso verified fixedwidth tests:\n- **Test file:** astropy/io/ascii/tests/test_fixedwidth.py\n- **After fix:** 35 passed\n\n## Additional Verification\nVerified the fix works correctly with various header_rows configurations:\n- `header_rows=[\"name\"]` - works (default behavior preserved)\n- `header_rows=[\"name\", \"unit\"]` - works correctly\n- `header_rows=[\"unit\", \"name\"]` - works correctly\n- Default (no header_rows) - works correctly\n\nExample output with `header_rows=[\"name\", \"unit\"]`:\n```\n===== ========\n wave response\n   nm       ct\n===== ========\n350.0      0.7\n950.0      1.2\n===== ========\n```\n\n## Concerns\nNone. The fix is minimal and backward compatible.",
+      "created_at": "2026-01-16T18:57:05.115Z"
+    }
+  ]
+}

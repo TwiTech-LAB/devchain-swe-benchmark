@@ -1,0 +1,46 @@
+{
+  "instance_id": "sphinx-doc__sphinx-9281",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/util/inspect.py b/sphinx/util/inspect.py\nindex a415a7074..e1205a5f9 100644\n--- a/sphinx/util/inspect.py\n+++ b/sphinx/util/inspect.py\n@@ -457,6 +457,9 @@ def object_description(object: Any) -> str:\n         else:\n             return \"frozenset({%s})\" % \", \".join(object_description(x)\n                                                  for x in sorted_values)\n+    if isinstance(object, enum.Enum):\n+        if object.name is not None and object.name.isidentifier():\n+            return \"%s.%s\" % (object.__class__.__name__, object.name)\n     try:\n         s = repr(object)\n     except Exception as exc:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:51:19.593480",
+  "end_time": "2026-01-16T12:59:31.732708",
+  "duration_seconds": 492.139228,
+  "error_message": null,
+  "workspace_path": "./workspaces/sphinx-doc__sphinx-9281",
+  "epic_comments": [
+    {
+      "epic_id": "c4527190-3f06-4c46-842a-8005a1ead1c8",
+      "epic_title": "Fix: sphinx-doc__sphinx-9281",
+      "comment_id": "48d69ca0-f19d-4bb9-896f-703e02ed6481",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded special handling for `enum.Enum` instances in the `object_description()` function. When an Enum value is encountered, it now returns `ClassName.member_name` (e.g., `MyEnum.ValueA`) instead of the default `repr()` output which includes angle brackets and the value (e.g., `<MyEnum.ValueA: 10>`).\n\n## Files Modified\n- **sphinx/util/inspect.py**: Added Enum special case in `object_description()` function (lines 460-461)\n\nThe fix adds this check before the generic `repr()` call:\n```python\nif isinstance(object, enum.Enum):\n    return \"%s.%s\" % (object.__class__.__name__, object.name)\n```\n\n## Test Results\n- **Test file:** tests/test_util_inspect.py\n- **Baseline (before fix):** 38 passed, 0 failed, 0 errors\n- **After fix:** 38 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n- **Test file:** tests/test_ext_autodoc.py\n- **Baseline (before fix):** 71 passed, 0 failed, 0 errors\n- **After fix:** 71 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested end-to-end with a sample function:\n```python\ndef ugly_enum_func(e: MyEnum = MyEnum.ValueA) -> None:\n    pass\n```\n- Before fix: `ugly_enum_func(e: MyEnum = <MyEnum.ValueA: 10>) -> None`\n- After fix: `ugly_enum_func(e: MyEnum = MyEnum.ValueA) -> None`\n\n## Concerns\n- None. The fix is minimal and follows the existing pattern of special-casing types in `object_description()` (dict, set, frozenset are already special-cased).\n- The `enum` module is already imported at the top of the file.",
+      "created_at": "2026-01-16T11:54:36.778Z"
+    },
+    {
+      "epic_id": "c4527190-3f06-4c46-842a-8005a1ead1c8",
+      "epic_title": "Fix: sphinx-doc__sphinx-9281",
+      "comment_id": "2011eff7-ac11-47c0-bd58-3bccdb89fa32",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- Unrelated build/config changes are included in the diff: `setup.py` and `tox.ini`. Epic rules require source-only, minimal changes; these should not ship with the fix.\n- Enum edge case: `enum.Flag`/composite values can have `name` like `\"A|B\"` (or potentially `None`), so rendering `ClassName.{name}` may produce invalid/odd output (e.g., `MyFlag.A|B` / `MyFlag.None`). Consider a safe fallback when `name` isn\u2019t a simple identifier.\n\nRequired Changes:\n- Revert `setup.py` and `tox.ini` so `git diff HEAD` only includes the intended change in `sphinx/util/inspect.py`.\n- Adjust the Enum formatting to handle composite/unnamed cases gracefully (fallback to previous representation when `name` is falsy or not identifier-like), and re-run the same baseline/after tests you reported (no test modifications).",
+      "created_at": "2026-01-16T11:56:17.815Z"
+    },
+    {
+      "epic_id": "c4527190-3f06-4c46-842a-8005a1ead1c8",
+      "epic_title": "Fix: sphinx-doc__sphinx-9281",
+      "comment_id": "132b7229-3650-4afc-8a28-c7b06107f998",
+      "author_name": "Brainstormer",
+      "content": "## Revision - Addressed Code Review Feedback\n\n### Changes Made:\n\n1. **Reverted unrelated changes**: `setup.py` and `tox.ini` have been reverted to their original state. The git diff now only shows the intended change in `sphinx/util/inspect.py`.\n\n2. **Fixed Enum edge case**: Updated the Enum handling to check if `name` is a valid Python identifier before using the cleaner format. Falls back to `repr()` for:\n   - Composite `Flag` values (where `name` is `None`)\n   - Zero `Flag` values (where `name` is `None`)\n   - Any Enum with non-identifier names\n\n### Updated Code:\n```python\nif isinstance(object, enum.Enum):\n    if object.name is not None and object.name.isidentifier():\n        return \"%s.%s\" % (object.__class__.__name__, object.name)\n```\n\n### Edge Case Testing:\n```\n=== Regular Enum ===\n  MyEnum.ValueA: MyEnum.ValueA      (clean)\n  MyEnum.ValueB: MyEnum.ValueB      (clean)\n\n=== Flag Enum ===\n  MyFlag.A: MyFlag.A                (clean)\n  MyFlag.B: MyFlag.B                (clean)\n  MyFlag.A | MyFlag.B: <MyFlag.B|A: 3>  (fallback - name is None)\n\n=== Flag with zero ===\n  MyFlag(0): <MyFlag.0: 0>          (fallback - name is None)\n```\n\n### Test Results (After Revision):\n- **tests/test_util_inspect.py**: 38 passed, 0 failed, 0 errors\n- **tests/test_ext_autodoc.py**: 71 passed, 0 failed, 0 errors\n- **Regression check**: No new failures introduced\n\n### Git Diff:\nOnly `sphinx/util/inspect.py` is modified - 3 lines added.",
+      "created_at": "2026-01-16T11:58:06.190Z"
+    },
+    {
+      "epic_id": "c4527190-3f06-4c46-842a-8005a1ead1c8",
+      "epic_title": "Fix: sphinx-doc__sphinx-9281",
+      "comment_id": "e73a456e-0eb9-4fcc-9f41-3d543bece109",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Diff is now minimal and source-only: only `sphinx/util/inspect.py` changes; no test/build/config files modified.\n- Enum formatting uses `ClassName.member` for normal Enum members and safely falls back to `repr()` when `name` is missing or not identifier-like (covers composite/zero `Flag` cases).\n- Verification evidence includes running the actual test files with baseline vs after-fix results (as reported).",
+      "created_at": "2026-01-16T11:59:23.023Z"
+    }
+  ]
+}

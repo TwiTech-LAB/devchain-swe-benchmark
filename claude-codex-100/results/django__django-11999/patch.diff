@@ -1,0 +1,21 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index ee45bb941e..d883eaf005 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -763,8 +763,14 @@ class Field(RegisterLookupMixin):
+             if not getattr(cls, self.attname, None):
+                 setattr(cls, self.attname, self.descriptor_class(self))
+         if self.choices is not None:
+-            setattr(cls, 'get_%s_display' % self.name,
+-                    partialmethod(cls._get_FIELD_display, field=self))
++            # Don't overwrite a user-defined get_%s_display method.
++            # Check if there's a method directly on this class that is NOT a
++            # partialmethod (i.e., a user-defined override). Inherited methods
++            # or auto-generated partialmethods should be replaced.
++            display_method = 'get_%s_display' % self.name
++            if display_method not in cls.__dict__ or isinstance(cls.__dict__[display_method], partialmethod):
++                setattr(cls, display_method,
++                        partialmethod(cls._get_FIELD_display, field=self))
+ 
+     def get_filter_kwargs_for_object(self, obj):
+         """

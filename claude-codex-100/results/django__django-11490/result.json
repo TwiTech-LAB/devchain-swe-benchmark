@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-11490",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py\nindex a44adfc760..a791908caf 100644\n--- a/django/db/models/sql/compiler.py\n+++ b/django/db/models/sql/compiler.py\n@@ -426,6 +426,7 @@ class SQLCompiler:\n                 # must have the same columns list. Set the selects defined on\n                 # the query on all combined queries, if not already set.\n                 if not compiler.query.values_select and self.query.values_select:\n+                    compiler.query = compiler.query.clone()\n                     compiler.query.set_values((\n                         *self.query.extra_select,\n                         *self.query.values_select,\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T10:07:26.571041",
+  "end_time": "2026-01-17T10:13:57.794451",
+  "duration_seconds": 391.22341,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11490",
+  "epic_comments": [
+    {
+      "epic_id": "32ce5abe-05b9-42f7-96b9-720edf65c00e",
+      "epic_title": "Fix: django__django-11490",
+      "comment_id": "fd440772-aa75-40e8-b134-2bf470d18a07",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe bug was in `django/db/models/sql/compiler.py` at line 428-434. When `values()` or `values_list()` is called on a composed query (union, intersection, difference), the combined queries' `values_select` was being mutated. These mutations persisted across different evaluations of the queryset, causing subsequent calls with different column selections to return incorrect results.\n\n**Root cause:** The combined queries referenced in `self.query.combined_queries` are shared objects, not clones. When `set_values()` was called on them, the changes persisted and the condition `if not compiler.query.values_select` would be False on subsequent calls, preventing the values from being updated.\n\n**Fix:** Before calling `set_values()` on a combined query, clone it first to prevent mutations from persisting:\n```python\nif not compiler.query.values_select and self.query.values_select:\n    compiler.query = compiler.query.clone()  # Clone before mutating\n    compiler.query.set_values((\n        *self.query.extra_select,\n        *self.query.values_select,\n        *self.query.annotation_select,\n    ))\n```\n\n## Files Modified\n- `django/db/models/sql/compiler.py`: Added `compiler.query = compiler.query.clone()` before `set_values()` call to prevent mutations from persisting\n\n## Test Results\n- **Test file:** /testbed/tests/queries/test_qs_combinators.py\n- **Baseline (before fix):** 26 tests, 24 passed, 2 skipped, 0 errors\n- **After fix:** 26 tests, 24 passed, 2 skipped, 0 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\nManually verified the fix with the exact scenario from the problem statement:\n```python\n>>> qs1 = ReservedName.objects.all()\n>>> print(qs1.union(qs1).values_list('name', 'order').get())\n('a', 2)  # Works correctly\n>>> print(qs1.union(qs1).values_list('order').get())\n(2,)  # Now works correctly (before fix: returned ('a', 2))\n```\n\n## Concerns\n- None. The fix is minimal and follows existing patterns in Django's query cloning.",
+      "created_at": "2026-01-17T09:12:23.648Z"
+    },
+    {
+      "epic_id": "32ce5abe-05b9-42f7-96b9-720edf65c00e",
+      "epic_title": "Fix: django__django-11490",
+      "comment_id": "7b3f9d29-8760-47de-8559-157f71ff1ab8",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Diff is minimal and targeted: only `django/db/models/sql/compiler.py` changes.\n- No test/build config files modified.\n- Fix correctly prevents mutating shared `combined_queries` by cloning before `set_values()`, addressing the reported values()/values_list() column-list persistence issue.\n- Brainstormer provided baseline vs after-fix results for `/testbed/tests/queries/test_qs_combinators.py` with no new failures/errors.",
+      "created_at": "2026-01-17T09:13:51.888Z"
+    }
+  ]
+}

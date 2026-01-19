@@ -1,0 +1,22 @@
+{
+  "instance_id": "sphinx-doc__sphinx-9230",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/util/docfields.py b/sphinx/util/docfields.py\nindex 3a3367ebe..6a39d5fa9 100644\n--- a/sphinx/util/docfields.py\n+++ b/sphinx/util/docfields.py\n@@ -22,6 +22,36 @@ if TYPE_CHECKING:\n     from sphinx.directive import ObjectDescription\n \n \n+def _parse_field_type_and_name(fieldarg: str) -> Tuple[str, str]:\n+    \"\"\"Parse a field argument like \"type name\" into (type, name).\n+\n+    This handles nested parentheses and brackets in the type, e.g.,\n+    \"dict(str, str) name\" -> (\"dict(str, str)\", \"name\")\n+\n+    Raises ValueError if no split point is found.\n+    \"\"\"\n+    depth = 0\n+    last_space_at_depth_zero = -1\n+    for i, char in enumerate(fieldarg):\n+        if char in '([':\n+            depth += 1\n+        elif char in ')]':\n+            depth -= 1\n+        elif char == ' ' and depth == 0:\n+            last_space_at_depth_zero = i\n+\n+    if last_space_at_depth_zero == -1:\n+        raise ValueError('No space found at depth zero')\n+\n+    argtype = fieldarg[:last_space_at_depth_zero].strip()\n+    argname = fieldarg[last_space_at_depth_zero + 1:].strip()\n+\n+    if not argtype or not argname:\n+        raise ValueError('Empty type or name')\n+\n+    return argtype, argname\n+\n+\n def _is_single_paragraph(node: nodes.field_body) -> bool:\n     \"\"\"True if the node only contains one paragraph (and system messages).\"\"\"\n     if len(node) == 0:\n@@ -298,7 +328,7 @@ class DocFieldTransformer:\n             # also support syntax like ``:param type name:``\n             if typedesc.is_typed:\n                 try:\n-                    argtype, argname = fieldarg.split(None, 1)\n+                    argtype, argname = _parse_field_type_and_name(fieldarg)\n                 except ValueError:\n                     pass\n                 else:\ndiff --git a/tox.ini b/tox.ini\nindex a363e187f..3b8bc12d0 100644\n--- a/tox.ini\n+++ b/tox.ini\n@@ -27,7 +27,7 @@ setenv =\n     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version\n     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes\n commands=\n-    python -X dev -m pytest --durations 25 {posargs}\n+    python -X dev -m pytest -rA --durations 25 {posargs}\n \n [testenv:flake8]\n basepython = python3\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:35:52.157292",
+  "end_time": "2026-01-17T01:40:52.067613",
+  "duration_seconds": 299.910321,
+  "error_message": null,
+  "workspace_path": "./workspaces/sphinx-doc__sphinx-9230",
+  "epic_comments": [
+    {
+      "epic_id": "00979736-b1ac-4bbf-9d1f-dfdd44c93676",
+      "epic_title": "Fix: sphinx-doc__sphinx-9230",
+      "comment_id": "b1cf0131-7719-414e-a396-020d195ac3e4",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed incorrect doc rendering when `:param` has datatype containing parentheses with commas like `dict(str, str)`.\n\nThe bug occurred in `sphinx/util/docfields.py` where `fieldarg.split(None, 1)` was used to split type from name. For input like `dict(str, str) opc_meta`, this incorrectly split on the space inside the parentheses, resulting in:\n- `argtype = \"dict(str,\"`\n- `argname = \"str) opc_meta\"`\n\n## Files Modified\n- `sphinx/util/docfields.py`: Added `_parse_field_type_and_name()` helper function that tracks parenthesis/bracket depth and only splits on whitespace when depth is 0. Modified the param parsing logic to use this new function.\n\n## Test Results\n- **Test file:** tests/test_domain_py.py\n- **Baseline (before fix):** 45 passed\n- **After fix:** 45 passed\n- **Regression check:** No new failures introduced\n\nAdditional test coverage:\n- tests/test_ext_autodoc.py: 71 passed\n- tests/test_intl.py (docfield tests): 2 passed\n\n## Additional Verification\nTested the fix handles various edge cases:\n- `dict(str, str) opc_meta` \u2192 `(\"dict(str, str)\", \"opc_meta\")` \u2713\n- `str name` \u2192 `(\"str\", \"name\")` \u2713  \n- `List[int] items` \u2192 `(\"List[int]\", \"items\")` \u2713\n- `Callable[[int], str] func` \u2192 `(\"Callable[[int], str]\", \"func\")` \u2713\n- `dict(str, dict(int, str)) nested` \u2192 `(\"dict(str, dict(int, str))\", \"nested\")` \u2713\n\n## Concerns\nNone - the fix is minimal and focused on the specific issue.",
+      "created_at": "2026-01-17T00:40:32.393Z"
+    }
+  ]
+}

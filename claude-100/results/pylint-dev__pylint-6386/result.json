@@ -1,0 +1,22 @@
+{
+  "instance_id": "pylint-dev__pylint-6386",
+  "status": "completed",
+  "patch": "diff --git a/pylint/config/callback_actions.py b/pylint/config/callback_actions.py\nindex 761995399..198f786c8 100644\n--- a/pylint/config/callback_actions.py\n+++ b/pylint/config/callback_actions.py\n@@ -45,6 +45,33 @@ class _DoNothingAction(_CallbackAction):\n     without erroring when they are then processed again by argparse.\n     \"\"\"\n \n+    def __init__(\n+        self,\n+        option_strings: Sequence[str],\n+        dest: str,\n+        nargs: None = None,\n+        const: None = None,\n+        default: None = None,\n+        type: None = None,\n+        choices: None = None,\n+        required: bool = False,\n+        help: str = \"\",\n+        metavar: str = \"\",\n+        **kwargs: Any,\n+    ) -> None:\n+        super().__init__(\n+            option_strings,\n+            dest,\n+            0,\n+            const,\n+            default,\n+            type,\n+            choices,\n+            required,\n+            help,\n+            metavar,\n+        )\n+\n     def __call__(\n         self,\n         parser: argparse.ArgumentParser,\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:20:51.347904",
+  "end_time": "2026-01-16T20:26:02.256638",
+  "duration_seconds": 310.908734,
+  "error_message": null,
+  "workspace_path": "./workspaces/pylint-dev__pylint-6386",
+  "epic_comments": [
+    {
+      "epic_id": "c19aa42c-66cb-4de4-be1c-437533b15160",
+      "epic_title": "Fix: pylint-dev__pylint-6386",
+      "comment_id": "5b302e55-767e-4ab2-b15d-11fc3f3ad220",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe `-v` short option for `--verbose` was incorrectly expecting an argument because `_DoNothingAction` didn't set `nargs=0` in its `__init__` method. By default, argparse expects one argument when `nargs` is not specified.\n\nThe fix adds an `__init__` method to `_DoNothingAction` that explicitly sets `nargs=0`, making it a flag that doesn't require an argument - matching the behavior of other flag-based actions like `_AccessRunObjectAction`.\n\n## Files Modified\n- `pylint/config/callback_actions.py`: Added `__init__` method to `_DoNothingAction` class that sets `nargs=0`\n\n## Test Results\n- **Test file:** tests/config/*.py\n- **Baseline (before fix):** 65 passed\n- **After fix:** 65 passed\n- **Regression check:** No new failures introduced\n\n- **Test file:** tests/lint/*.py\n- **After fix:** 56 passed\n- **Regression check:** No new failures introduced\n\n- **Test file:** tests/test_self.py\n- **After fix:** 115 passed, 2 failed (pre-existing failures unrelated to fix - TOMLKit library issue)\n\n## Additional Verification\n- `pylint file.py -v` now works correctly (was erroring with \"expected one argument\")\n- `pylint file.py --verbose` still works correctly\n- Other options using `_DoNothingAction` (--rcfile, --output, --init-hook, --enable-all-extensions) still work correctly\n\n## Concerns\n- None. The fix is minimal and targeted.",
+      "created_at": "2026-01-16T19:25:51.539Z"
+    }
+  ]
+}

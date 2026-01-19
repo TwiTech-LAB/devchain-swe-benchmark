@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-12858",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/base.py b/django/db/models/base.py\nindex 6c9e9d3707..262312397f 100644\n--- a/django/db/models/base.py\n+++ b/django/db/models/base.py\n@@ -1747,7 +1747,10 @@ class Model(metaclass=ModelBase):\n                     else:\n                         _cls = None\n                 except (FieldDoesNotExist, AttributeError):\n-                    if fld is None or fld.get_transform(part) is None:\n+                    if fld is None or (\n+                        fld.get_transform(part) is None and\n+                        fld.get_lookup(part) is None\n+                    ):\n                         errors.append(\n                             checks.Error(\n                                 \"'ordering' refers to the nonexistent field, \"\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:09:09.856067",
+  "end_time": "2026-01-16T20:12:21.107366",
+  "duration_seconds": 191.251299,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12858",
+  "epic_comments": [
+    {
+      "epic_id": "ec2e8de1-82e5-4a2b-9cf5-d2f1cc3f42a2",
+      "epic_title": "Fix: django__django-12858",
+      "comment_id": "241923b9-7a87-4bbd-ad77-b33859f5020d",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe issue was in the `_check_ordering` method in `django/db/models/base.py`. When validating ordering fields that contain lookups (like `supply__product__parent__isnull`), the code only checked if the terminal part was a valid **transform** using `fld.get_transform(part)`. However, `isnull` is a **lookup**, not a transform, so it was incorrectly rejected.\n\nThe fix adds an additional check for lookups using `fld.get_lookup(part)`. Now the validation accepts a terminal part if it's either a valid transform OR a valid lookup.\n\n## Files Modified\n- `django/db/models/base.py`: Modified line 1750 to also check `fld.get_lookup(part)` in addition to `fld.get_transform(part)` when validating ordering fields.\n\n## Test Results\n- **Test file:** tests/invalid_models_tests/test_models.py\n- **Baseline (before fix):** 75 passed, 2 skipped, 0 errors\n- **After fix:** 75 passed, 2 skipped, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n- Tested `parent__isnull` ordering - now correctly passes validation\n- Tested complex nested path `child__parent__isnull` - works correctly\n- Tested that invalid lookups like `parent__nonexistent` are still properly rejected\n\n## Concerns\n- None. The fix is minimal and follows the existing code pattern.",
+      "created_at": "2026-01-16T19:12:12.895Z"
+    }
+  ]
+}

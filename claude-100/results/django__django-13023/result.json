@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-13023",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py\nindex 0fd69059ee..28374272f4 100644\n--- a/django/db/models/fields/__init__.py\n+++ b/django/db/models/fields/__init__.py\n@@ -1501,7 +1501,7 @@ class DecimalField(Field):\n             return self.context.create_decimal_from_float(value)\n         try:\n             return decimal.Decimal(value)\n-        except decimal.InvalidOperation:\n+        except (decimal.InvalidOperation, TypeError, ValueError):\n             raise exceptions.ValidationError(\n                 self.error_messages['invalid'],\n                 code='invalid',\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:55:37.904746",
+  "end_time": "2026-01-17T01:58:40.946947",
+  "duration_seconds": 183.042201,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-13023",
+  "epic_comments": [
+    {
+      "epic_id": "1034522b-b04f-4f76-af3e-493f8cf7b2d3",
+      "epic_title": "Fix: django__django-13023",
+      "comment_id": "899c7bcd-7bfd-4a6e-a411-4bf0eb3994e0",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `DecimalField.to_python()` to raise `ValidationError` instead of `TypeError` when passed non-convertible types like dictionaries or lists. The fix follows the same pattern used by `IntegerField.to_python()` - catching `TypeError` and `ValueError` in addition to `decimal.InvalidOperation`.\n\n## Files Modified\n- `django/db/models/fields/__init__.py`: Modified the `except` clause in `DecimalField.to_python()` at line 1504 to catch `(decimal.InvalidOperation, TypeError, ValueError)` instead of just `decimal.InvalidOperation`.\n\n## Test Results\n- **Test file:** tests/model_fields/test_decimalfield.py\n- **Baseline (before fix):** 10 passed, 1 skipped\n- **After fix:** 10 passed, 1 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nManually tested various input types:\n- Dict `{'key': 'value'}`: Now raises `ValidationError` (was `TypeError`)\n- List `[1, 2, 3]`: Now raises `ValidationError` (was `TypeError`)\n- String `'10.5'`: Returns `Decimal('10.5')` (unchanged)\n- None: Returns `None` (unchanged)\n\n## Concerns\nNone. The fix is minimal and follows the established pattern from `IntegerField.to_python()` which already handles both `TypeError` and `ValueError`.",
+      "created_at": "2026-01-17T00:58:32.125Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-15467",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py\nindex 64be087bf1..6219590924 100644\n--- a/django/contrib/admin/options.py\n+++ b/django/contrib/admin/options.py\n@@ -269,7 +269,8 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):\n                         \"class\": get_ul_class(self.radio_fields[db_field.name]),\n                     }\n                 )\n-                kwargs[\"empty_label\"] = _(\"None\") if db_field.blank else None\n+                if \"empty_label\" not in kwargs:\n+                    kwargs[\"empty_label\"] = _(\"None\") if db_field.blank else None\n \n         if \"queryset\" not in kwargs:\n             queryset = self.get_field_queryset(db, db_field, request)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:16:59.917577",
+  "end_time": "2026-01-16T20:20:11.679811",
+  "duration_seconds": 191.762234,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15467",
+  "epic_comments": [
+    {
+      "epic_id": "f75b42e3-177f-4010-ba82-4be4dc348d17",
+      "epic_title": "Fix: django__django-15467",
+      "comment_id": "661f283d-1b85-4b6a-b5f2-53d58992d432",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the issue where `ModelAdmin.formfield_for_foreignkey()` unconditionally overwrote user-specified `empty_label` when the field is in `radio_fields`. The fix preserves the user's custom `empty_label` if one was provided, while maintaining the default behavior (`_('None')` for blank fields, `None` otherwise) when no custom label is set.\n\n## Files Modified\n- `django/contrib/admin/options.py`: Added a check (`if \"empty_label\" not in kwargs:`) before setting the default `empty_label` value on line 272.\n\n## Test Results\n- **Test file:** `tests/admin_widgets/tests.py` and `tests/modeladmin/tests.py`\n- **Baseline (before fix):** 86 tests passed (14 skipped) for admin_widgets, 162 tests passed for modeladmin\n- **After fix:** 86 tests passed (14 skipped) for admin_widgets, 162 tests passed for modeladmin\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified with custom scripts that:\n1. Custom `empty_label` is now preserved when set by the user\n2. Default behavior works for `blank=True` fields (empty_label='None')\n3. Default behavior works for `blank=False` fields (empty_label=None)\n\n## Concerns\nNone - the fix is minimal and focused, only adding one condition check.",
+      "created_at": "2026-01-16T19:19:55.644Z"
+    }
+  ]
+}

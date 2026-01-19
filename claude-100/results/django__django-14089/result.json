@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-14089",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/datastructures.py b/django/utils/datastructures.py\nindex 871b016715..721b0ee951 100644\n--- a/django/utils/datastructures.py\n+++ b/django/utils/datastructures.py\n@@ -34,6 +34,9 @@ class OrderedSet:\n     def __len__(self):\n         return len(self.dict)\n \n+    def __reversed__(self):\n+        return reversed(self.dict)\n+\n \n class MultiValueDictKeyError(KeyError):\n     pass\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:12:17.147545",
+  "end_time": "2026-01-16T20:14:28.136283",
+  "duration_seconds": 130.988738,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14089",
+  "epic_comments": [
+    {
+      "epic_id": "2bfe6088-17e1-4b3c-9ee9-9d1440278dbc",
+      "epic_title": "Fix: django__django-14089",
+      "comment_id": "d3dfd02e-afe2-456c-9a4a-2d1df0a686fb",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `__reversed__` method to `OrderedSet` class to allow calling Python's `reversed()` built-in function on OrderedSet instances. Since OrderedSet uses a dict internally and Python 3.8+ dicts support `reversed()` on their keys, the implementation simply delegates to `reversed(self.dict)`.\n\n## Files Modified\n- `django/utils/datastructures.py`: Added `__reversed__` method to `OrderedSet` class (line 37-38)\n\n## Test Results\n- **Test file:** tests/utils_tests/test_datastructures.py\n- **Baseline (before fix):** 43 passed, 0 failed, 0 errors\n- **After fix:** 43 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nManual verification demonstrates the fix works correctly:\n```\nOriginal OrderedSet: [1, 2, 3, 4, 5]\nReversed OrderedSet: [5, 4, 3, 2, 1]\nString OrderedSet: ['a', 'b', 'c']\nReversed String OrderedSet: ['c', 'b', 'a']\nEmpty OrderedSet: []\nReversed Empty OrderedSet: []\n```\n\n## Concerns\n- None. The fix is minimal and straightforward, following existing patterns in the class.",
+      "created_at": "2026-01-16T19:14:16.946Z"
+    }
+  ]
+}

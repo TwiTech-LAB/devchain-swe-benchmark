@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-11179",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py\nindex 92fe4affb9..3a462f1c4c 100644\n--- a/django/db/models/deletion.py\n+++ b/django/db/models/deletion.py\n@@ -277,6 +277,7 @@ class Collector:\n             if self.can_fast_delete(instance):\n                 with transaction.mark_for_rollback_on_error():\n                     count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)\n+                setattr(instance, model._meta.pk.attname, None)\n                 return count, {model._meta.label: count}\n \n         with transaction.atomic(using=self.using, savepoint=False):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:23:15.628195",
+  "end_time": "2026-01-16T07:27:09.827103",
+  "duration_seconds": 234.198908,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11179",
+  "epic_comments": [
+    {
+      "epic_id": "f02066ef-b2de-42f5-9c82-0b7548792472",
+      "epic_title": "Fix: django__django-11179",
+      "comment_id": "67f2275e-525d-4902-88c4-63d9ec407095",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the bug where `delete()` on instances of models without any dependencies doesn't clear PKs. The issue was in the fast-delete optimization path (lines 274-281 of `django/db/models/deletion.py`) which returned early without setting the instance's PK to None.\n\nThe fix adds `setattr(instance, model._meta.pk.attname, None)` after the delete operation in the fast-delete path, matching the behavior of the normal deletion path at lines 324-326.\n\n## Files Modified\n- `django/db/models/deletion.py`: Added line 280 to set instance PK to None after fast-delete\n\n## Test Results\n- **Test file:** tests/delete/tests.py (via Django's runtests.py)\n- **Baseline (before fix):** 41 tests, 40 passed, 1 skipped, 0 failed\n- **After fix:** 41 tests, 40 passed, 1 skipped, 0 failed\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\nTested with custom verification scripts:\n1. Model without dependencies (fast-delete path): PK correctly set to None after delete\n2. Model with post_delete signal (non-fast-delete path): PK correctly set to None after delete\n\n## Concerns\n- None. This is a minimal, focused fix that follows the same pattern used in the normal deletion path.",
+      "created_at": "2026-01-16T06:25:41.376Z"
+    },
+    {
+      "epic_id": "f02066ef-b2de-42f5-9c82-0b7548792472",
+      "epic_title": "Fix: django__django-11179",
+      "comment_id": "39f7a093-52af-486e-b901-72838788e6c5",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly fixes the fast-delete early-return path by clearing the instance PK (matches behavior in the normal deletion path).\n- Only source code changed (`django/db/models/deletion.py`); no tests/build configs modified.\n- Brainstormer provided baseline vs after-fix results and ran the actual test file (`tests/delete/tests.py`).",
+      "created_at": "2026-01-16T06:26:59.440Z"
+    }
+  ]
+}

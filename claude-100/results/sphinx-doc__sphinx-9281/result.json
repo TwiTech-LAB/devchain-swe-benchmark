@@ -1,0 +1,22 @@
+{
+  "instance_id": "sphinx-doc__sphinx-9281",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/util/inspect.py b/sphinx/util/inspect.py\nindex a415a7074..170e9663b 100644\n--- a/sphinx/util/inspect.py\n+++ b/sphinx/util/inspect.py\n@@ -457,6 +457,8 @@ def object_description(object: Any) -> str:\n         else:\n             return \"frozenset({%s})\" % \", \".join(object_description(x)\n                                                  for x in sorted_values)\n+    if isinstance(object, enum.Enum):\n+        return \"%s.%s\" % (object.__class__.__name__, object.name)\n     try:\n         s = repr(object)\n     except Exception as exc:\ndiff --git a/tox.ini b/tox.ini\nindex a363e187f..3b8bc12d0 100644\n--- a/tox.ini\n+++ b/tox.ini\n@@ -27,7 +27,7 @@ setenv =\n     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version\n     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes\n commands=\n-    python -X dev -m pytest --durations 25 {posargs}\n+    python -X dev -m pytest -rA --durations 25 {posargs}\n \n [testenv:flake8]\n basepython = python3\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:35:57.174193",
+  "end_time": "2026-01-17T01:39:27.065488",
+  "duration_seconds": 209.891295,
+  "error_message": null,
+  "workspace_path": "./workspaces/sphinx-doc__sphinx-9281",
+  "epic_comments": [
+    {
+      "epic_id": "5003ebfb-daab-4ba0-97dd-5ddbae64509b",
+      "epic_title": "Fix: sphinx-doc__sphinx-9281",
+      "comment_id": "0ddbe5e9-83ed-420e-ad5d-414ddc698261",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded special handling for Enum members in the `object_description()` function. When an object is an Enum member, it now returns `EnumClass.MemberName` format instead of using the default `repr()` which produces the ugly `<EnumClass.MemberName: value>` format.\n\n## Files Modified\n- `sphinx/util/inspect.py`: Added Enum check in `object_description()` function (line 460-461)\n\n## Test Results\n- **Test file:** tests/test_util_inspect.py\n- **Baseline (before fix):** 38 passed, 0 failed, 0 errors\n- **After fix:** 38 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\nAdditional tests run:\n- tests/test_ext_autodoc.py: 71 passed\n- tests/test_ext_autodoc_autofunction.py: 10 passed\n\n## Additional Verification\nManual testing confirmed:\n- Before: `<MyEnum.ValueA: 10>`\n- After: `MyEnum.ValueA`\n\nFunction signature now renders as:\n`ugly_enum_func(e: MyEnum = MyEnum.ValueA) -> None`\n\n## Concerns\n- None. The fix is minimal and focused, uses existing `enum.Enum` module, and follows the same pattern as other special cases (dict, set, frozenset) in the function.",
+      "created_at": "2026-01-17T00:39:16.218Z"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "instance_id": "sympy__sympy-13974",
+  "status": "completed",
+  "patch": "diff --git a/sympy/physics/quantum/tensorproduct.py b/sympy/physics/quantum/tensorproduct.py\nindex 9dd10d219e..1f7cd29cff 100644\n--- a/sympy/physics/quantum/tensorproduct.py\n+++ b/sympy/physics/quantum/tensorproduct.py\n@@ -257,6 +257,10 @@ def _eval_expand_tensorproduct(self, **hints):\n         else:\n             return self\n \n+    def _eval_power(self, exp):\n+        \"\"\"Distribute power to each argument of the TensorProduct.\"\"\"\n+        return TensorProduct(*[b**exp for b in self.args])\n+\n     def _eval_trace(self, **kwargs):\n         indices = kwargs.get('indices', None)\n         exp = tensor_product_simp(self)\n@@ -268,6 +272,49 @@ def _eval_trace(self, **kwargs):\n                          for idx, value in enumerate(exp.args)])\n \n \n+def tensor_product_simp_Pow(e):\n+    \"\"\"Simplify a Pow with TensorProducts.\n+\n+    When a TensorProduct is raised to a power, this distributes the\n+    power to each argument of the TensorProduct.\n+\n+    Parameters\n+    ==========\n+\n+    e : Expr\n+        A ``Pow`` with a ``TensorProduct`` base to be simplified.\n+\n+    Returns\n+    =======\n+\n+    e : Expr\n+        A ``TensorProduct`` of the original arguments each raised to the power.\n+\n+    Examples\n+    ========\n+\n+        >>> from sympy.physics.quantum.tensorproduct import \\\\\n+                    tensor_product_simp_Pow, TensorProduct\n+        >>> from sympy import Symbol\n+        >>> A = Symbol('A',commutative=False)\n+        >>> B = Symbol('B',commutative=False)\n+        >>> e = TensorProduct(A, B)**2\n+        >>> e\n+        (AxB)**2\n+        >>> tensor_product_simp_Pow(e)\n+        A**2xB**2\n+\n+    \"\"\"\n+    if not isinstance(e, Pow):\n+        return e\n+    base, exp = e.base, e.exp\n+    base = tensor_product_simp(base)\n+    if isinstance(base, TensorProduct):\n+        return TensorProduct(*[b**exp for b in base.args])\n+    else:\n+        return base**exp\n+\n+\n def tensor_product_simp_Mul(e):\n     \"\"\"Simplify a Mul with TensorProducts.\n \n@@ -376,13 +423,13 @@ def tensor_product_simp(e, **hints):\n     commutators and anticommutators as well:\n \n     >>> tensor_product_simp(e**2)\n-    (A*C)x(B*D)**2\n+    ((A*C)**2)x((B*D)**2)\n \n     \"\"\"\n     if isinstance(e, Add):\n         return Add(*[tensor_product_simp(arg) for arg in e.args])\n     elif isinstance(e, Pow):\n-        return tensor_product_simp(e.base) ** e.exp\n+        return tensor_product_simp_Pow(e)\n     elif isinstance(e, Mul):\n         return tensor_product_simp_Mul(e)\n     elif isinstance(e, Commutator):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T13:46:25.102796",
+  "end_time": "2026-01-16T13:59:07.295405",
+  "duration_seconds": 762.192609,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-13974",
+  "epic_comments": [
+    {
+      "epic_id": "4061d853-37d2-4297-b60b-7e7ab3b7877b",
+      "epic_title": "Fix: sympy__sympy-13974",
+      "comment_id": "11ef8f6c-8511-4d44-bddc-96790e0122dc",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `tensor_product_simp_Pow` function to handle power expressions with TensorProduct bases. When a TensorProduct is raised to a power, the fix distributes the power to each argument of the TensorProduct: `tp(a, b, c)**n` \u2192 `tp(a**n, b**n, c**n)`.\n\n## Files Modified\n- `sympy/physics/quantum/tensorproduct.py`: Added `tensor_product_simp_Pow` function (40 lines) and updated `tensor_product_simp` to use it for Pow cases.\n\n## Test Results\n- **Test file:** sympy/physics/quantum/tests/test_tensorproduct.py\n- **Baseline (before fix):** 6 passed, 1 exception (pre-existing deprecation issue)\n- **After fix:** 6 passed, 1 exception (same pre-existing issue)\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** test_tensor_product_dagger has a DeprecationWarning related to `collections.Iterable` (unrelated to this fix)\n\n## Additional Verification\nTested examples from problem statement:\n- `tps(tp(1,1)*tp(1,1))` \u2192 `1x1` \u2713\n- `tps(tp(1,Pauli(3))*tp(1,Pauli(3)))` \u2192 `1x1` \u2713\n- `tps(tp(A,B)**2)` \u2192 `(A**2)x(B**2)` \u2713\n\nTested edge cases:\n- Three argument tensor products with power \u2713\n- Symbolic exponents \u2713\n- Nested Mul inside Pow \u2713\n- Non-TensorProduct bases (unchanged) \u2713\n- Add expressions with TensorProduct powers \u2713\n\n## Concerns\n- None. The fix follows the existing pattern of `tensor_product_simp_Mul` and is minimal and focused.",
+      "created_at": "2026-01-16T12:49:16.537Z"
+    },
+    {
+      "epic_id": "4061d853-37d2-4297-b60b-7e7ab3b7877b",
+      "epic_title": "Fix: sympy__sympy-13974",
+      "comment_id": "65af87cc-2aff-4cff-8125-19e3173c13da",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- The fix only updates `tensor_product_simp` for `Pow`, but the problem statement also requires `expand(tensorproduct=True)` to evaluate powers.\n- Repro in the container still shows the bug for `expand`:\n  - `tp(1,1)*tp(1,1)` prints as `1x1**2` and `t1.expand(tensorproduct=True)` remains `1x1**2`.\n  - `tp(1,Pauli(3))*tp(1,Pauli(3))` similarly stays `1xsigma3**2` under `expand(tensorproduct=True)`.\n\nRequired Changes:\n- Extend the fix so that `(TensorProduct(...))**n` evaluates (at least for integer `n`) in a way that `expand(tensorproduct=True)` also produces the simplified result (likely via a `TensorProduct` power evaluation hook such as `_eval_power`/`__pow__`, or an equivalent mechanism).\n- After updating, re-verify with the exact examples from the issue using both `tensor_product_simp(...)` and `(...).expand(tensorproduct=True)`.\n\nNotes:\n- Source-only change scope looks good (no test/build files touched), and `tensor_product_simp` behavior for `Pow` looks reasonable; the remaining gap is `expand(tensorproduct=True)` handling of `Pow(TensorProduct(...), n)`.",
+      "created_at": "2026-01-16T12:53:48.983Z"
+    },
+    {
+      "epic_id": "4061d853-37d2-4297-b60b-7e7ab3b7877b",
+      "epic_title": "Fix: sympy__sympy-13974",
+      "comment_id": "d09dcc34-3af7-4ea6-890d-76b3e075c195",
+      "author_name": "Brainstormer",
+      "content": "## Fix Update - Addressed Code Review Feedback\n\nAdded `_eval_power` method to the `TensorProduct` class to automatically distribute powers to each argument when a TensorProduct is raised to a power. This ensures that both `tensor_product_simp()` and `expand(tensorproduct=True)` work correctly.\n\n## Additional Changes\n- Added `TensorProduct._eval_power` method (line 259-261) that distributes the exponent to each argument\n- Updated docstring example in `tensor_product_simp` (line 426) to reflect the new correct output\n\n## Verification\n\n**Both methods now work correctly:**\n```\n>>> t1 = tp(1,1)*tp(1,1)\n>>> t1\n1x1  # automatically simplified!\n\n>>> t1.expand(tensorproduct=True)\n1x1  \u2713\n\n>>> tps(t1)\n1x1  \u2713\n\n>>> t2 = tp(1,Pauli(3))*tp(1,Pauli(3))\n>>> t2\n1x1  # automatically simplified since sigma3**2 = 1\n\n>>> t2.expand(tensorproduct=True)\n1x1  \u2713\n\n>>> tp(A,B)**2\n(A**2)x(B**2)  # power distributed automatically\n```\n\n## Test Results\n- **Test file:** sympy/physics/quantum/tests/test_tensorproduct.py\n- **After fix:** 6 passed, 1 exception (same pre-existing deprecation issue)\n- **Regression check:** No new failures introduced\n\n## Files Modified\n- `sympy/physics/quantum/tensorproduct.py`:\n  - Added `tensor_product_simp_Pow` function (lines 271-311)\n  - Added `TensorProduct._eval_power` method (lines 259-261)\n  - Updated `tensor_product_simp` to use `tensor_product_simp_Pow` (line 432)\n  - Updated docstring example (line 426)",
+      "created_at": "2026-01-16T12:56:13.202Z"
+    },
+    {
+      "epic_id": "4061d853-37d2-4297-b60b-7e7ab3b7877b",
+      "epic_title": "Fix: sympy__sympy-13974",
+      "comment_id": "7a053999-1bde-416a-ae62-db99ffd3b2a5",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Source-only change (`sympy/physics/quantum/tensorproduct.py`); no tests/build files modified.\n- The fix now covers both `tensor_product_simp(Pow(...))` and the `expand(tensorproduct=True)` path by implementing `TensorProduct._eval_power` (and a `tensor_product_simp_Pow` helper).\n- Reproduced the issue examples in-container: `tp(1,1)*tp(1,1)` and `tp(1,Pauli(3))*tp(1,Pauli(3))` now simplify to `1x1`, and `expand(tensorproduct=True)` returns `1x1`.\n- Ran `/testbed/bin/test sympy/physics/quantum/tests/test_tensorproduct.py`: 6 passed, 1 pre-existing exception (collections.Iterable deprecation) unchanged.",
+      "created_at": "2026-01-16T12:58:54.866Z"
+    }
+  ]
+}

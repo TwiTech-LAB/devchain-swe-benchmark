@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-14539",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/html.py b/django/utils/html.py\nindex 3bc02b8dd3..eb44da1f97 100644\n--- a/django/utils/html.py\n+++ b/django/utils/html.py\n@@ -283,8 +283,9 @@ def urlize(text, trim_url_limit=None, nofollow=False, autoescape=False):\n             middle_unescaped = html.unescape(middle)\n             stripped = middle_unescaped.rstrip(TRAILING_PUNCTUATION_CHARS)\n             if middle_unescaped != stripped:\n-                trail = middle[len(stripped):] + trail\n-                middle = middle[:len(stripped) - len(middle_unescaped)]\n+                punctuation_count = len(middle_unescaped) - len(stripped)\n+                trail = middle_unescaped[len(stripped):] + trail\n+                middle = middle[:-punctuation_count]\n                 trimmed_something = True\n         return lead, middle, trail\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:13:02.113567",
+  "end_time": "2026-01-16T20:17:04.034991",
+  "duration_seconds": 241.921424,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14539",
+  "epic_comments": [
+    {
+      "epic_id": "4fe6c156-1e44-4e53-8f0b-b2f3d5b7756d",
+      "epic_title": "Fix: django__django-14539",
+      "comment_id": "07a58c43-f75e-4ca1-995c-9b51461d88e0",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the `urlize()` function to correctly handle HTML escaped strings with trailing punctuation. The issue was in the `trim_punctuation()` helper function where it incorrectly used the length of `stripped` (derived from `middle_unescaped`) as an index into `middle` (the original escaped string). When HTML entities are present, these strings have different lengths, causing incorrect trailing content.\n\n**Root cause:** The line `trail = middle[len(stripped):] + trail` used `len(stripped)` as an index into `middle`, but `stripped` comes from `middle_unescaped` which has a different length when HTML entities are present.\n\n**Fix:** Calculate the number of punctuation characters stripped and use that as a negative offset from the end of `middle`:\n```python\npunctuation_count = len(middle_unescaped) - len(stripped)\ntrail = middle_unescaped[len(stripped):] + trail\nmiddle = middle[:-punctuation_count]\n```\n\n## Files Modified\n- `django/utils/html.py`: Fixed lines 286-288 in the `trim_punctuation()` function inside `urlize()`\n\n## Test Results\n- **Test file:** tests/utils_tests/test_html.py\n- **Baseline (before fix):** 16 passed\n- **After fix:** 16 passed\n- **Regression check:** No new failures introduced\n\n- **Test file:** tests/template_tests/filter_tests/test_urlize.py\n- **Baseline (before fix):** 37 passed\n- **After fix:** 37 passed\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nBug reproduction test confirmed the fix works:\n- Input: `'Search for google.com/?q=1&lt! and see.'`\n- Before: `'Search for <a href=\"http://google.com/?q=1%3C\">google.com/?q=1&lt</a>lt! and see.'`\n- After (correct): `'Search for <a href=\"http://google.com/?q=1%3C\">google.com/?q=1&lt</a>! and see.'`\n\nEdge cases tested:\n- Simple URLs with trailing punctuation\n- Multiple trailing punctuation characters\n- URLs with various HTML entities (&amp;, &lt;)\n- URLs in parentheses\n- https URLs\n\n## Concerns\nNone - the fix is minimal and focused on the specific indexing bug.",
+      "created_at": "2026-01-16T19:16:52.564Z"
+    }
+  ]
+}

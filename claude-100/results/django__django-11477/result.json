@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-11477",
+  "status": "completed",
+  "patch": "diff --git a/django/urls/resolvers.py b/django/urls/resolvers.py\nindex af0508f94e..b1019165dc 100644\n--- a/django/urls/resolvers.py\n+++ b/django/urls/resolvers.py\n@@ -608,6 +608,8 @@ class URLResolver:\n         if not self._populated:\n             self._populate()\n \n+        text_kwargs = {k: v for k, v in kwargs.items() if v is not None}\n+\n         possibilities = self.reverse_dict.getlist(lookup_view)\n \n         for possibility, pattern, defaults, converters in possibilities:\n@@ -617,11 +619,11 @@ class URLResolver:\n                         continue\n                     candidate_subs = dict(zip(params, args))\n                 else:\n-                    if set(kwargs).symmetric_difference(params).difference(defaults):\n+                    if set(text_kwargs).symmetric_difference(params).difference(defaults):\n                         continue\n-                    if any(kwargs.get(k, v) != v for k, v in defaults.items()):\n+                    if any(text_kwargs.get(k, v) != v for k, v in defaults.items()):\n                         continue\n-                    candidate_subs = kwargs\n+                    candidate_subs = text_kwargs\n                 # Convert the candidate subs to text using Converter.to_url().\n                 text_candidate_subs = {}\n                 for k, v in candidate_subs.items():\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:55:07.893986",
+  "end_time": "2026-01-17T01:58:50.515235",
+  "duration_seconds": 222.621249,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11477",
+  "epic_comments": [
+    {
+      "epic_id": "8d5ac483-4fcf-48f7-83f4-56220dbc7743",
+      "epic_title": "Fix: django__django-11477",
+      "comment_id": "a5cb77f4-6a6c-4808-bc5c-015ed0c94f3c",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the issue where `translate_url()` creates incorrect URLs when optional named groups are missing in the URL pattern.\n\nThe root cause was in `_reverse_with_prefix()` in `django/urls/resolvers.py`. When `resolve()` returns `None` for optional capture groups that aren't captured, and these kwargs are passed to `reverse()`, the `str(v)` conversion on line 631 would convert `None` to the literal string `'None'`, causing malformed URLs.\n\nThe fix filters out `None` values from kwargs at the beginning of `_reverse_with_prefix()` before processing, so optional parameters with `None` values are silently discarded.\n\n## Files Modified\n- `django/urls/resolvers.py`: Added filtering of `None` values from kwargs in `_reverse_with_prefix()` method (lines 611, 622, 624, 626)\n\n## Test Results\n- **Test file:** tests/urlpatterns_reverse/tests.py, tests/i18n/tests.py\n- **Baseline (before fix):** 97 passed (urlpatterns_reverse), 87 passed (i18n)\n- **After fix:** 96 passed + 1 expected behavior change (urlpatterns_reverse), 87 passed (i18n)\n- **Regression check:** No regressions. The one \"failing\" test (`test_redirect_view_object`) was testing the OLD behavior that this fix intentionally changes.\n\n## Additional Verification\nCreated a custom test script demonstrating:\n- `resolve(\"/test/\")` returns `kwargs: {'optional_param': None}`\n- `reverse('test_view', kwargs={'optional_param': None})` now correctly returns `/test/` instead of the buggy `/test/None/`\n\n## Concerns\n- The test `test_redirect_view_object` expects `NoReverseMatch` when passing `wrong_argument=None`, but the new behavior (per the issue hints) is to silently discard `None` arguments. This is the intended behavior change as documented in the issue: \"We would discard any arguments that are None. Incidentally this will allow for cleaner code when you don't know if an optional parameter is set when you call reverse()...\"",
+      "created_at": "2026-01-17T00:58:36.138Z"
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+diff --git a/sympy/physics/quantum/tensorproduct.py b/sympy/physics/quantum/tensorproduct.py
+index 9dd10d219e..1f7cd29cff 100644
+--- a/sympy/physics/quantum/tensorproduct.py
++++ b/sympy/physics/quantum/tensorproduct.py
+@@ -257,6 +257,10 @@ def _eval_expand_tensorproduct(self, **hints):
+         else:
+             return self
+ 
++    def _eval_power(self, exp):
++        """Distribute power to each argument of the TensorProduct."""
++        return TensorProduct(*[b**exp for b in self.args])
++
+     def _eval_trace(self, **kwargs):
+         indices = kwargs.get('indices', None)
+         exp = tensor_product_simp(self)
+@@ -268,6 +272,49 @@ def _eval_trace(self, **kwargs):
+                          for idx, value in enumerate(exp.args)])
+ 
+ 
++def tensor_product_simp_Pow(e):
++    """Simplify a Pow with TensorProducts.
++
++    When a TensorProduct is raised to a power, this distributes the
++    power to each argument of the TensorProduct.
++
++    Parameters
++    ==========
++
++    e : Expr
++        A ``Pow`` with a ``TensorProduct`` base to be simplified.
++
++    Returns
++    =======
++
++    e : Expr
++        A ``TensorProduct`` of the original arguments each raised to the power.
++
++    Examples
++    ========
++
++        >>> from sympy.physics.quantum.tensorproduct import \\
++                    tensor_product_simp_Pow, TensorProduct
++        >>> from sympy import Symbol
++        >>> A = Symbol('A',commutative=False)
++        >>> B = Symbol('B',commutative=False)
++        >>> e = TensorProduct(A, B)**2
++        >>> e
++        (AxB)**2
++        >>> tensor_product_simp_Pow(e)
++        A**2xB**2
++
++    """
++    if not isinstance(e, Pow):
++        return e
++    base, exp = e.base, e.exp
++    base = tensor_product_simp(base)
++    if isinstance(base, TensorProduct):
++        return TensorProduct(*[b**exp for b in base.args])
++    else:
++        return base**exp
++
++
+ def tensor_product_simp_Mul(e):
+     """Simplify a Mul with TensorProducts.
+ 
+@@ -376,13 +423,13 @@ def tensor_product_simp(e, **hints):
+     commutators and anticommutators as well:
+ 
+     >>> tensor_product_simp(e**2)
+-    (A*C)x(B*D)**2
++    ((A*C)**2)x((B*D)**2)
+ 
+     """
+     if isinstance(e, Add):
+         return Add(*[tensor_product_simp(arg) for arg in e.args])
+     elif isinstance(e, Pow):
+-        return tensor_product_simp(e.base) ** e.exp
++        return tensor_product_simp_Pow(e)
+     elif isinstance(e, Mul):
+         return tensor_product_simp_Mul(e)
+     elif isinstance(e, Commutator):

@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-12713",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py\nindex 69a5fbf389..db7df891e3 100644\n--- a/django/contrib/admin/options.py\n+++ b/django/contrib/admin/options.py\n@@ -249,16 +249,17 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):\n             return None\n         db = kwargs.get('using')\n \n-        autocomplete_fields = self.get_autocomplete_fields(request)\n-        if db_field.name in autocomplete_fields:\n-            kwargs['widget'] = AutocompleteSelectMultiple(db_field.remote_field, self.admin_site, using=db)\n-        elif db_field.name in self.raw_id_fields:\n-            kwargs['widget'] = widgets.ManyToManyRawIdWidget(db_field.remote_field, self.admin_site, using=db)\n-        elif db_field.name in [*self.filter_vertical, *self.filter_horizontal]:\n-            kwargs['widget'] = widgets.FilteredSelectMultiple(\n-                db_field.verbose_name,\n-                db_field.name in self.filter_vertical\n-            )\n+        if 'widget' not in kwargs:\n+            autocomplete_fields = self.get_autocomplete_fields(request)\n+            if db_field.name in autocomplete_fields:\n+                kwargs['widget'] = AutocompleteSelectMultiple(db_field.remote_field, self.admin_site, using=db)\n+            elif db_field.name in self.raw_id_fields:\n+                kwargs['widget'] = widgets.ManyToManyRawIdWidget(db_field.remote_field, self.admin_site, using=db)\n+            elif db_field.name in [*self.filter_vertical, *self.filter_horizontal]:\n+                kwargs['widget'] = widgets.FilteredSelectMultiple(\n+                    db_field.verbose_name,\n+                    db_field.name in self.filter_vertical\n+                )\n \n         if 'queryset' not in kwargs:\n             queryset = self.get_field_queryset(db, db_field, request)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:09:04.864952",
+  "end_time": "2026-01-16T20:11:46.685419",
+  "duration_seconds": 161.820467,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12713",
+  "epic_comments": [
+    {
+      "epic_id": "d6fbc133-0d73-4240-9dc8-175eb876f09c",
+      "epic_title": "Fix: django__django-12713",
+      "comment_id": "9eab77f2-0469-48c7-85ad-347e8a24c6d8",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded the `if 'widget' not in kwargs:` check to `formfield_for_manytomany()` to match the behavior of `formfield_for_foreignkey()`. This allows users to override the widget parameter when calling `formfield_for_manytomany()`.\n\n**Root Cause:** The `formfield_for_foreignkey()` function had a check `if 'widget' not in kwargs:` before setting any default widget, which allows users to pass a custom widget. However, `formfield_for_manytomany()` was missing this check and would unconditionally overwrite any widget passed in kwargs.\n\n## Files Modified\n- `django/contrib/admin/options.py`: Added `if 'widget' not in kwargs:` check at line 252 in `formfield_for_manytomany()` method to wrap the widget assignment logic.\n\n## Test Results\n- **Test file:** `/testbed/tests/admin_widgets/tests.py`\n- **Baseline (before fix):** 81 passed, 14 skipped\n- **After fix:** 81 passed, 14 skipped\n- **Regression check:** No new failures introduced\n\nAdditional test suites:\n- `modeladmin`: 156 passed, 0 failed\n- `admin_views`: 362 passed, 15 skipped\n\n## Additional Verification\nCreated a custom test script that demonstrates the fix works:\n- Created a custom `CustomWidget` class\n- Override `formfield_for_manytomany()` to pass the custom widget\n- Verified the custom widget is preserved (not overwritten)\n- Output: \"SUCCESS: Custom widget override works!\"\n\n## Concerns\n- None. The fix is minimal and consistent with how `formfield_for_foreignkey()` already handles this case.",
+      "created_at": "2026-01-16T19:11:40.978Z"
+    }
+  ]
+}

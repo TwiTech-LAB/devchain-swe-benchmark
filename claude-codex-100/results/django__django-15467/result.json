@@ -1,0 +1,38 @@
+{
+  "instance_id": "django__django-15467",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py\nindex 64be087bf1..6219590924 100644\n--- a/django/contrib/admin/options.py\n+++ b/django/contrib/admin/options.py\n@@ -269,7 +269,8 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):\n                         \"class\": get_ul_class(self.radio_fields[db_field.name]),\n                     }\n                 )\n-                kwargs[\"empty_label\"] = _(\"None\") if db_field.blank else None\n+                if \"empty_label\" not in kwargs:\n+                    kwargs[\"empty_label\"] = _(\"None\") if db_field.blank else None\n \n         if \"queryset\" not in kwargs:\n             queryset = self.get_field_queryset(db, db_field, request)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:23:55.630277",
+  "end_time": "2026-01-16T07:28:41.084090",
+  "duration_seconds": 285.453813,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15467",
+  "epic_comments": [
+    {
+      "epic_id": "104618f3-7906-4ae1-a114-4d4f8a1b33a2",
+      "epic_title": "Fix: django__django-15467",
+      "comment_id": "08ef8b08-f267-4504-bf6e-5f319f71679f",
+      "author_name": "Code Reviewer",
+      "content": "Ready for code review when the fix is in.\n\nCurrent workspace has no local changes (`git diff` empty), and the epic has no fix summary/test results yet.\n\nWhen ready, please:\n- Move epic to `Review` and assign to `Code Reviewer`\n- Add a short summary of the code change + files touched\n- Include baseline vs after-fix test results, and run the actual relevant Django test module (not just custom scripts)",
+      "created_at": "2026-01-16T06:25:14.166Z"
+    },
+    {
+      "epic_id": "104618f3-7906-4ae1-a114-4d4f8a1b33a2",
+      "epic_title": "Fix: django__django-15467",
+      "comment_id": "33ebc5a6-25f1-4123-b0bd-f0b23550e80d",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the issue where ModelAdmin with `radio_fields` was overriding user-defined `empty_label` in `formfield_for_foreignkey`.\n\nThe bug was in `django/contrib/admin/options.py` at line 272. The original code unconditionally overwrote `empty_label`:\n```python\nkwargs[\"empty_label\"] = _(\"None\") if db_field.blank else None\n```\n\nChanged to respect user-provided values by checking if `empty_label` is already in kwargs:\n```python\nif \"empty_label\" not in kwargs:\n    kwargs[\"empty_label\"] = _(\"None\") if db_field.blank else None\n```\n\nThis follows the same pattern used elsewhere in the same file for `widget` and `choices`.\n\n## Files Modified\n- `django/contrib/admin/options.py`: Added conditional check before setting `empty_label` (line 272-273)\n\n## Test Results\n- **Test file:** `/testbed/tests/admin_widgets/tests.py`\n- **Baseline (before fix):** 86 tests passed, 14 skipped\n- **After fix:** 86 tests passed, 14 skipped\n- **Regression check:** No new failures introduced\n- **Additional tests:** `modeladmin` module: 162 tests passed\n\n## Additional Verification\nVerified fix logic demonstrates:\n- Custom `empty_label` is now preserved when provided in kwargs\n- Default behavior (using `_(\"None\")` for blank=True, None for blank=False) is maintained when no custom empty_label is provided\n\n## Concerns\n- None. This is a minimal, focused fix that follows existing code patterns in the same file.",
+      "created_at": "2026-01-16T06:27:09.390Z"
+    },
+    {
+      "epic_id": "104618f3-7906-4ae1-a114-4d4f8a1b33a2",
+      "epic_title": "Fix: django__django-15467",
+      "comment_id": "6d4ce627-cbc1-4ff2-9311-a24d2cd81fcf",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and in the right place: `django/contrib/admin/options.py` now only sets the admin RadioSelect default `empty_label` when the caller didn\u2019t already provide one.\n- No test/build config files were modified.\n- Test evidence provided includes baseline vs after-fix and running relevant Django test modules (`tests/admin_widgets/tests.py`, `tests/modeladmin/*`).",
+      "created_at": "2026-01-16T06:28:35.351Z"
+    }
+  ]
+}

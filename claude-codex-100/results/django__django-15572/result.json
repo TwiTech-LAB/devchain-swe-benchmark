@@ -1,0 +1,38 @@
+{
+  "instance_id": "django__django-15572",
+  "status": "completed",
+  "patch": "diff --git a/django/template/autoreload.py b/django/template/autoreload.py\nindex 84c8554165..f3fd704031 100644\n--- a/django/template/autoreload.py\n+++ b/django/template/autoreload.py\n@@ -17,7 +17,7 @@ def get_template_directories():\n         if not isinstance(backend, DjangoTemplates):\n             continue\n \n-        items.update(cwd / to_path(dir) for dir in backend.engine.dirs)\n+        items.update(cwd / to_path(dir) for dir in backend.engine.dirs if dir)\n \n         for loader in backend.engine.template_loaders:\n             if not hasattr(loader, \"get_dirs\"):\n@@ -25,7 +25,7 @@ def get_template_directories():\n             items.update(\n                 cwd / to_path(directory)\n                 for directory in loader.get_dirs()\n-                if not is_django_path(directory)\n+                if directory and not is_django_path(directory)\n             )\n     return items\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:23:20.628619",
+  "end_time": "2026-01-16T07:31:05.189864",
+  "duration_seconds": 464.561245,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15572",
+  "epic_comments": [
+    {
+      "epic_id": "026c8cc0-10b5-4b22-8f14-631cb0e4150d",
+      "epic_title": "Fix: django__django-15572",
+      "comment_id": "3b3b5356-9ae2-4fe1-b309-0cb7bf078f93",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- No code changes in the workspace (`git diff` is empty), so there\u2019s nothing to review.\n- No fix summary or test verification results were provided.\n- Required verification is missing (baseline vs after-fix), including running the actual relevant Django test file(s) in the container.\n\nRequired Changes:\n- Implement the source-code fix for empty-string entries in `TEMPLATES[...]['DIRS']` so template autoreload doesn\u2019t treat '' as project root.\n- Provide baseline test run output (before changes) and after-fix test run output, using the real Django test file(s) that cover template autoreload.\n- When ready, move the epic to \"Review\" and assign to \"Code Reviewer\".",
+      "created_at": "2026-01-16T06:25:05.181Z"
+    },
+    {
+      "epic_id": "026c8cc0-10b5-4b22-8f14-631cb0e4150d",
+      "epic_title": "Fix: django__django-15572",
+      "comment_id": "457e4e7b-e033-4f3b-9de2-908d532c174e",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the autoreload regression where an empty string in TEMPLATES DIRS would break the autoreloader.\n\n**Root Cause:** When `DIRS` contains an empty string like `['']`, `pathlib.Path('')` normalizes to `.` which represents the current directory. When joined with `Path.cwd()`, this becomes the project root. This caused `template_changed()` to always return `True` for any file change, preventing proper autoreload when app code changes.\n\n**Fix:** Added filtering to skip empty strings before processing in `get_template_directories()`:\n- Line 20: Added `if dir` to filter empty strings from `backend.engine.dirs`\n- Line 28: Added `if directory and` to also filter empty strings from `loader.get_dirs()`\n\n## Files Modified\n- `django/template/autoreload.py`: Added filtering to skip empty strings in template directory processing\n\n## Test Results\n- **Test file:** tests/template_tests/test_autoreloader.py\n- **Baseline (before fix):** 10 passed, 0 failed, 0 errors\n- **After fix:** 10 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified manually that:\n1. Empty strings are filtered out from template directories (cwd not included)\n2. Valid paths are still included in template directories\n3. `template_changed()` returns `None` for files in project root when DIRS contains empty string\n4. `.py` files are still correctly skipped\n5. `reset_loaders()` is not called unnecessarily\n\n## Concerns\n- None. The fix is minimal and only affects empty string handling. Non-empty paths work as before.",
+      "created_at": "2026-01-16T06:26:37.632Z"
+    },
+    {
+      "epic_id": "026c8cc0-10b5-4b22-8f14-631cb0e4150d",
+      "epic_title": "Fix: django__django-15572",
+      "comment_id": "a36dc8d4-f9cb-4590-acf5-51296a8b3512",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly filters empty-string template dirs before `to_path()`, preventing `Path('') -> '.'` from adding `Path.cwd()` to watched template directories.\n- Only source file modified: `django/template/autoreload.py`.\n- I also ran `tests/runtests.py template_tests.test_autoreloader` in the container: 10 tests passed.",
+      "created_at": "2026-01-16T06:30:52.836Z"
+    }
+  ]
+}

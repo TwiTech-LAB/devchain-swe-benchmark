@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-15368",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/query.py b/django/db/models/query.py\nindex f8d848e926..f2f9797d88 100644\n--- a/django/db/models/query.py\n+++ b/django/db/models/query.py\n@@ -670,7 +670,7 @@ class QuerySet:\n                 when_statements = []\n                 for obj in batch_objs:\n                     attr = getattr(obj, field.attname)\n-                    if not isinstance(attr, Expression):\n+                    if not hasattr(attr, 'resolve_expression'):\n                         attr = Value(attr, output_field=field)\n                     when_statements.append(When(pk=obj.pk, then=attr))\n                 case_statement = Case(*when_statements, output_field=field)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:43:30.070822",
+  "end_time": "2026-01-16T07:46:53.205762",
+  "duration_seconds": 203.13494,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15368",
+  "epic_comments": [
+    {
+      "epic_id": "e562914e-1f91-479a-8b3c-61bf6f526dee",
+      "epic_title": "Fix: django__django-15368",
+      "comment_id": "9cba9c6f-65ba-4e21-86ec-d19f37c50c30",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nChanged the type check in `bulk_update()` from `isinstance(attr, Expression)` to `hasattr(attr, 'resolve_expression')` to enable duck typing. This allows `F()` expressions (which inherit from `Combinable`, not `Expression`) to be properly resolved instead of being converted to their string representation.\n\n## Files Modified\n- `django/db/models/query.py`: Changed line 673 from `isinstance(attr, Expression)` to `hasattr(attr, 'resolve_expression')`\n\n## Test Results\n- **Test file:** tests/queries/test_bulk_update.py\n- **Baseline (before fix):** 29 passed, 0 failed, 0 errors\n- **After fix:** 29 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Additional tests:** expressions module - 169 tests passed\n\n## Additional Verification\nManual verification script confirmed:\n- Before fix: `bulk_update` with `F('name')` would save `'F(name)'` (string repr)\n- After fix: `bulk_update` with `F('name')` correctly resolves to the actual column value\n\n## Concerns\n- None. The fix follows the recommended approach from the Django maintainers (\"we should check resolve_expression like elsewhere\") and uses duck typing which is the idiomatic Python pattern for this use case.",
+      "created_at": "2026-01-16T06:45:57.753Z"
+    },
+    {
+      "epic_id": "e562914e-1f91-479a-8b3c-61bf6f526dee",
+      "epic_title": "Fix: django__django-15368",
+      "comment_id": "2b07dbb1-6998-453d-8713-58e5ac3b6e9e",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change in `django/db/models/query.py` correctly switches `bulk_update()` expression detection to `hasattr(attr, 'resolve_expression')`, which allows plain `F()` values to be treated as expressions instead of being wrapped in `Value()` and stringified.\n- Scope is minimal (single-line source change) and no tests/build configs were modified.\n- Verification looks sufficient: baseline vs after on `tests/queries/test_bulk_update.py` plus additional expressions test run, with no errors/failures reported.",
+      "created_at": "2026-01-16T06:46:42.150Z"
+    }
+  ]
+}

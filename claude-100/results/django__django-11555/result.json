@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-11555",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py\nindex eaccc96d7d..f32a50e220 100644\n--- a/django/db/models/sql/compiler.py\n+++ b/django/db/models/sql/compiler.py\n@@ -704,6 +704,13 @@ class SQLCompiler:\n         not be) and column name for ordering by the given 'name' parameter.\n         The 'name' is of the form 'field1__field2__...__fieldN'.\n         \"\"\"\n+        if hasattr(name, 'resolve_expression'):\n+            if isinstance(name, Value):\n+                name = Cast(name, name.output_field)\n+            if not isinstance(name, OrderBy):\n+                descending = default_order == 'DESC'\n+                name = name.desc() if descending else name.asc()\n+            return [(name, False)]\n         name, order = get_order_dir(name, default_order)\n         descending = order == 'DESC'\n         pieces = name.split(LOOKUP_SEP)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T19:59:59.721179",
+  "end_time": "2026-01-16T20:05:21.256277",
+  "duration_seconds": 321.535098,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11555",
+  "epic_comments": [
+    {
+      "epic_id": "752d21fd-aaec-4e9f-8962-319bfd64207d",
+      "epic_title": "Fix: django__django-11555",
+      "comment_id": "2292d7f9-980a-4c65-927d-27dae814df18",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the crash in `order_by()` when a parent model's `Meta.ordering` contains expressions like `Lower('name')` or `OrderBy()`.\n\nThe bug occurred in `find_ordering_name()` when processing ordering from related models. When iterating over `opts.ordering`, expression objects were passed to `get_order_dir()` which tried to subscript them with `field[0]`, causing `TypeError: 'Lower' object does not support indexing`.\n\nThe fix adds an early check at the start of `find_ordering_name()` to handle expression objects (those with `resolve_expression` attribute) before calling `get_order_dir()`. For expressions, the fix:\n1. Wraps `Value` in `Cast` (matching `get_order_by()` behavior)\n2. Wraps non-`OrderBy` expressions in `asc()` or `desc()` based on `default_order`\n3. Returns the expression directly without calling `get_order_dir()`\n\n## Files Modified\n- `django/db/models/sql/compiler.py`: Added expression handling at the start of `find_ordering_name()` method (lines 707-713)\n\n## Test Results\n- **Test file:** /testbed/tests/ordering/tests.py\n- **Baseline (before fix):** 26 passed\n- **After fix:** 26 passed\n- **Regression check:** No new failures\n\n- **Test file:** /testbed/tests/model_inheritance/tests.py\n- **Baseline:** 46 passed\n- **After fix:** 46 passed\n\n- **Test file:** /testbed/tests/admin_ordering/tests.py\n- **After fix:** 10 passed\n\n- **Test file:** /testbed/tests/expressions/tests.py\n- **After fix:** 127 passed (1 skipped)\n\n## Additional Verification\nVerified the fix works for:\n- Multi-table inheritance with `Lower('name')` in parent's Meta.ordering\n- Child model queries using inherited ordering\n- FK relations to models with expression-based ordering\n- Direct `OrderBy()` expressions in Meta.ordering\n- `F().desc()` expressions in Meta.ordering\n\n## Concerns\n- None. The fix follows the same pattern used in `get_order_by()` for handling expressions.",
+      "created_at": "2026-01-16T19:05:03.230Z"
+    }
+  ]
+}

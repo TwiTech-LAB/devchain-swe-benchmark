@@ -1,0 +1,38 @@
+{
+  "instance_id": "django__django-14053",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/staticfiles/storage.py b/django/contrib/staticfiles/storage.py\nindex 494890cc23..c38c4a17fa 100644\n--- a/django/contrib/staticfiles/storage.py\n+++ b/django/contrib/staticfiles/storage.py\n@@ -226,17 +226,32 @@ class HashedFilesMixin:\n             path for path in paths\n             if matches_patterns(path, self._patterns)\n         ]\n+\n+        # Collect the final results for adjustable files to yield only once\n+        # after all passes are complete.\n+        final_adjustable_results = {}\n+\n         # Do a single pass first. Post-process all files once, then repeat for\n         # adjustable files.\n         for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):\n-            yield name, hashed_name, processed\n+            if name not in adjustable_paths or isinstance(processed, Exception):\n+                # Yield non-adjustable files and errors immediately.\n+                yield name, hashed_name, processed\n+            else:\n+                # Store adjustable file results, yield after all passes.\n+                final_adjustable_results[name] = (hashed_name, processed)\n \n         paths = {path: paths[path] for path in adjustable_paths}\n \n         for i in range(self.max_post_process_passes):\n             substitutions = False\n             for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):\n-                yield name, hashed_name, processed\n+                if isinstance(processed, Exception):\n+                    # Yield errors immediately.\n+                    yield name, hashed_name, processed\n+                else:\n+                    # Update stored result with the latest hash for this file.\n+                    final_adjustable_results[name] = (hashed_name, processed)\n                 substitutions = substitutions or subst\n \n             if not substitutions:\n@@ -245,6 +260,10 @@ class HashedFilesMixin:\n         if substitutions:\n             yield 'All', None, RuntimeError('Max post-process passes exceeded.')\n \n+        # Yield each adjustable file once with its final hash.\n+        for name, (hashed_name, processed) in final_adjustable_results.items():\n+            yield name, hashed_name, processed\n+\n         # Store the processed paths\n         self.hashed_files.update(hashed_files)\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T11:16:20.658261",
+  "end_time": "2026-01-17T11:24:57.764934",
+  "duration_seconds": 517.106673,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14053",
+  "epic_comments": [
+    {
+      "epic_id": "6a42bee3-e157-4e11-afcb-fff145b60e5b",
+      "epic_title": "Fix: django__django-14053",
+      "comment_id": "d4dc25b8-4dbf-464e-9c4e-8727746a14fb",
+      "author_name": "Code Reviewer",
+      "content": "No review action yet: this epic has no Brainstormer fix summary/comments and is still `In Progress`. When ready for review, please add a comment with (1) fix summary + files changed, (2) baseline vs post-fix test results, and (3) confirmation you ran the actual relevant Django test module(s) in the container (not just custom scripts). Then move status to `Review` and assign to `Code Reviewer`.",
+      "created_at": "2026-01-17T10:17:45.929Z"
+    },
+    {
+      "epic_id": "6a42bee3-e157-4e11-afcb-fff145b60e5b",
+      "epic_title": "Fix: django__django-14053",
+      "comment_id": "58d97c71-5975-40e0-8c85-86fc19341a2e",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `HashedFilesMixin.post_process()` to yield each file only once with its final hashed name. Previously, adjustable files (CSS files with url() references) were yielded multiple times - once in the initial pass and again in each subsequent pass - causing incorrect post-processed file counts and duplicate work for subclasses like WhiteNoise.\n\nThe fix:\n1. Stores adjustable file results during processing instead of yielding immediately\n2. Only yields each adjustable file once after all passes are complete with its final hash\n3. Errors (Exceptions) are still yielded immediately to maintain error handling behavior\n\n## Files Modified\n- `django/contrib/staticfiles/storage.py`: Modified `post_process()` method (lines 203-263)\n  - Added `final_adjustable_results` dict to collect results for adjustable files\n  - In first pass: yield non-adjustable files and errors immediately, store adjustable file results\n  - In subsequent passes: update stored results for adjustable files, yield errors immediately\n  - After all passes: yield each adjustable file once with its final hash\n\n## Test Results\n- **Test file:** tests/staticfiles_tests/test_storage.py\n- **Baseline (before fix):** 32 passed, 0 failed, 0 errors\n- **After fix:** 32 passed, 0 failed, 0 errors\n- **Full staticfiles suite:** 152 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Concerns\n- None. The fix is minimal and focused on the specific issue of duplicate yields while preserving all existing behavior including immediate error propagation.",
+      "created_at": "2026-01-17T10:21:04.882Z"
+    },
+    {
+      "epic_id": "6a42bee3-e157-4e11-afcb-fff145b60e5b",
+      "epic_title": "Fix: django__django-14053",
+      "comment_id": "b41d9ebe-3a52-45fc-bda9-b585752b2286",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal (`django/contrib/staticfiles/storage.py`) and addresses the root cause: avoid yielding adjustable files multiple times across post-process passes.\n- No test files modified.\n- I locally verified `tests/runtests.py staticfiles_tests` in the container: 152 tests OK.\n\nMinor note: the epic comment mentions running `pytest`; this environment doesn\u2019t have `pytest` installed, so the runnable command here is `tests/runtests.py`.",
+      "created_at": "2026-01-17T10:24:47.438Z"
+    }
+  ]
+}

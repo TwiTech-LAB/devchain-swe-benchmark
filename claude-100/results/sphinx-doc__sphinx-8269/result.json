@@ -1,0 +1,22 @@
+{
+  "instance_id": "sphinx-doc__sphinx-8269",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/builders/linkcheck.py b/sphinx/builders/linkcheck.py\nindex 9b54afc7c..1083e82ec 100644\n--- a/sphinx/builders/linkcheck.py\n+++ b/sphinx/builders/linkcheck.py\n@@ -166,6 +166,7 @@ class CheckExternalLinksBuilder(Builder):\n                     # Read the whole document and see if #anchor exists\n                     response = requests.get(req_url, stream=True, config=self.app.config,\n                                             auth=auth_info, **kwargs)\n+                    response.raise_for_status()\n                     found = check_anchor(response, unquote(anchor))\n \n                     if not found:\ndiff --git a/tox.ini b/tox.ini\nindex a61299979..e2baccc07 100644\n--- a/tox.ini\n+++ b/tox.ini\n@@ -28,7 +28,7 @@ setenv =\n     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils\n     PYTEST_ADDOPTS = --color yes\n commands=\n-    pytest --durations 25 {posargs}\n+    pytest -rA --durations 25 {posargs}\n \n [testenv:flake8]\n basepython = python3\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:35:47.157616",
+  "end_time": "2026-01-17T01:37:47.408255",
+  "duration_seconds": 120.250639,
+  "error_message": null,
+  "workspace_path": "./workspaces/sphinx-doc__sphinx-8269",
+  "epic_comments": [
+    {
+      "epic_id": "c870f4d4-44c0-47f0-a4ed-2bae413fb822",
+      "epic_title": "Fix: sphinx-doc__sphinx-8269",
+      "comment_id": "04fb4976-5859-4448-8c49-8919d23f5e04",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `response.raise_for_status()` call after the GET request but before checking for the anchor when `linkcheck_anchors` is enabled. This ensures HTTP errors (404, 500, etc.) are properly detected and reported instead of being masked by the \"Anchor not found\" error message.\n\n**Root cause:** When checking a URL with an anchor (e.g., `https://example.com/page#section`), the code performed a GET request and immediately tried to find the anchor in the response content. If the server returned an HTTP error (like 404), the error page content was searched for the anchor, which obviously wouldn't exist, resulting in the misleading \"Anchor not found\" error.\n\n**The fix:** By calling `response.raise_for_status()` immediately after the GET request, any HTTP error will now raise an `HTTPError` exception that is caught by the existing exception handler, which properly reports the actual HTTP error status.\n\n## Files Modified\n- `sphinx/builders/linkcheck.py`: Added `response.raise_for_status()` on line 169, after the GET request but before calling `check_anchor()`.\n\n## Test Results\n- **Test file:** tests/test_build_linkcheck.py\n- **Baseline (before fix):** 5 passed, 0 failed, 0 errors\n- **After fix:** 5 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n- Created a mock test to verify that HTTPError is raised for 404 responses before anchor checking occurs\n- The fix follows the existing pattern in the non-anchor code path (lines 174-185) where `raise_for_status()` is also called\n\n## Concerns\n- None. The fix is minimal (one line) and follows the existing code pattern.",
+      "created_at": "2026-01-17T00:37:39.070Z"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-16662",
+  "status": "completed",
+  "patch": "diff --git a/django/db/migrations/writer.py b/django/db/migrations/writer.py\nindex a59f0c8dcb..717cdc1a71 100644\n--- a/django/db/migrations/writer.py\n+++ b/django/db/migrations/writer.py\n@@ -175,7 +175,11 @@ class MigrationWriter:\n \n         # Sort imports by the package / module to be imported (the part after\n         # \"from\" in \"from ... import ...\" or after \"import\" in \"import ...\").\n-        sorted_imports = sorted(imports, key=lambda i: i.split()[1])\n+        # Place \"import\" statements before \"from ... import\" statements to\n+        # follow Django coding style and isort defaults.\n+        sorted_imports = sorted(\n+            imports, key=lambda i: (i.split()[0] == \"from\", i.split()[1])\n+        )\n         items[\"imports\"] = \"\\n\".join(sorted_imports) + \"\\n\" if imports else \"\"\n         if migration_imports:\n             items[\"imports\"] += (\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:25:00.226607",
+  "end_time": "2026-01-16T12:30:53.676031",
+  "duration_seconds": 353.449424,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-16662",
+  "epic_comments": [
+    {
+      "epic_id": "759d51d0-7260-4e22-889c-59db30bd0388",
+      "epic_title": "Fix: django__django-16662",
+      "comment_id": "f29b1391-1a3b-4043-98b3-0092c5db905d",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed migration import ordering to place all `import X` statements before `from X import Y` statements, following Django coding style and isort defaults.\n\n**Root Cause:** The sorting key in `MigrationWriter.as_string()` only sorted imports by module name (`i.split()[1]`), which mixed `import` and `from` statements together alphabetically.\n\n**Fix:** Changed the sorting key to use a tuple `(i.split()[0] == \"from\", i.split()[1])`:\n- First element: `False` for `import X`, `True` for `from X import Y` (so imports sort first)\n- Second element: module name for alphabetical sorting within each group\n\n## Files Modified\n- `django/db/migrations/writer.py`: Modified lines 176-182 to fix import sorting logic\n\n## Test Results\n- **Test file:** tests/migrations/test_writer.py\n- **Baseline (before fix):** 52 passed, 0 failed, 0 errors\n- **After fix:** 52 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Additional tests:** migrations.test_autodetector - 172 passed, 0 failed, 0 errors\n\n## Additional Verification\nVerified with custom script that demonstrates the fix:\n- OLD sorting: `import datetime`, `from django.conf import settings`, `from django.db import migrations`, `import os`, `import time`\n- NEW sorting: `import datetime`, `import os`, `import time`, `from django.conf import settings`, `from django.db import migrations`\n\n## Concerns\n- None. This is a minimal, focused fix that only changes the sorting key logic.",
+      "created_at": "2026-01-16T11:29:33.390Z"
+    },
+    {
+      "epic_id": "759d51d0-7260-4e22-889c-59db30bd0388",
+      "epic_title": "Fix: django__django-16662",
+      "comment_id": "221f1ca7-3e8a-4dfc-a282-3ae23b664e2f",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly enforces Django/isort import-style ordering by grouping `import ...` statements before `from ... import ...` in migration output.\n- Only `django/db/migrations/writer.py` is modified; no tests/build configs touched.\n- Verification summary includes baseline vs after-fix runs of `tests/migrations/test_writer.py` plus additional migrations tests, with no new failures/errors reported.",
+      "created_at": "2026-01-16T11:30:43.958Z"
+    }
+  ]
+}

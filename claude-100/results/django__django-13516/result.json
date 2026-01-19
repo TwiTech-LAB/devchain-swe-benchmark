@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-13516",
+  "status": "completed",
+  "patch": "diff --git a/django/core/management/base.py b/django/core/management/base.py\nindex e6cbf8c64f..5deb50ce76 100644\n--- a/django/core/management/base.py\n+++ b/django/core/management/base.py\n@@ -143,6 +143,10 @@ class OutputWrapper(TextIOBase):\n     def isatty(self):\n         return hasattr(self._out, 'isatty') and self._out.isatty()\n \n+    def flush(self):\n+        if hasattr(self._out, 'flush'):\n+            self._out.flush()\n+\n     def write(self, msg='', style_func=None, ending=None):\n         ending = self.ending if ending is None else ending\n         if ending and not msg.endswith(ending):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T11:15:08.947507",
+  "end_time": "2026-01-17T11:18:10.064921",
+  "duration_seconds": 181.117414,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-13516",
+  "epic_comments": [
+    {
+      "epic_id": "bb3754b4-51f8-4282-817e-3934251fe1fa",
+      "epic_title": "Fix: django__django-13516",
+      "comment_id": "faacd912-15ca-4c68-b032-a9c83ed2249f",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe issue was that `flush()` on `self.stdout`/`self.stderr` in management commands didn't work because the `OutputWrapper` class extends `TextIOBase`, which has its own `flush()` method (a no-op). When `flush()` was called, Python used the inherited `TextIOBase.flush()` instead of delegating to the underlying stream via `__getattr__`.\n\n**Root Cause:** `OutputWrapper` extends `TextIOBase` which defines `flush()` as a no-op. The `__getattr__` delegation only works for attributes NOT defined on the class or its parents.\n\n**Fix:** Added an explicit `flush()` method to `OutputWrapper` that delegates to `self._out.flush()`.\n\n## Files Modified\n- `django/core/management/base.py`: Added `flush()` method to `OutputWrapper` class (lines 146-148)\n\n## Test Results\n- **Test file:** user_commands tests\n- **Baseline (before fix):** 43 passed\n- **After fix:** 43 passed\n- **Regression check:** No new failures\n\n- **Test file:** migrations tests  \n- **After fix:** 561 passed, 1 skipped\n- **Regression check:** No failures\n\n## Additional Verification\n- Verified `flush()` is now callable and delegates correctly to underlying stream\n- The migrate command's progress callbacks (`migration_progress_callback`) at lines 279, 290, 301 will now properly flush output\n\n## Concerns\n- None. This is a minimal, focused fix that follows existing code patterns.",
+      "created_at": "2026-01-17T10:18:05.199Z"
+    }
+  ]
+}

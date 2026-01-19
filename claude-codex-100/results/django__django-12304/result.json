@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-12304",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/enums.py b/django/db/models/enums.py\nindex f48143ddaf..af031dbe8d 100644\n--- a/django/db/models/enums.py\n+++ b/django/db/models/enums.py\n@@ -27,6 +27,8 @@ class ChoicesMeta(enum.EnumMeta):\n             dict.__setitem__(classdict, key, value)\n         cls = super().__new__(metacls, classname, bases, classdict)\n         cls._value2label_map_ = dict(zip(cls._value2member_map_, labels))\n+        # Add a flag to prevent Django's template system from calling the class.\n+        cls.do_not_call_in_templates = True\n         # Add a label property to instances of enum which uses the enum member\n         # that is passed in as \"self\" as the value to use when looking up the\n         # label in the choices.\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T12:24:35.222477",
+  "end_time": "2026-01-16T12:28:28.914863",
+  "duration_seconds": 233.692386,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12304",
+  "epic_comments": [
+    {
+      "epic_id": "0499ad4a-f5fe-4742-b33f-d80441358af8",
+      "epic_title": "Fix: django__django-12304",
+      "comment_id": "78131615-e278-4c50-9332-eae57e0b34cb",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `do_not_call_in_templates = True` to the `ChoicesMeta` metaclass to prevent Django's template system from calling Choices classes. This attribute is set on every class created with the metaclass (including `Choices`, `IntegerChoices`, `TextChoices`, and user-defined subclasses).\n\nThe fix is applied in the metaclass's `__new__` method because setting this attribute directly on the `Choices` base class would prevent subclassing (Python's enum module raises `TypeError: Cannot extend enumerations`).\n\n## Files Modified\n- `django/db/models/enums.py`: Added `cls.do_not_call_in_templates = True` in the `ChoicesMeta.__new__` method after class creation.\n\n## Test Results\n- **Test file:** `tests/model_enums/tests.py`\n- **Baseline (before fix):** 17 passed, 0 failed, 0 errors\n- **After fix:** 17 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\nAdditional tests run:\n- **Test file:** `tests/template_tests/test_callables.py`\n- **After fix:** 4 passed, 0 failed, 0 errors\n\n## Additional Verification\nManual verification confirmed:\n- `TextChoices.do_not_call_in_templates` = True\n- `IntegerChoices.do_not_call_in_templates` = True\n- User-defined subclasses also have the attribute set to True\n- Template rendering now works correctly: `{% if value == YearInSchool.FRESHMAN %}` renders as expected\n\n## Concerns\nNone. The fix is minimal and follows the existing pattern used elsewhere in Django (e.g., `related_descriptors.py`, `fields.py`).",
+      "created_at": "2026-01-16T11:27:21.502Z"
+    },
+    {
+      "epic_id": "0499ad4a-f5fe-4742-b33f-d80441358af8",
+      "epic_title": "Fix: django__django-12304",
+      "comment_id": "3b0ba368-4e8a-4fb4-a12c-367a893fabd6",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and targets the root cause: Django templates treat classes as callables; `do_not_call_in_templates = True` on Choices/Enum classes prevents the no-arg call.\n- Only source file changed (`django/db/models/enums.py`); no tests/build configs modified.\n- Verification includes baseline vs after for `tests/model_enums/tests.py` and additional coverage for `tests/template_tests/test_callables.py` with all passing, with no new errors reported.",
+      "created_at": "2026-01-16T11:28:19.648Z"
+    }
+  ]
+}

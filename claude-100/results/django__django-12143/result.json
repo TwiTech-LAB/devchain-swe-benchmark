@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-12143",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py\nindex 137e6faa0f..a100f1c499 100644\n--- a/django/contrib/admin/options.py\n+++ b/django/contrib/admin/options.py\n@@ -1631,7 +1631,7 @@ class ModelAdmin(BaseModelAdmin):\n \n     def _get_edited_object_pks(self, request, prefix):\n         \"\"\"Return POST data values of list_editable primary keys.\"\"\"\n-        pk_pattern = re.compile(r'{}-\\d+-{}$'.format(prefix, self.model._meta.pk.name))\n+        pk_pattern = re.compile(r'{}-\\d+-{}$'.format(re.escape(prefix), self.model._meta.pk.name))\n         return [value for key, value in request.POST.items() if pk_pattern.match(key)]\n \n     def _get_list_editable_queryset(self, request, prefix):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:00:14.721444",
+  "end_time": "2026-01-16T20:02:27.331713",
+  "duration_seconds": 132.610269,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12143",
+  "epic_comments": [
+    {
+      "epic_id": "b89bf1a8-2c74-4ffa-9bb9-64843624df7e",
+      "epic_title": "Fix: django__django-12143",
+      "comment_id": "b36f983e-4f65-40e7-817e-ef900d2aed53",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nApplied `re.escape()` to the `prefix` parameter in the regex pattern within `_get_edited_object_pks()` method. This prevents data loss issues when formset prefixes contain special regex characters like `+`, `*`, `.`, `[`, `]`, `(`, `)`, etc.\n\n## Files Modified\n- `django/contrib/admin/options.py`: Line 1634 - wrapped `prefix` with `re.escape()` in the regex pattern\n\n## Test Results\n- **Test file:** tests/admin_changelist/tests.py\n- **Baseline (before fix):** 57 passed, 0 failed, 1 skipped\n- **After fix:** 57 passed, 0 failed, 1 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested with various special regex characters in prefix:\n- `form+test`: OLD pattern failed, NEW pattern matches \u2713\n- `form*test`: OLD pattern failed, NEW pattern matches \u2713\n- `form[test]`: OLD pattern failed, NEW pattern matches \u2713\n- `form(test)`: OLD pattern failed, NEW pattern matches \u2713\n\n## Concerns\n- None. The fix is minimal and follows the suggested approach from the problem statement.\n- `self.model._meta.pk.name` was not escaped as it follows Python identifier rules which don't allow most regex special characters.",
+      "created_at": "2026-01-16T19:02:17.851Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-19346",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/repr.py b/sympy/printing/repr.py\nindex c936a692c0..3ac0715e63 100644\n--- a/sympy/printing/repr.py\n+++ b/sympy/printing/repr.py\n@@ -144,6 +144,15 @@ def _print_EmptySequence(self, expr):\n     def _print_list(self, expr):\n         return \"[%s]\" % self.reprify(expr, \", \")\n \n+    def _print_dict(self, expr):\n+        sep = \", \"\n+        return \"{%s}\" % sep.join([\"%s: %s\" % (self.doprint(key), self.doprint(value)) for key, value in expr.items()])\n+\n+    def _print_set(self, expr):\n+        if not expr:\n+            return \"set()\"\n+        return \"{%s}\" % self.reprify(expr, \", \")\n+\n     def _print_MatrixBase(self, expr):\n         # special case for some empty matrices\n         if (expr.rows == 0) ^ (expr.cols == 0):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T01:39:32.816462",
+  "end_time": "2026-01-17T01:42:43.141566",
+  "duration_seconds": 190.325104,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-19346",
+  "epic_comments": [
+    {
+      "epic_id": "ba7af4d8-8415-4ea7-819b-353a5836a75f",
+      "epic_title": "Fix: sympy__sympy-19346",
+      "comment_id": "828feee0-3ce8-42b4-9031-53e70dcfadd1",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `_print_dict` and `_print_set` methods to the `ReprPrinter` class in `sympy/printing/repr.py`. \n\nThe problem was that `srepr` had explicit handlers for `list` and `tuple` types (using `self.reprify()` to process elements), but no handlers for `dict` and `set`. Without handlers, these types fell through to `emptyPrinter` which just returned `str(expr)`, not reprifying the elements.\n\nThe fix:\n- `_print_set`: Uses `self.reprify()` to process elements (same pattern as `_print_list`), with special handling for empty sets (`set()`)\n- `_print_dict`: Iterates over key-value pairs and calls `self.doprint()` on both keys and values\n\n## Files Modified\n- `sympy/printing/repr.py`: Added `_print_dict` and `_print_set` methods (lines 147-154)\n\n## Test Results\n- **Test file:** sympy/printing/tests/test_repr.py\n- **Baseline (before fix):** 40 passed, 2 exceptions\n- **After fix:** 40 passed, 2 exceptions\n- **Regression check:** No new failures introduced\n\nNote: The 2 exceptions are pre-existing issues in `test_Add` and `test_Mul` tests (related to `sympify` with `evaluate=False`), unrelated to dict/set printing.\n\n## Additional Verification\nVerified the `eval(srepr(expr)) == expr` property holds for:\n- Dict: `{x: y}` -> `{Symbol('x'): Symbol('y')}` -> eval equals original\n- Set: `{x, y}` -> `{Symbol('x'), Symbol('y')}` -> eval equals original  \n- Empty set: `set()` -> `set()` -> eval equals original\n- Nested structures: `{'key': [x, y]}` correctly processes all elements\n\n## Concerns\n- None. The fix is minimal and follows the existing patterns in the codebase.",
+      "created_at": "2026-01-17T00:42:36.678Z"
+    }
+  ]
+}

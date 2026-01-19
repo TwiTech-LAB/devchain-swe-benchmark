@@ -1,0 +1,62 @@
+{
+  "instance_id": "sphinx-doc__sphinx-8269",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/builders/linkcheck.py b/sphinx/builders/linkcheck.py\nindex 9b54afc7c..1083e82ec 100644\n--- a/sphinx/builders/linkcheck.py\n+++ b/sphinx/builders/linkcheck.py\n@@ -166,6 +166,7 @@ class CheckExternalLinksBuilder(Builder):\n                     # Read the whole document and see if #anchor exists\n                     response = requests.get(req_url, stream=True, config=self.app.config,\n                                             auth=auth_info, **kwargs)\n+                    response.raise_for_status()\n                     found = check_anchor(response, unquote(anchor))\n \n                     if not found:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-15T23:28:07.912096",
+  "end_time": "2026-01-15T23:32:58.199463",
+  "duration_seconds": 290.287367,
+  "error_message": null,
+  "workspace_path": "./workspaces/sphinx-doc__sphinx-8269",
+  "epic_comments": [
+    {
+      "epic_id": "4903f6dc-7e97-4f4d-ac80-b771786130e2",
+      "epic_title": "Fix: sphinx-doc__sphinx-8269",
+      "comment_id": "b12bba18-f362-4722-a448-b96719e1461e",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe bug was that when `linkcheck_anchors=True` and a URL with an anchor returned an HTTP error (e.g., 404), Sphinx would report \"Anchor not found\" instead of the actual HTTP error.\n\n**Root Cause:** In `check_uri()`, when checking anchors, the code performed a GET request and immediately checked for the anchor without first verifying the HTTP response status. If the server returned a 404, the code would try to parse an error page for the anchor, fail to find it, and incorrectly report \"Anchor not found\".\n\n**Fix:** Added `response.raise_for_status()` after the GET request but before checking for the anchor. This ensures HTTP errors are caught and properly reported before attempting to parse the response for anchors.\n\n## Files Modified\n\n- `sphinx/builders/linkcheck.py`: Added `response.raise_for_status()` at line 169, immediately after the GET request when checking anchors.\n\n## Test Results\n\n- **Test file:** `/testbed/tests/test_build_linkcheck.py`\n- **Baseline (before fix):** 5 passed, 0 failed, 0 errors\n- **After fix:** 5 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\n\n- Created mock test verifying that HTTPError is raised correctly before anchor checking occurs\n\n## Concerns\n\n- None. This is a minimal, targeted fix that follows the existing error handling pattern already used in the non-anchor branch of the code.",
+      "created_at": "2026-01-15T22:30:09.436Z"
+    },
+    {
+      "epic_id": "4903f6dc-7e97-4f4d-ac80-b771786130e2",
+      "epic_title": "Fix: sphinx-doc__sphinx-8269",
+      "comment_id": "1619f0bd-418b-43ee-a598-be66f47c505c",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- Unrelated build/config changes in `setup.py` and `tox.ini` (dependency pinning + pytest flags). The epic rules say not to modify build configs unless required; these changes look unrelated to the `linkcheck` anchor/HTTP error bug.\n- No fix summary or verification results were provided (baseline vs after, and running the actual relevant pytest for this issue inside the container).\n\nRequired Changes:\n- Revert `setup.py` and `tox.ini` changes; keep the patch focused on the `linkcheck` fix in `sphinx/builders/linkcheck.py`.\n- Add a short summary comment and include baseline + after-fix test command/output (run the relevant `pytest` test file(s) in the container).",
+      "created_at": "2026-01-15T22:30:35.335Z"
+    },
+    {
+      "epic_id": "4903f6dc-7e97-4f4d-ac80-b771786130e2",
+      "epic_title": "Fix: sphinx-doc__sphinx-8269",
+      "comment_id": "8c290686-08a2-4d68-944e-53b5911fe3ac",
+      "author_name": "Code Reviewer",
+      "content": "Follow-up: the `sphinx/builders/linkcheck.py` change (+`response.raise_for_status()` in the anchor branch) looks correct and matches the non-anchor branch\u2019s error handling.\n\nHowever, the working tree currently also includes unrelated changes in `setup.py` (dependency pinning, `markupsafe<=2.0.1`, etc.) and `tox.ini` (adds `-rA`). Please revert those so the patch stays within the epic rules, then re-submit for review.",
+      "created_at": "2026-01-15T22:31:01.811Z"
+    },
+    {
+      "epic_id": "4903f6dc-7e97-4f4d-ac80-b771786130e2",
+      "epic_title": "Fix: sphinx-doc__sphinx-8269",
+      "comment_id": "9dab7fdb-c309-443b-8c37-00fb89b197d0",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED (re-review)\n\nIssues Found:\n- The patch still includes unrelated changes in `setup.py` and `tox.ini`. The only necessary change for this bug is the `response.raise_for_status()` addition in `sphinx/builders/linkcheck.py`.\n\nRequired Changes:\n- Revert `setup.py` and `tox.ini` to their original contents and resubmit with only the `sphinx/builders/linkcheck.py` change.",
+      "created_at": "2026-01-15T22:32:03.991Z"
+    },
+    {
+      "epic_id": "4903f6dc-7e97-4f4d-ac80-b771786130e2",
+      "epic_title": "Fix: sphinx-doc__sphinx-8269",
+      "comment_id": "beba00ab-bbe4-4fb3-afca-3cb757896be7",
+      "author_name": "Brainstormer",
+      "content": "## Addressed Code Review Feedback\n\nI've reverted the unrelated changes in `setup.py` and `tox.ini` that were pre-existing in the working tree.\n\n### Current Patch (Clean)\n```diff\ndiff --git a/sphinx/builders/linkcheck.py b/sphinx/builders/linkcheck.py\nindex 9b54afc7c..1083e82ec 100644\n--- a/sphinx/builders/linkcheck.py\n+++ b/sphinx/builders/linkcheck.py\n@@ -166,6 +166,7 @@ class CheckExternalLinksBuilder(Builder):\n                     # Read the whole document and see if #anchor exists\n                     response = requests.get(req_url, stream=True, config=self.app.config,\n                                             auth=auth_info, **kwargs)\n+                    response.raise_for_status()\n                     found = check_anchor(response, unquote(anchor))\n \n                     if not found:\n```\n\n### Test Results (Re-verified)\n```\ndocker exec swe-bench-sphinx-doc__sphinx-8269 /opt/miniconda3/envs/testbed/bin/pytest /testbed/tests/test_build_linkcheck.py -v\n======================= 5 passed, 192 warnings in 1.66s ========================\n```\n\n- **Test file:** `/testbed/tests/test_build_linkcheck.py`\n- **Result:** 5 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\nThe patch now contains ONLY the single-line fix in `sphinx/builders/linkcheck.py`.",
+      "created_at": "2026-01-15T22:32:14.830Z"
+    },
+    {
+      "epic_id": "4903f6dc-7e97-4f4d-ac80-b771786130e2",
+      "epic_title": "Fix: sphinx-doc__sphinx-8269",
+      "comment_id": "b73dd283-43a2-47ec-90a2-2cb529cd3ed3",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Patch is now clean and minimal: only `sphinx/builders/linkcheck.py` changes, with `response.raise_for_status()` added before anchor parsing.\n- This should correctly report HTTP errors (e.g., 404/500) instead of misleading \u201cAnchor not found\u201d when `linkcheck_anchors=True`.\n- Brainstormer re-verified `docker exec swe-bench-sphinx-doc__sphinx-8269 ... pytest /testbed/tests/test_build_linkcheck.py` (5 passed).",
+      "created_at": "2026-01-15T22:32:54.470Z"
+    }
+  ]
+}

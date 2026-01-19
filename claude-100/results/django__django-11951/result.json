@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-11951",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/query.py b/django/db/models/query.py\nindex 794e0faae7..92349cd0c5 100644\n--- a/django/db/models/query.py\n+++ b/django/db/models/query.py\n@@ -1209,7 +1209,8 @@ class QuerySet:\n         if ignore_conflicts and not connections[self.db].features.supports_ignore_conflicts:\n             raise NotSupportedError('This database backend does not support ignoring conflicts.')\n         ops = connections[self.db].ops\n-        batch_size = (batch_size or max(ops.bulk_batch_size(fields, objs), 1))\n+        max_batch_size = max(ops.bulk_batch_size(fields, objs), 1)\n+        batch_size = min(batch_size, max_batch_size) if batch_size else max_batch_size\n         inserted_rows = []\n         bulk_return = connections[self.db].features.can_return_rows_from_bulk_insert\n         for item in [objs[i:i + batch_size] for i in range(0, len(objs), batch_size)]:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T20:00:04.729731",
+  "end_time": "2026-01-16T20:02:56.465565",
+  "duration_seconds": 171.735834,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-11951",
+  "epic_comments": [
+    {
+      "epic_id": "4aece533-d025-4fe0-b835-4bb18bde0d49",
+      "epic_title": "Fix: django__django-11951",
+      "comment_id": "a1812375-98fa-4589-a76a-86d52ddb14e7",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the `bulk_create` method to properly respect database batch size limits when a user-provided `batch_size` parameter is given. Previously, the user-provided `batch_size` would override the database-compatible batch size, potentially causing issues. Now it uses the minimum of the two values, matching the behavior of `bulk_update`.\n\n## Files Modified\n- `django/db/models/query.py`: Changed the `_batched_insert` method to use `min(batch_size, max_batch_size)` instead of just using the user-provided `batch_size` directly.\n\n**Before (line 1212):**\n```python\nbatch_size = (batch_size or max(ops.bulk_batch_size(fields, objs), 1))\n```\n\n**After (lines 1212-1213):**\n```python\nmax_batch_size = max(ops.bulk_batch_size(fields, objs), 1)\nbatch_size = min(batch_size, max_batch_size) if batch_size else max_batch_size\n```\n\n## Test Results\n- **Test file:** tests/bulk_create/tests.py\n- **Baseline (before fix):** 26 passed, 5 skipped, 0 errors\n- **After fix:** 26 passed, 5 skipped, 0 errors\n- **Regression check:** No new failures introduced\n\nAlso verified `queries.test_bulk_update`: 24 passed, 0 failed.\n\n## Additional Verification\n- Confirmed the fix pattern matches `bulk_update` (line 522-523) which already handled this correctly\n- Verified source code contains the fix using introspection\n\n## Concerns\n- None. This is a minimal, focused fix that matches the existing pattern used in `bulk_update`.",
+      "created_at": "2026-01-16T19:02:51.104Z"
+    }
+  ]
+}

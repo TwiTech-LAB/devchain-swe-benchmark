@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-12050",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py\nindex ea51912e8b..90475d6fb9 100644\n--- a/django/db/models/sql/query.py\n+++ b/django/db/models/sql/query.py\n@@ -1073,7 +1073,7 @@ class Query(BaseExpression):\n                         ))\n                 else:\n                     resolved_values.append(sub_value)\n-            value = tuple(resolved_values)\n+            value = type(value)(resolved_values)\n         return value\n \n     def solve_lookup_type(self, lookup):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:23:30.628152",
+  "end_time": "2026-01-16T07:27:16.310453",
+  "duration_seconds": 225.682301,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12050",
+  "epic_comments": [
+    {
+      "epic_id": "3d73838c-d4b1-48cd-aab6-da2339b577b2",
+      "epic_title": "Fix: django__django-12050",
+      "comment_id": "87007ec9-6997-402a-aed8-4efa9dc42e8c",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe `Query.resolve_lookup_value` method was always converting list/tuple inputs to tuple, breaking ORM field types that depend on matching input types (e.g., PickledField). The fix preserves the original type by using `type(value)(resolved_values)` instead of `tuple(resolved_values)`.\n\n## Files Modified\n- `django/db/models/sql/query.py`: Changed line 1076 from `value = tuple(resolved_values)` to `value = type(value)(resolved_values)`\n\n## Test Results\n- **Test file:** `tests/queries/test_query.py`\n- **Baseline (before fix):** 10 passed, 0 failed, 0 errors\n- **After fix:** 10 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n- **Test file:** `tests/lookup/tests.py`\n- **Baseline (before fix):** 48 passed, 0 failed, 0 errors\n- **After fix:** 48 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n- Verified that `type(list)([...])` returns list and `type(tuple)([...])` returns tuple\n- The fix is minimal and follows the existing code pattern\n\n## Concerns\n- None. The fix is straightforward and preserves the expected behavior for all input types (list stays list, tuple stays tuple).",
+      "created_at": "2026-01-16T06:25:59.226Z"
+    },
+    {
+      "epic_id": "3d73838c-d4b1-48cd-aab6-da2339b577b2",
+      "epic_title": "Fix: django__django-12050",
+      "comment_id": "0556475c-406e-4490-b394-34f3a6330b30",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and in the right place: `Query.resolve_lookup_value()` now preserves the original iterable type for `(list, tuple)` inputs via `type(value)(resolved_values)`.\n- Only source file modified (`django/db/models/sql/query.py`); no tests/build configs touched.\n- Verification summary includes running real Django tests with baseline vs after-fix results and no regressions reported (`tests/queries/test_query.py`, `tests/lookup/tests.py`).",
+      "created_at": "2026-01-16T06:27:06.850Z"
+    }
+  ]
+}

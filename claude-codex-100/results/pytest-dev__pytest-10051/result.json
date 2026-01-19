@@ -1,0 +1,30 @@
+{
+  "instance_id": "pytest-dev__pytest-10051",
+  "status": "completed",
+  "patch": "diff --git a/src/_pytest/logging.py b/src/_pytest/logging.py\nindex a4f4214b1..63eb8c3aa 100644\n--- a/src/_pytest/logging.py\n+++ b/src/_pytest/logging.py\n@@ -440,7 +440,8 @@ class LogCaptureFixture:\n \n     def clear(self) -> None:\n         \"\"\"Reset the list of log records and the captured log text.\"\"\"\n-        self.handler.reset()\n+        self.handler.records.clear()\n+        self.handler.stream = StringIO()\n \n     def set_level(self, level: Union[int, str], logger: Optional[str] = None) -> None:\n         \"\"\"Set the level of a logger for the duration of a test.\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:44:00.000913",
+  "end_time": "2026-01-16T07:49:07.458626",
+  "duration_seconds": 307.457713,
+  "error_message": null,
+  "workspace_path": "./workspaces/pytest-dev__pytest-10051",
+  "epic_comments": [
+    {
+      "epic_id": "3444ddfa-04bf-4ea4-a69b-7ab0d960a09a",
+      "epic_title": "Fix: pytest-dev__pytest-10051",
+      "comment_id": "1d6903f0-6366-41fe-a885-ff435c4007bd",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where `caplog.get_records()` and `caplog.records` become decoupled after `caplog.clear()` is called.\n\n**Root Cause:** The `LogCaptureFixture.clear()` method was calling `self.handler.reset()`, which **replaced** the `records` list with a new empty list (`self.records = []`). However, `get_records()` returns records stored in the stash, which still referenced the **old** list. This caused the two to diverge.\n\n**Fix:** Modified `LogCaptureFixture.clear()` to clear the records list **in-place** using `self.handler.records.clear()` instead of calling `reset()`. This keeps both `caplog.records` and `caplog.get_records()` pointing to the same list object.\n\nNote: The `LogCaptureHandler.reset()` method was intentionally left unchanged because it is called by the framework at the start of each test phase (setup, call, teardown) to create separate record lists for each phase.\n\n## Files Modified\n- `src/_pytest/logging.py`: Changed `LogCaptureFixture.clear()` method (lines 441-444) to clear records in-place\n\n## Test Results\n- **Test file:** testing/logging/test_fixture.py\n- **Baseline (before fix):** 15 passed\n- **After fix:** 15 passed\n- **Regression check:** No regressions - all 59 tests in testing/logging/ pass\n- **Pre-existing errors:** None\n\n## Additional Verification\n- Created and ran a reproduction test based on the problem statement - passes successfully\n- The test verifies that after `caplog.clear()`:\n  1. `caplog.get_records(\"call\") == caplog.records` (consistency maintained)\n  2. New log records are captured correctly after clear\n\n## Concerns\n- None - this is a minimal, focused fix that addresses the root cause without affecting other functionality",
+      "created_at": "2026-01-16T06:46:59.855Z"
+    },
+    {
+      "epic_id": "3444ddfa-04bf-4ea4-a69b-7ab0d960a09a",
+      "epic_title": "Fix: pytest-dev__pytest-10051",
+      "comment_id": "dbfb38db-ddcf-47c0-82d4-360ed83cee05",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- `caplog.clear()` now clears `LogCaptureHandler.records` in-place, so `caplog.records` and `caplog.get_records(when)` stay consistent (stash still points to the same list).\n- Change is minimal (only `src/_pytest/logging.py`) and does not touch tests/config.\n- Verification summary includes baseline vs after-fix and running the actual suite for `testing/logging/` with no new failures reported.",
+      "created_at": "2026-01-16T06:48:54.940Z"
+    }
+  ]
+}

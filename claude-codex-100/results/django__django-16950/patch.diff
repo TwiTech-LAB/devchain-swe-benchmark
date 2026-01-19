@@ -1,0 +1,28 @@
+diff --git a/django/forms/models.py b/django/forms/models.py
+index 3fa04b821f..b745763824 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -1172,16 +1172,23 @@ class BaseInlineFormSet(BaseModelFormSet):
+ 
+         # If we're adding a new object, ignore a parent's auto-generated key
+         # as it will be regenerated on the save request.
++        original_value = None
+         if self.instance._state.adding:
+             if kwargs.get("to_field") is not None:
+                 to_field = self.instance._meta.get_field(kwargs["to_field"])
+             else:
+                 to_field = self.instance._meta.pk
+             if to_field.has_default():
++                original_value = getattr(self.instance, to_field.attname)
+                 setattr(self.instance, to_field.attname, None)
+ 
+         form.fields[name] = InlineForeignKeyField(self.instance, **kwargs)
+ 
++        # Restore the non-pk with default's original value. The pk value will
++        # be regenerated on the save request.
++        if original_value is not None and kwargs.get("to_field") is not None:
++            setattr(self.instance, to_field.attname, original_value)
++
+     def get_unique_error_message(self, unique_check):
+         unique_check = [field for field in unique_check if field != self.fk.name]
+         return super().get_unique_error_message(unique_check)

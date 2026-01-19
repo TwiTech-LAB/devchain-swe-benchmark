@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-15345",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/mathematica.py b/sympy/printing/mathematica.py\nindex ea7e3a2d94..6dd0568e02 100644\n--- a/sympy/printing/mathematica.py\n+++ b/sympy/printing/mathematica.py\n@@ -116,6 +116,12 @@ def _print_Derivative(self, expr):\n         dvars = [i[0] if i[1] == 1 else i for i in expr.variable_count]\n         return \"Hold[D[\" + ', '.join(self.doprint(a) for a in [dexpr] + dvars) + \"]]\"\n \n+    def _print_Max(self, expr):\n+        return \"Max[{}]\".format(', '.join(self.doprint(a) for a in expr.args))\n+\n+    def _print_Min(self, expr):\n+        return \"Min[{}]\".format(', '.join(self.doprint(a) for a in expr.args))\n+\n \n def mathematica_code(expr, **settings):\n     r\"\"\"Converts an expr to a string of the Wolfram Mathematica code\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-15T23:38:03.588494",
+  "end_time": "2026-01-15T23:42:12.794353",
+  "duration_seconds": 249.205859,
+  "error_message": null,
+  "workspace_path": "./workspaces/sympy__sympy-15345",
+  "epic_comments": [
+    {
+      "epic_id": "2b01579e-154f-44a5-b522-a50b0e84055e",
+      "epic_title": "Fix: sympy__sympy-15345",
+      "comment_id": "a197d1e1-5c40-4c3c-b7d3-fa6cee43c84c",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded `_print_Max` and `_print_Min` methods to the `MCodePrinter` class to properly output Mathematica syntax with square brackets.\n\n**Root Cause:** `Max` and `Min` classes inherit from `MinMaxBase` and `Application`, not from `Function`. The existing `_print_Function` method wasn't being called for these types, causing them to fall back to default printing with parentheses instead of square brackets.\n\n**Solution:** Added dedicated printer methods for Max and Min that output proper Mathematica syntax: `Max[args]` and `Min[args]`.\n\n## Files Modified\n- `sympy/printing/mathematica.py`: Added `_print_Max` and `_print_Min` methods (lines 119-123)\n\n## Test Results\n- **Test file:** `sympy/printing/tests/test_mathematica.py`\n- **Baseline (before fix):** 10 passed, 0 failed, 0 errors\n- **After fix:** 10 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Verification\n```\nMax(x, 2)     \u2192 'Max[2, x]'  (was 'Max(2, x)')\nMin(x, 2)     \u2192 'Min[2, x]'\nMax(x, y, z)  \u2192 'Max[x, y, z]'\nMin(x, y, z)  \u2192 'Min[x, y, z]'\nMax(x, Min(y, z)) \u2192 'Max[x, Min[y, z]]'  (nested works correctly)\n```\n\n## Concerns\n- None. The fix is minimal and follows the existing code patterns in the file.",
+      "created_at": "2026-01-15T22:41:13.675Z"
+    },
+    {
+      "epic_id": "2b01579e-154f-44a5-b522-a50b0e84055e",
+      "epic_title": "Fix: sympy__sympy-15345",
+      "comment_id": "7c2cfe64-5482-49b5-a098-c253a95470ff",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly targets `Max`/`Min` printing in `sympy/printing/mathematica.py` by adding dedicated `_print_Max`/`_print_Min` methods so Mathematica calls use `[...]` instead of `(...)`.\n- No test or build config files were modified.\n- Brainstormer reports baseline vs after-fix results for the actual test file `sympy/printing/tests/test_mathematica.py` with no new failures/errors.\n\nVerdict: PASS",
+      "created_at": "2026-01-15T22:42:08.717Z"
+    }
+  ]
+}

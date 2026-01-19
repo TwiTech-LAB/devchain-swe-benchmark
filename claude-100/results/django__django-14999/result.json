@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-14999",
+  "status": "completed",
+  "patch": "diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py\nindex 982816be3a..9c6ee5764b 100644\n--- a/django/db/migrations/operations/models.py\n+++ b/django/db/migrations/operations/models.py\n@@ -320,6 +320,10 @@ class RenameModel(ModelOperation):\n         new_model = to_state.apps.get_model(app_label, self.new_name)\n         if self.allow_migrate_model(schema_editor.connection.alias, new_model):\n             old_model = from_state.apps.get_model(app_label, self.old_name)\n+            # Renaming a model with a db_table set is a noop since the actual\n+            # table name doesn't change.\n+            if old_model._meta.db_table == new_model._meta.db_table:\n+                return\n             # Move the main table\n             schema_editor.alter_db_table(\n                 new_model,\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T11:20:55.011756",
+  "end_time": "2026-01-17T11:24:48.896615",
+  "duration_seconds": 233.884859,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14999",
+  "epic_comments": [
+    {
+      "epic_id": "f2da9293-587b-426b-b9d0-4a57b55bdf2a",
+      "epic_title": "Fix: django__django-14999",
+      "comment_id": "35c6b218-3c3f-4db5-b5ed-3e9fbe136745",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nWhen a model has an explicit `db_table` option set, the `RenameModel` migration operation was still performing unnecessary database operations (dropping/recreating foreign key constraints in Postgres, recreating tables in SQLite). Since the actual table name doesn't change when renaming a model with an explicit `db_table`, these operations should be skipped.\n\nThe fix adds a simple check at the beginning of `database_forwards()` in `RenameModel`: if `old_model._meta.db_table == new_model._meta.db_table`, the method returns early without performing any database operations.\n\n## Files Modified\n- `django/db/migrations/operations/models.py`: Added early return in `RenameModel.database_forwards()` when old and new db_table are identical (lines 319-328)\n\n## Test Results\n- **Test file:** tests/migrations/test_operations.py\n- **Baseline (before fix):** 119 passed, 0 failed, 1 skipped\n- **After fix:** 119 passed, 0 failed, 1 skipped\n- **Regression check:** No new failures introduced\n\nAlso ran:\n- **Test file:** tests/migrations/test_autodetector.py\n- **Result:** 137 passed, 0 failed\n\n## Additional Verification\nCreated a verification script that:\n1. Creates a model with explicit `db_table='my_custom_table'`\n2. Applies a `RenameModel` operation\n3. Confirms no SQL was executed (noop)\n4. Verifies the table still exists with the custom name\n5. Also tested that `RenameModel` without explicit `db_table` still works normally (table renamed correctly)\n\n## Concerns\n- None. The fix is minimal and only affects models with explicit `db_table` option. Models without explicit `db_table` continue to work as before.",
+      "created_at": "2026-01-17T10:24:37.790Z"
+    }
+  ]
+}

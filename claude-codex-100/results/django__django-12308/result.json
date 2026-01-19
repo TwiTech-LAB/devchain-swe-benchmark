@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-12308",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/utils.py b/django/contrib/admin/utils.py\nindex e4ddc8f017..184d30a86d 100644\n--- a/django/contrib/admin/utils.py\n+++ b/django/contrib/admin/utils.py\n@@ -1,5 +1,6 @@\n import datetime\n import decimal\n+import json\n from collections import defaultdict\n \n from django.core.exceptions import FieldDoesNotExist\n@@ -398,6 +399,8 @@ def display_for_field(value, field, empty_value_display):\n         return formats.number_format(value)\n     elif isinstance(field, models.FileField) and value:\n         return format_html('<a href=\"{}\">{}</a>', value.url, value)\n+    elif isinstance(field, models.JSONField):\n+        return json.dumps(value, cls=field.encoder)\n     else:\n         return display_for_value(value, empty_value_display)\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T13:46:30.102746",
+  "end_time": "2026-01-16T13:52:34.179002",
+  "duration_seconds": 364.076256,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-12308",
+  "epic_comments": [
+    {
+      "epic_id": "fa8fa904-37d1-483d-a2ab-da351be77a0d",
+      "epic_title": "Fix: django__django-12308",
+      "comment_id": "a780299f-2283-4323-b243-dd5976aeb9c1",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded special case handling for `models.JSONField` in `display_for_field` function. When a JSONField value is displayed in the admin (readonly context), it now uses `json.dumps()` with the field's encoder to produce valid JSON output instead of Python's default string representation.\n\n**Problem:** JSONField values were displayed using Python dict syntax (single quotes, e.g., `{'foo': 'bar'}`) instead of valid JSON (double quotes, e.g., `{\"foo\": \"bar\"}`).\n\n**Solution:** Added a check for `models.JSONField` in `display_for_field` that calls `json.dumps(value, cls=field.encoder)` to properly serialize the value as JSON.\n\n## Files Modified\n- `django/contrib/admin/utils.py`: \n  - Added `import json` at top\n  - Added JSONField handling in `display_for_field` function (line ~402)\n\n## Test Results\n- **Test file:** `/testbed/tests/admin_utils/tests.py`\n- **Baseline (before fix):** 34 passed, 0 failed, 0 errors\n- **After fix:** 34 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n- **Additional test file:** `/testbed/tests/model_fields/test_jsonfield.py`\n- **After fix:** 70 passed (3 skipped PostgreSQL-specific), 0 failed, 0 errors\n\n## Additional Verification\nManual verification script confirmed:\n- Input `{'foo': 'bar'}` now outputs `{\"foo\": \"bar\"}` (valid JSON)\n- Nested dicts and booleans are correctly serialized (e.g., `True` becomes `true`)\n- Custom encoders are respected via `field.encoder`\n\n## Concerns\n- None. The fix follows the approach suggested in the problem statement and uses the field's encoder for proper JSON serialization.",
+      "created_at": "2026-01-16T12:49:26.612Z"
+    },
+    {
+      "epic_id": "fa8fa904-37d1-483d-a2ab-da351be77a0d",
+      "epic_title": "Fix: django__django-12308",
+      "comment_id": "3ce2a6d3-6ea3-4f53-bbcf-ed1d0f2621f9",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly special-cases `models.JSONField` in `django.contrib.admin.utils.display_for_field()` to render valid JSON via `json.dumps(..., cls=field.encoder)`.\n- No test/build files were modified.\n- Verification evidence provided: baseline vs after-fix for `tests/admin_utils/tests.py`, plus additional coverage via `tests/model_fields/test_jsonfield.py`.\n\nVerdict: ready to merge / mark Done.",
+      "created_at": "2026-01-16T12:52:27.853Z"
+    }
+  ]
+}

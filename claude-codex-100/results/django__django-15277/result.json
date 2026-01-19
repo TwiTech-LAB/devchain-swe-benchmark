@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-15277",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py\nindex f30b523346..88c9ca9f28 100644\n--- a/django/db/models/fields/__init__.py\n+++ b/django/db/models/fields/__init__.py\n@@ -1010,7 +1010,8 @@ class CharField(Field):\n     def __init__(self, *args, db_collation=None, **kwargs):\n         super().__init__(*args, **kwargs)\n         self.db_collation = db_collation\n-        self.validators.append(validators.MaxLengthValidator(self.max_length))\n+        if self.max_length is not None:\n+            self.validators.append(validators.MaxLengthValidator(self.max_length))\n \n     def check(self, **kwargs):\n         databases = kwargs.get('databases') or []\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-17T15:03:34.558993",
+  "end_time": "2026-01-17T15:09:15.926688",
+  "duration_seconds": 341.367695,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-15277",
+  "epic_comments": [
+    {
+      "epic_id": "cdc9041c-d946-45af-980b-411874a7e5dc",
+      "epic_title": "Fix: django__django-15277",
+      "comment_id": "a0c78565-debe-4719-87f3-ac0fd9ae5a6b",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nModified `CharField.__init__` to only append `MaxLengthValidator` when `max_length is not None`. This prevents the creation of a broken validator when `CharField()` is instantiated without a `max_length` (e.g., when `Value('test')._resolve_output_field()` returns a CharField).\n\nThis matches the existing pattern used by `BinaryField.__init__` (lines 2324-2325 in the same file).\n\n## Files Modified\n- `django/db/models/fields/__init__.py`: Changed line 1013 to conditionally add MaxLengthValidator only when `max_length is not None`\n\n## Test Results\n- **Test file:** tests/model_fields/test_charfield.py\n- **Baseline (before fix):** 12 passed, 0 failed, 0 errors\n- **After fix:** 12 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\nAdditional test suites verified:\n- `expressions` tests: 167 passed (1 skipped, 1 expected failure)\n- `validators` tests: 14 passed (5 skipped for Pillow)\n\n## Additional Verification\nVerified the fix directly:\n```python\n# Before fix:\n>>> Value('test')._resolve_output_field().validators\n[<django.core.validators.MaxLengthValidator object>]\n>>> Value('test')._resolve_output_field().clean('1', model_instance=None)\nTypeError: '>' not supported between instances of 'int' and 'NoneType'\n\n# After fix:\n>>> Value('test')._resolve_output_field().validators\n[]\n>>> Value('test')._resolve_output_field().clean('any string', model_instance=None)\n# Works without error!\n```\n\nAlso verified that CharField with max_length still works correctly:\n- CharField(max_length=10) has MaxLengthValidator\n- Validation error raised for strings exceeding max_length\n\n## Concerns\n- None. This is a minimal, focused fix that follows the existing pattern in BinaryField.",
+      "created_at": "2026-01-17T14:07:45.128Z"
+    },
+    {
+      "epic_id": "cdc9041c-d946-45af-980b-411874a7e5dc",
+      "epic_title": "Fix: django__django-15277",
+      "comment_id": "0823bf4c-6e78-4c8a-99ba-2f64014ad366",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- `git diff HEAD` shows a single, minimal change in `django/db/models/fields/__init__.py` to only add `MaxLengthValidator` when `max_length is not None`.\n- No test files were modified.\n- Verification evidence includes baseline vs after results for `tests/model_fields/test_charfield.py`, plus additional suite runs; this matches the reported root cause (broken validator when `CharField()` is constructed without `max_length`).",
+      "created_at": "2026-01-17T14:08:59.530Z"
+    }
+  ]
+}

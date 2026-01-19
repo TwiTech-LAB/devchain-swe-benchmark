@@ -1,0 +1,51 @@
+diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py
+index b8efb9f881..3900098061 100644
+--- a/django/utils/autoreload.py
++++ b/django/utils/autoreload.py
+@@ -216,16 +216,39 @@ def get_child_arguments():
+     executable is reported to not have the .exe extension which can cause bugs
+     on reloading.
+     """
+-    import django.__main__
+-    django_main_path = Path(django.__main__.__file__)
++    import __main__
+     py_script = Path(sys.argv[0])
+ 
+     args = [sys.executable] + ['-W%s' % o for o in sys.warnoptions]
+-    if py_script == django_main_path:
+-        # The server was started with `python -m django runserver`.
+-        args += ['-m', 'django']
+-        args += sys.argv[1:]
+-    elif not py_script.exists():
++    # __spec__ is set when the server was started with the `-m` option.
++    spec = getattr(__main__, '__spec__', None)
++    if spec is not None:
++        spec_name = spec.name or ''
++        if spec_name.endswith('.__main__') or spec_name == '__main__':
++            # `python -m pkg` executes `pkg/__main__.py`, where
++            # `__spec__.name` is `pkg.__main__`. Use the parent in this case.
++            if spec.parent:
++                args += ['-m', spec.parent]
++                args += sys.argv[1:]
++                return args
++        elif spec.parent:
++            # `python -m pkg.mod` executes `pkg/mod.py`, where
++            # `__spec__.name` is `pkg.mod`. Use the module name directly.
++            args += ['-m', spec.name]
++            args += sys.argv[1:]
++            return args
++    # Fallback: check if sys.argv[0] is a package's __main__.py for backward
++    # compatibility when __spec__ is not set (e.g., in tests that mock sys.argv).
++    if py_script.name == '__main__.py':
++        # Try to find the module name by checking against sys.path entries.
++        # This handles the case where sys.argv[0] points to a __main__.py
++        # but __spec__ is not available.
++        import django.__main__
++        if py_script == Path(django.__main__.__file__):
++            args += ['-m', 'django']
++            args += sys.argv[1:]
++            return args
++    if not py_script.exists():
+         # sys.argv[0] may not exist for several reasons on Windows.
+         # It may exist with a .exe extension or have a -script.py suffix.
+         exe_entrypoint = py_script.with_suffix('.exe')

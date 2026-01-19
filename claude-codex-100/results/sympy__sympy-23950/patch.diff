@@ -1,0 +1,14 @@
+diff --git a/sympy/sets/contains.py b/sympy/sets/contains.py
+index b2d4268d12..b175905530 100644
+--- a/sympy/sets/contains.py
++++ b/sympy/sets/contains.py
+@@ -45,4 +45,9 @@ def binary_symbols(self):
+             isinstance(i, (Eq, Ne))])
+ 
+     def as_set(self):
++        x, s = self.args
++        # If x is the only free symbol, then the set of values
++        # for which 'x in s' is true is just s itself
++        if self.free_symbols == {x}:
++            return s
+         raise NotImplementedError()

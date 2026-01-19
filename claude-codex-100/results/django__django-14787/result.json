@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14787",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/decorators.py b/django/utils/decorators.py\nindex 5c9a5d01c7..8b9da17e31 100644\n--- a/django/utils/decorators.py\n+++ b/django/utils/decorators.py\n@@ -38,6 +38,7 @@ def _multi_decorate(decorators, method):\n         # 'func'. Also, wrap method.__get__() in a function because new\n         # attributes can't be set on bound method objects, only on functions.\n         bound_method = partial(method.__get__(self, type(self)))\n+        update_wrapper(bound_method, method)\n         for dec in decorators:\n             bound_method = dec(bound_method)\n         return bound_method(*args, **kwargs)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-16T07:43:55.002807",
+  "end_time": "2026-01-16T07:47:48.732405",
+  "duration_seconds": 233.729598,
+  "error_message": null,
+  "workspace_path": "./workspaces/django__django-14787",
+  "epic_comments": [
+    {
+      "epic_id": "fda6f8d5-451e-4714-8f00-aee10e6a23a5",
+      "epic_title": "Fix: django__django-14787",
+      "comment_id": "e8252194-da43-4b80-a667-5711c1c27c95",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe `method_decorator()` function was creating a `functools.partial` object without preserving the standard wrapper assignments (`__name__`, `__module__`, `__qualname__`, `__doc__`, `__annotations__`). When decorators used `@wraps(func)` internally, they would fail with `AttributeError: 'functools.partial' object has no attribute '__name__'`.\n\nFixed by adding `update_wrapper(bound_method, method)` after creating the partial object. This copies all standard function attributes from the original method to the partial object.\n\n## Files Modified\n- `django/utils/decorators.py`: Added `update_wrapper(bound_method, method)` on line 41 in `_multi_decorate()` function\n\n## Test Results\n- **Test file:** tests/decorators/tests.py (via Django's runtests.py)\n- **Baseline (before fix):** 20 passed, 0 failed, 0 errors\n- **After fix:** 20 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\nVerified with the exact example from the problem statement:\n```python\ndef logger(func):\n    @wraps(func)\n    def inner(*args, **kwargs):\n        print(f'{func.__name__} called...')  # Now works!\n        return func(*args, **kwargs)\n    return inner\n\nclass Test:\n    @method_decorator(logger)\n    def hello_world(self):\n        return 'hello'\n\nTest().hello_world()  # No longer raises AttributeError\n```\n\nAlso verified all wrapper assignments are preserved: `__name__`, `__module__`, `__qualname__`, `__doc__`, `__annotations__`.\n\n## Concerns\n- None. The fix is minimal and follows existing patterns in the codebase (line 49 already uses `update_wrapper` for similar purposes).",
+      "created_at": "2026-01-16T06:46:26.178Z"
+    },
+    {
+      "epic_id": "fda6f8d5-451e-4714-8f00-aee10e6a23a5",
+      "epic_title": "Fix: django__django-14787",
+      "comment_id": "6ab8d1c7-ccb1-486b-bd4d-e34063e6772e",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and correctly addresses the root cause: `update_wrapper(bound_method, method)` ensures the `functools.partial` created by `method_decorator()` has standard function attributes (`__name__`, `__module__`, etc.) before any decorator using `@wraps()` inspects it.\n- Only source code modified (`django/utils/decorators.py`); no test/build config edits.\n- Verification is sufficient: baseline vs after-fix results provided, and the actual Django test module was run (`tests/decorators/tests.py` via `runtests.py`).",
+      "created_at": "2026-01-16T06:47:41.379Z"
+    }
+  ]
+}
