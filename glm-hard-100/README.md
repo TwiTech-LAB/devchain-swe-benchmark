@@ -17,6 +17,7 @@
 ## Improvements vs Regressions
 
 |                | Codex   | Opus |
+|----------------|:-------:|:----:|
 | Improvements   | 21      |  15  |
 | Regressions    | 9       |  6   |
 | **Net gain**   | **+12** | +9   |
