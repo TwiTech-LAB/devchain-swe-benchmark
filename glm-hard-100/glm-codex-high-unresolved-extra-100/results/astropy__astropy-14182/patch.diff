@@ -1,0 +1,67 @@
+diff --git a/astropy/io/ascii/rst.py b/astropy/io/ascii/rst.py
+index abdeba8efb..93b5c14e36 100644
+--- a/astropy/io/ascii/rst.py
++++ b/astropy/io/ascii/rst.py
+@@ -57,10 +57,58 @@ class RST(FixedWidth):
+     data_class = SimpleRSTData
+     header_class = SimpleRSTHeader
+ 
+-    def __init__(self):
+-        super().__init__(delimiter_pad=None, bookend=False)
++    def __init__(self, header_rows=None):
++        super().__init__(delimiter_pad=None, bookend=False, header_rows=header_rows)
+ 
+     def write(self, lines):
+         lines = super().write(lines)
+-        lines = [lines[1]] + lines + [lines[1]]
+-        return lines
++        # The parent class (FixedWidthData.write()) produces:
++        # - 0 or more header rows (if header_rows is set)
++        # - optionally a separator line (if position_line is set)
++        # - data rows
++        #
++        # For RST, we need to add the separator line at the start and end.
++        # The separator should be based on column widths.
++
++        # Get the number of header rows (default to ["name"] if not set)
++        # Note: header_rows is set on self.header.header_rows, not self
++        header_rows = getattr(self.header, "header_rows", ["name"])
++        num_header_rows = len(header_rows)
++
++        # Determine the index of the separator line
++        # If position_line is set in header, a separator will be added after headers
++        if self.header.position_line is not None:
++            # Separator is at index num_header_rows
++            separator_idx = num_header_rows
++            separator = lines[separator_idx]
++        else:
++            # No separator line in output, create one from the first data row
++            # Find the first data row (after all header rows)
++            first_data_idx = num_header_rows
++            if first_data_idx < len(lines):
++                # Use the first data row to determine column widths
++                first_data_row = lines[first_data_idx]
++                # Calculate column widths from the data row
++                # The data row has format: "val1 val2 val3" (space-separated)
++                # We need to reconstruct the widths
++                vals = first_data_row.split()
++                widths = [len(v) for v in vals]
++                # Create separator using the position_char
++                separator = self.data.splitter.join(
++                    [self.header.position_char * w for w in widths], widths
++                )
++            else:
++                # Fallback: shouldn't happen with valid data
++                separator = ""
++
++        # Reconstruct the lines for RST format:
++        # separator, header rows, separator, data rows, separator
++        result = [separator]
++        # Add header rows (before the original separator, if present)
++        result.extend(lines[:separator_idx])
++        result.append(separator)
++        # Add data rows (after the original separator)
++        result.extend(lines[separator_idx + 1 :])
++        result.append(separator)
++
++        return result

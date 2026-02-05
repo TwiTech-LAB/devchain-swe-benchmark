@@ -1,0 +1,30 @@
+{
+  "instance_id": "psf__requests-6028",
+  "status": "completed",
+  "patch": "diff --git a/requests/utils.py b/requests/utils.py\nindex 1c2ae4e0..153776c7 100644\n--- a/requests/utils.py\n+++ b/requests/utils.py\n@@ -974,6 +974,10 @@ def prepend_scheme_if_needed(url, new_scheme):\n     if not netloc:\n         netloc, path = path, netloc\n \n+    if auth:\n+        # parse_url doesn't provide the netloc with auth\n+        # so we'll add it ourselves.\n+        netloc = '@'.join([auth, netloc])\n     if scheme is None:\n         scheme = new_scheme\n     if path is None:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-01T10:49:52.699235",
+  "end_time": "2026-02-01T10:58:14.069898",
+  "duration_seconds": 501.370663,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "ea6ad4ef-6fa3-4562-abf9-f7b6d75b81c6",
+      "epic_title": "Fix: psf__requests-6028",
+      "comment_id": "9cf4827e-556d-4e4b-822c-add4365ef69d",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the proxy authentication bug in Python 3.8.12+ by preserving authentication credentials when reconstructing URLs in `prepend_scheme_if_needed()`.\n\n## Root Cause\n\nThe `prepend_scheme_if_needed()` function in `requests/utils.py` was using `parse_url()` from urllib3, which extracts authentication credentials separately from the netloc. When reconstructing the URL with `urlunparse()`, the function was using `parsed.netloc` which doesn't include the auth component, causing credentials to be lost.\n\nIn Python 3.8.12, changes to urllib.parse caused `prepend_scheme_if_needed()` to be called more frequently for proxy URLs, exposing this bug.\n\n## Files Modified\n\n- **requests/utils.py** (line ~977): Added code to prepend auth to netloc when reconstructing URLs:\n  ```python\n  if auth:\n      # parse_url doesn't provide the netloc with auth\n      # so we'll add it ourselves.\n      netloc = '@'.join([auth, netloc])\n  ```\n\n## Test Results\n\n- **Test file:** /testbed/tests/test_utils.py\n- **Baseline:** N/A (this is the fix implementation)\n- **After fix:** 193 tests passed in test_utils.py\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n\nVerified the fix with custom tests:\n- `prepend_scheme_if_needed('http://user:pass@example.com/path', 'http')` correctly returns `'http://user:pass@example.com/path'`\n- `prepend_scheme_if_needed('http://user@example.com/path', 'http')` correctly returns `'http://user@example.com/path'`\n- `HTTPAdapter.proxy_headers()` still correctly extracts credentials and generates `Proxy-Authorization` headers\n\n## Concerns\n\n- The fix handles URLs with schemes correctly (the main use case for proxy URLs)\n- `parse_url()` cannot properly handle URLs with auth but without a scheme (e.g., `user:pass@host:port`), but this is a pre-existing limitation of urllib3 and not related to this bug",
+      "created_at": "2026-02-01T09:55:32.466Z"
+    },
+    {
+      "epic_id": "ea6ad4ef-6fa3-4562-abf9-f7b6d75b81c6",
+      "epic_title": "Fix: psf__requests-6028",
+      "comment_id": "522ab755-45c4-40d0-aa6d-9e8962adefc2",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review: PASSED \u2713\n\n### Summary\nThe fix correctly addresses the proxy authentication bug in Python 3.8.12+ by preserving authentication credentials when reconstructing URLs in `prepend_scheme_if_needed()`.\n\n### Verification Completed\n\n**1. Code Changes Review:**\n- \u2713 Only source code modified (requests/utils.py, lines 977-980)\n- \u2713 No test files modified\n- \u2713 No build configs modified\n- \u2713 Minimal, focused change (4 lines added)\n\n**2. Root Cause Analysis:**\n- \u2713 Correctly identified: `parse_url()` extracts auth separately from netloc\n- \u2713 When reconstructing with `urlunparse()`, auth was being lost\n- \u2713 Fix: Prepend auth to netloc before reconstruction\n\n**3. Code Quality:**\n- \u2713 Clean implementation following existing patterns\n- \u2713 Clear comments explaining the fix\n- \u2713 Handles edge cases (auth with/without password)\n\n**4. Test Results:**\n- \u2713 193 tests passed in test_utils.py\n- \u2713 62 proxy-related tests passed\n- \u2713 No test failures or regressions\n- \u2713 The 8 ERRORs are pre-existing (missing pytest-mock fixture)\n\n**5. Functional Verification:**\nTested auth preservation with real proxy URL scenarios:\n- `http://user:pass@proxy.example.com:8080` \u2192 Auth preserved \u2713\n- `https://user:pass@proxy.example.com:8080` \u2192 Auth preserved \u2713\n- `http://user@proxy.example.com:8080` \u2192 Auth preserved \u2713\n\n### Minor Note\nWhile baseline test results were not provided, the verification is sufficient. The fix is correct, minimal, and all existing tests pass.\n\n**Verdict: APPROVED for deployment**",
+      "created_at": "2026-02-01T09:58:05.424Z"
+    }
+  ]
+}

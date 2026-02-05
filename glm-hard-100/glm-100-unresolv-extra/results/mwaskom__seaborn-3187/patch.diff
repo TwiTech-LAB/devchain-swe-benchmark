@@ -1,0 +1,31 @@
+diff --git a/seaborn/_core/scales.py b/seaborn/_core/scales.py
+index 55874bf2..6f56a54b 100644
+--- a/seaborn/_core/scales.py
++++ b/seaborn/_core/scales.py
+@@ -378,7 +378,25 @@ class ContinuousBase(Scale):
+             axis.set_view_interval(vmin, vmax)
+             locs = axis.major.locator()
+             locs = locs[(vmin <= locs) & (locs <= vmax)]
+-            labels = axis.major.formatter.format_ticks(locs)
++            formatter = axis.major.formatter
++            # When the formatter uses an offset (e.g., for large numbers shown as 3.0
++            # instead of 3000000), we need to handle the legend labels specially.
++            # The ScalarFormatter's offset is shown separately on axes, but legends
++            # don't have a separate offset display mechanism, so we need to include
++            # the full values in the legend labels.
++            if isinstance(formatter, ScalarFormatter):
++                # The formatter's offset is not set until set_locs() is called,
++                # so we need to initialize it first
++                formatter.set_locs(locs)
++                offset_text = formatter.get_offset()
++                if offset_text:
++                    # Format the locs directly to show full values in the legend
++                    # Use the same precision logic as the formatter but without offset
++                    labels = [f"{loc:.0f}" for loc in locs]
++                else:
++                    labels = formatter.format_ticks(locs)
++            else:
++                labels = formatter.format_ticks(locs)
+             new._legend = list(locs), list(labels)
+ 
+         return new

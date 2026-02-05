@@ -1,0 +1,30 @@
+{
+  "instance_id": "scikit-learn__scikit-learn-12973",
+  "status": "completed",
+  "patch": "diff --git a/sklearn/linear_model/least_angle.py b/sklearn/linear_model/least_angle.py\nindex 03b34a0dc..191d99b06 100644\n--- a/sklearn/linear_model/least_angle.py\n+++ b/sklearn/linear_model/least_angle.py\n@@ -1479,7 +1479,7 @@ class LassoLarsIC(LassoLars):\n         self.eps = eps\n         self.fit_path = True\n \n-    def fit(self, X, y, copy_X=True):\n+    def fit(self, X, y, copy_X=None):\n         \"\"\"Fit the model using X, y as training data.\n \n         Parameters\n@@ -1490,8 +1490,9 @@ class LassoLarsIC(LassoLars):\n         y : array-like, shape (n_samples,)\n             target values. Will be cast to X's dtype if necessary\n \n-        copy_X : boolean, optional, default True\n+        copy_X : boolean, optional, default None\n             If ``True``, X will be copied; else, it may be overwritten.\n+            If None, the value set during initialization is used.\n \n         Returns\n         -------\n@@ -1500,8 +1501,11 @@ class LassoLarsIC(LassoLars):\n         \"\"\"\n         X, y = check_X_y(X, y, y_numeric=True)\n \n+        if copy_X is None:\n+            copy_X = self.copy_X\n+\n         X, y, Xmean, ymean, Xstd = LinearModel._preprocess_data(\n-            X, y, self.fit_intercept, self.normalize, self.copy_X)\n+            X, y, self.fit_intercept, self.normalize, copy_X)\n         max_iter = self.max_iter\n \n         Gram = self.precompute\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T22:00:20.395676",
+  "end_time": "2026-01-31T22:02:42.000008",
+  "duration_seconds": 141.604332,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "dd6566f8-6a27-41a6-af08-cf3bc88da9ad",
+      "epic_title": "Fix: scikit-learn__scikit-learn-12973",
+      "comment_id": "e4e22116-a28b-47ce-b873-5fd0dd8327c1",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the unintuitive `copy_X` behavior in `LassoLarsIC` where the `fit` method's `copy_X` parameter (with default `True`) would silently override the `copy_X` value set during initialization.\n\n**Root Cause:** The `fit` method had its own `copy_X=True` parameter that was used in `lars_path`, while `_preprocess_data` used `self.copy_X`. This caused inconsistent behavior and silently overrode user's initialization choice.\n\n**Solution:** \n1. Changed `fit` method's `copy_X` default from `True` to `None`\n2. When `copy_X is None`, use the value from `self.copy_X` (respecting initialization)\n3. Otherwise, use the explicitly provided value (allowing override)\n\n## Files Modified\n- `sklearn/linear_model/least_angle.py` (line ~1482): \n  - Changed `fit(self, X, y, copy_X=True)` to `fit(self, X, y, copy_X=None)`\n  - Added logic: `if copy_X is None: copy_X = self.copy_X`\n  - Updated `_preprocess_data` call to use the resolved `copy_X` value\n  - Updated docstring to reflect the new default behavior\n\n## Test Results\n- **Test file:** `/testbed/sklearn/linear_model/tests/test_least_angle.py`\n- **Baseline (before fix):** 29 passed, 1 failed, 5 warnings\n- **After fix:** 29 passed, 1 failed, 5 warnings\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** `test_rank_deficient_design` fails in both baseline and after fix (unrelated to this change)\n\n## Additional Verification\nTested three scenarios:\n1. `copy_X=False` in constructor, `fit(X, y)` without copy_X - **X is modified** (correct)\n2. `copy_X=True` in constructor, `fit(X, y, copy_X=False)` - **X is modified** (override works)\n3. `copy_X=False` in constructor, `fit(X, y, copy_X=True)` - **X is NOT modified** (override works)\n\n## Concerns\nNone. The fix is minimal and follows the existing pattern used in other sklearn estimators.",
+      "created_at": "2026-01-31T21:01:35.431Z"
+    },
+    {
+      "epic_id": "dd6566f8-6a27-41a6-af08-cf3bc88da9ad",
+      "epic_title": "Fix: scikit-learn__scikit-learn-12973",
+      "comment_id": "a2ce34be-464c-44ec-a8a3-19ed7ec2f9d8",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and directly addresses the reported API ambiguity: `LassoLarsIC.fit(copy_X=None)` now respects `self.copy_X` unless explicitly overridden.\n- Only source file modified (`sklearn/linear_model/least_angle.py`); no tests/build configs touched.\n- Implementation consistently uses the resolved `copy_X` for both `_preprocess_data` and `lars_path`, matching the intended semantics.\n- Verification includes baseline vs after-fix run of the actual test module (`sklearn/linear_model/tests/test_least_angle.py`) with no new failures reported.",
+      "created_at": "2026-01-31T21:02:35.720Z"
+    }
+  ]
+}

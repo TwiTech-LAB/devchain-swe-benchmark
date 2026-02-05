@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-14976",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/pycode.py b/sympy/printing/pycode.py\nindex d06901425d..94f25ecbce 100644\n--- a/sympy/printing/pycode.py\n+++ b/sympy/printing/pycode.py\n@@ -331,6 +331,14 @@ def _print_Float(self, e):\n         args = str(tuple(map(int, e._mpf_)))\n         return '{func}({args})'.format(func=self._module_format('mpmath.mpf'), args=args)\n \n+    def _print_Rational(self, expr):\n+        # Wrap rationals with mpmath.mpf to maintain full precision\n+        return '{func}({p})/{func}({q})'.format(\n+            func=self._module_format('mpmath.mpf'),\n+            p=expr.p,\n+            q=expr.q\n+        )\n+\n \n     def _print_uppergamma(self, e):\n         return \"{0}({1}, {2}, {3})\".format(\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T06:33:39.751421",
+  "end_time": "2026-02-03T06:49:10.445732",
+  "duration_seconds": 930.694311,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "b4fcdf9a-319e-4758-9767-68da77a8e9a1",
+      "epic_title": "Fix: sympy__sympy-14976",
+      "comment_id": "6f0838b1-4be7-4cba-97aa-0ef58936a23b",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where `lambdify(modules='mpmath')` wasn't wrapping rational numbers with `mpmath.mpf()`, causing reduced precision results.\n\n**Root Cause:** The `MpmathPrinter` class in `sympy/printing/pycode.py` had a `_print_Float` method that wrapped floats with `mpmath.mpf()` to maintain precision, but lacked a corresponding `_print_Rational` method. Rationals were falling back to the base class which printed them as `p/q` (e.g., `232/3`), losing precision when used with mpmath.\n\n**Fix:** Added a `_print_Rational` method to `MpmathPrinter` that wraps rationals as `mpmath.mpf(p)/mpmath.mpf(q)`, ensuring full precision is maintained.\n\n## Files Modified\n- `sympy/printing/pycode.py`: Added `_print_Rational` method to `MpmathPrinter` class\n\n## Test Results\n- **Test file:** `sympy/utilities/tests/test_lambdify.py`, `sympy/printing/tests/test_pycode.py`\n- **Baseline (before fix):** 54 passed, 29 failed, 8 passed\n- **After fix:** 54 passed, 29 failed, 8 passed (same - no new regressions)\n- **Pre-existing errors:** 29 failures in test_lambdify.py are due to missing numpy/tensorflow dependencies, unrelated to this fix\n\n## Verification\n```python\nfrom sympy import *\nfrom sympy.utilities.lambdify import lambdify\nimport mpmath\n\n# Before fix: Rational(1,3) was printed as \"1/3\"\n# After fix: Rational(1,3) is printed as \"mpf(1)/mpf(3)\"\n\nx = symbols('x')\nexpr = x + Rational(1, 3) - Rational(2, 5)\nf = lambdify(x, expr, 'mpmath')\n\nmpmath.mp.dps = 50\nresult = f(0)  # -1/15\n# Now maintains full precision: -0.066666666666666666666666666666666666666666666666667\n```\n\n## Concerns\nNone - the fix is minimal and follows the existing pattern used for `_print_Float`.",
+      "created_at": "2026-02-03T05:47:12.611Z"
+    },
+    {
+      "epic_id": "b4fcdf9a-319e-4758-9767-68da77a8e9a1",
+      "epic_title": "Fix: sympy__sympy-14976",
+      "comment_id": "4a70bbd7-f934-441b-bf8f-4ffa25ed8bbe",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Diff is minimal and focused: only `sympy/printing/pycode.py` adds `MpmathPrinter._print_Rational`.\n- No test files or build config files were modified.\n- Change logically addresses the reported issue by printing rationals as `mpmath.mpf(p)/mpmath.mpf(q)`, avoiding Python\u2019s binary-float division (e.g., `232/3`) and preserving mpmath precision.",
+      "created_at": "2026-02-03T05:49:00.740Z"
+    }
+  ]
+}

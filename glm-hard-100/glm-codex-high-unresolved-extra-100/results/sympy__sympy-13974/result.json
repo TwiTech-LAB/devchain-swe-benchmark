@@ -1,0 +1,46 @@
+{
+  "instance_id": "sympy__sympy-13974",
+  "status": "completed",
+  "patch": "diff --git a/sympy/core/power.py b/sympy/core/power.py\nindex 02ec6480cb..49e52594a9 100644\n--- a/sympy/core/power.py\n+++ b/sympy/core/power.py\n@@ -1062,6 +1062,19 @@ def _eval_expand_multinomial(self, **hints):\n         else:\n             return result\n \n+    def _eval_expand_tensorproduct(self, **hints):\n+        \"\"\"Handle expansion of tensor product powers.\n+        For TensorProduct(A, B)**n where n is an integer, distribute\n+        the power to get TensorProduct(A**n, B**n).\n+        \"\"\"\n+        from sympy.physics.quantum import TensorProduct\n+        base = self.base\n+        exp = self.exp\n+        # Only distribute for integer exponents\n+        if isinstance(base, TensorProduct) and exp.is_integer:\n+            return TensorProduct(*[arg**exp for arg in base.args])\n+        return self\n+\n     def as_real_imag(self, deep=True, **hints):\n         from sympy import atan2, cos, im, re, sin\n         from sympy.polys.polytools import poly\ndiff --git a/sympy/physics/quantum/tensorproduct.py b/sympy/physics/quantum/tensorproduct.py\nindex 9dd10d219e..bb04ea07f6 100644\n--- a/sympy/physics/quantum/tensorproduct.py\n+++ b/sympy/physics/quantum/tensorproduct.py\n@@ -382,7 +382,12 @@ def tensor_product_simp(e, **hints):\n     if isinstance(e, Add):\n         return Add(*[tensor_product_simp(arg) for arg in e.args])\n     elif isinstance(e, Pow):\n-        return tensor_product_simp(e.base) ** e.exp\n+        base = tensor_product_simp(e.base)\n+        exp = e.exp\n+        # If base is a TensorProduct with integer exponent, distribute the power\n+        if isinstance(base, TensorProduct) and exp.is_integer:\n+            return TensorProduct(*[arg**exp for arg in base.args])\n+        return base ** exp\n     elif isinstance(e, Mul):\n         return tensor_product_simp_Mul(e)\n     elif isinstance(e, Commutator):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T02:47:20.822578",
+  "end_time": "2026-02-03T02:59:02.251410",
+  "duration_seconds": 701.428832,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "4ad14dfb-0854-4a85-86cc-791764ea1d45",
+      "epic_title": "Fix: sympy__sympy-13974",
+      "comment_id": "37664960-463e-4cf0-a11a-eb6d86b5b86f",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where powers of `TensorProduct` expressions were not being simplified by `tensor_product_simp`. \n\nThe problem was that when `tp(1,1)*tp(1,1)` is computed, SymPy's automatic simplification converts it to `Pow(TensorProduct(1,1), 2)`, which was not being handled by `tensor_product_simp`.\n\n**Root cause:** The `tensor_product_simp` function had a case for handling `Pow` objects, but it only recursively called itself on the base without distributing the power across the tensor product elements.\n\n**Fix:** Modified the `Pow` handling in `tensor_product_simp` to:\n1. First simplify the base recursively\n2. If the simplified base is a `TensorProduct`, distribute the power to each element\n3. Otherwise, return the base raised to the power as before\n\n## Files Modified\n- `sympy/physics/quantum/tensorproduct.py`: Added power distribution logic for TensorProduct in `tensor_product_simp` function (lines 384-390)\n\n## Test Results\n- **Test file:** `/testbed/sympy/physics/quantum/tests/test_tensorproduct.py`\n- **Baseline (before fix):** 7 passed, 0 failed, 0 errors\n- **After fix:** 7 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Verification\nThe fix correctly handles all examples from the problem statement:\n\n1. `tps(tp(1,1)*tp(1,1))` \u2192 `1x1` \u2713 (was `1x1**2`)\n2. `tps(tp(1,Pauli(3))*tp(1,Pauli(3)))` \u2192 `1x1` \u2713 (was `1xsigma3**2`)\n3. `tps(tp(B,C)*tp(B,C))` \u2192 `(B**2)x(C**2)` \u2713 (non-commutative symbols)\n\n## Concerns\nNone. The fix is minimal and follows existing code patterns in the codebase.",
+      "created_at": "2026-02-03T01:51:58.358Z"
+    },
+    {
+      "epic_id": "4ad14dfb-0854-4a85-86cc-791764ea1d45",
+      "epic_title": "Fix: sympy__sympy-13974",
+      "comment_id": "cfd7c0f5-50f1-43b9-91f9-13cacceefc84",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- The problem statement calls out `expand(tensorproduct=True)` not evaluating powers, but the current change only affects `tensor_product_simp`. As-is, `Pow(TensorProduct(...), 2).expand(tensorproduct=True)` (e.g. `tp(1,1)*tp(1,1)` \u2192 `1x1**2`) still won\u2019t reduce to `1x1`.\n- Power distribution in `tensor_product_simp` is applied for *any* exponent. Distributing `TensorProduct(A, B)**x -> TensorProduct(A**x, B**x)` is not generally valid unless the exponent is known to be an integer (e.g. `x` integer). This can introduce incorrect simplifications.\n\nRequired Changes:\n- Ensure powers of `TensorProduct` simplify in the `.expand(tensorproduct=True)` pathway for the integer-power cases from the report.\n- Gate/disallow power distribution to cases where `exp` is an integer (e.g. `exp.is_integer is True` / `isinstance(exp, Integer)`), so symbolic/non-integer exponents don\u2019t get transformed incorrectly.\n\nNotes (non-blocking):\n- The `tensor_product_simp` docstring example for `e**2` may need updating if power is now fully distributed across tensor factors.",
+      "created_at": "2026-02-03T01:55:04.368Z"
+    },
+    {
+      "epic_id": "4ad14dfb-0854-4a85-86cc-791764ea1d45",
+      "epic_title": "Fix: sympy__sympy-13974",
+      "comment_id": "a10e6f63-3cae-4552-8248-99dce969b508",
+      "author_name": "Brainstormer",
+      "content": "## Addressed Code Review Feedback\n\nMade the following changes based on the Code Reviewer's feedback:\n\n### Issue 1: `expand(tensorproduct=True)` not working\n**Fix:** Added `_eval_expand_tensorproduct` method to the `Pow` class in `sympy/core/power.py`. This method handles expansion of tensor product powers when `expand(tensorproduct=True)` is called.\n\n### Issue 2: Power distribution for non-integer exponents\n**Fix:** Updated both `tensor_product_simp` in `sympy/physics/quantum/tensorproduct.py` and the new `_eval_expand_tensorproduct` method to only distribute powers when the exponent is an integer (`exp.is_integer is True`).\n\n## Files Modified\n- `sympy/physics/quantum/tensorproduct.py`: Added integer exponent check to `tensor_product_simp` Pow handling (lines 384-390)\n- `sympy/core/power.py`: Added `_eval_expand_tensorproduct` method to handle `expand(tensorproduct=True)` for TensorProduct powers (lines 1065-1076)\n\n## Test Results\n- **Test file:** `/testbed/sympy/physics/quantum/tests/test_tensorproduct.py`\n- **All 7 tests pass** with no regressions\n- **Core power functionality verified:** Basic power expansion, multinomial expansion, and power_base expansion all work correctly\n\n## Verification\nAll examples from the problem statement now work correctly:\n\n1. `tps(tp(1,1)*tp(1,1))` \u2192 `1x1` \u2713\n2. `tp(1,1)*tp(1,1).expand(tensorproduct=True)` \u2192 `1x1` \u2713\n3. `tps(tp(1,Pauli(3))*tp(1,Pauli(3)))` \u2192 `1x1` \u2713\n4. `tp(1,Pauli(3))*tp(1,Pauli(3)).expand(tensorproduct=True)` \u2192 `1x1` \u2713\n\nSymbolic and non-integer exponents are correctly NOT distributed:\n- `tps(tp(1, a)**x)` \u2192 `1xa**x` \u2713 (unchanged)\n- `tps(tp(1, a)**(1/2))` \u2192 `sqrt(1xa)` \u2713 (unchanged)",
+      "created_at": "2026-02-03T01:57:28.074Z"
+    },
+    {
+      "epic_id": "4ad14dfb-0854-4a85-86cc-791764ea1d45",
+      "epic_title": "Fix: sympy__sympy-13974",
+      "comment_id": "11653db2-4de0-41b9-908e-8bc90d0188c9",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Changes are source-only and focused (`sympy/physics/quantum/tensorproduct.py`, `sympy/core/power.py`); no test/config modifications.\n- Fix now covers both pathways from the report: `tensor_product_simp` handles `Pow(TensorProduct(...), n)` and `expand(tensorproduct=True)` can expand `TensorProduct(...)**n` via `Pow._eval_expand_tensorproduct`.\n\nNotes (non-blocking):\n- Power distribution is guarded by `exp.is_integer`; consider whether `exp.is_nonnegative` (or similar) is needed for negative/unknown-sign integer exponents, but this doesn\u2019t affect the reported integer-square cases.",
+      "created_at": "2026-02-03T01:58:49.988Z"
+    }
+  ]
+}

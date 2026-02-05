@@ -1,0 +1,30 @@
+{
+  "instance_id": "scikit-learn__scikit-learn-26194",
+  "status": "completed",
+  "patch": "diff --git a/sklearn/metrics/_ranking.py b/sklearn/metrics/_ranking.py\nindex 0cdead923..46971298d 100644\n--- a/sklearn/metrics/_ranking.py\n+++ b/sklearn/metrics/_ranking.py\n@@ -1019,7 +1019,8 @@ def roc_curve(\n     thresholds : ndarray of shape = (n_thresholds,)\n         Decreasing thresholds on the decision function used to compute\n         fpr and tpr. `thresholds[0]` represents no instances being predicted\n-        and is arbitrarily set to `max(y_score) + 1`.\n+        and is set to `np.inf` for probability estimates (when `max(y_score) <= 1`)\n+        or `max(y_score) + 1` otherwise.\n \n     See Also\n     --------\n@@ -1056,7 +1057,7 @@ def roc_curve(\n     >>> tpr\n     array([0. , 0.5, 0.5, 1. , 1. ])\n     >>> thresholds\n-    array([1.8 , 0.8 , 0.4 , 0.35, 0.1 ])\n+    array([inf, 0.8 , 0.4 , 0.35, 0.1 ])\n     \"\"\"\n     fps, tps, thresholds = _binary_clf_curve(\n         y_true, y_score, pos_label=pos_label, sample_weight=sample_weight\n@@ -1083,7 +1084,13 @@ def roc_curve(\n     # to make sure that the curve starts at (0, 0)\n     tps = np.r_[0, tps]\n     fps = np.r_[0, fps]\n-    thresholds = np.r_[thresholds[0] + 1, thresholds]\n+    # For probability estimates (where all scores are in [0, 1]),\n+    # use np.inf as the extra threshold to avoid returning thresholds > 1.\n+    # The + 1 rule is appropriate for decision functions but not for probabilities.\n+    if thresholds[0] <= 1:\n+        thresholds = np.r_[np.inf, thresholds]\n+    else:\n+        thresholds = np.r_[thresholds[0] + 1, thresholds]\n \n     if fps[-1] <= 0:\n         warnings.warn(\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T22:17:03.784813",
+  "end_time": "2026-01-31T22:26:02.374314",
+  "duration_seconds": 538.589501,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "f81b39f3-627d-40f5-bfce-199841285d21",
+      "epic_title": "Fix: scikit-learn__scikit-learn-26194",
+      "comment_id": "c5c185bb-7262-481e-bf06-2b12f0a815d3",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed the bug where `roc_curve` was returning thresholds > 1 when provided with probability estimates. The issue was caused by the `+ 1` rule on line 1086 of `_ranking.py` which was meant to ensure the curve starts at (0, 0), but doesn't make sense for probability estimates.\n\n## Files Modified\n- `sklearn/metrics/_ranking.py`: \n  - Line 1082-1091: Changed the extra threshold logic to use `np.inf` for probability estimates (when `thresholds[0] <= 1`) instead of `thresholds[0] + 1`\n  - Lines 1019-1022: Updated function documentation to reflect the new behavior\n  - Line 1059: Updated docstring example output to show `inf` instead of `1.8`\n\n## Test Results\n- **Test file:** `sklearn/metrics/tests/test_ranking.py`\n- **Baseline:** 204 passed\n- **After fix:** 203 passed, 1 failed\n- **Failing test:** `test_roc_curve_drop_intermediate` - This test is testing the OLD (buggy) behavior where thresholds could be > 1. The test uses `y_score = [0.0, 0.2, 0.5, 0.6, 0.7, 1.0]` which are probability estimates (all in [0, 1]), and expects `thresholds = [2.0, 1.0, 0.7, 0.0]`. With the fix, it now correctly returns `[inf, 1.0, 0.7, 0.0]`.\n\n## Additional Verification\nVerified that the fix correctly handles:\n1. Probability estimates (values in [0, 1]): All finite thresholds are \u2264 1, first threshold is `np.inf`\n2. Decision functions with values > 1: Original `+ 1` behavior preserved (e.g., max=2.0 \u2192 first threshold=3.0)\n3. Curve still starts at (0, 0) for both cases\n4. Negative values handled correctly\n\n## Concerns\n- The `test_roc_curve_drop_intermediate` test failure is expected because it's testing the old behavior. The test should be updated to expect `[inf, 1.0, 0.7, 0.0]` instead of `[2.0, 1.0, 0.7, 0.0]`, but test file modification is not allowed per SOP.\n- The heuristic `thresholds[0] <= 1` correctly identifies most probability estimate cases, but may incorrectly classify decision function outputs that happen to be in [0, 1]. This is a reasonable trade-off given that decision functions typically output values outside [0, 1].",
+      "created_at": "2026-01-31T21:24:04.619Z"
+    },
+    {
+      "epic_id": "f81b39f3-627d-40f5-bfce-199841285d21",
+      "epic_title": "Fix: scikit-learn__scikit-learn-26194",
+      "comment_id": "e7989a9b-cf51-461b-8708-337b8c7da1a1",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Scope: Only `sklearn/metrics/_ranking.py` changed (no tests/build config touched).\n- Fix logic: Uses `np.inf` as the sentinel threshold when `max(y_score) <= 1`, which preserves the (0,0) starting point while avoiding a misleading finite threshold like `max+1` for probability scores.\n- Verification: Brainstormer provided baseline vs after results running the actual `sklearn/metrics/tests/test_ranking.py`; the single failure is expected (asserts old behavior).\n\nNote (non-blocking): The inline comment says it avoids thresholds > 1, but the new sentinel is `inf` (still > 1); consider rewording if this comes up later.",
+      "created_at": "2026-01-31T21:25:50.462Z"
+    }
+  ]
+}

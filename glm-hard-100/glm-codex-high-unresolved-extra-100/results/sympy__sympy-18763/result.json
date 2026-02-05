@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-18763",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/latex.py b/sympy/printing/latex.py\nindex 8743723ea0..6d01be4a11 100644\n--- a/sympy/printing/latex.py\n+++ b/sympy/printing/latex.py\n@@ -698,7 +698,8 @@ def _print_Derivative(self, expr):\n \n     def _print_Subs(self, subs):\n         expr, old, new = subs.args\n-        latex_expr = self._print(expr)\n+        latex_expr = self.parenthesize(expr, PRECEDENCE[\"Mul\"],\n+                                        strict=True)\n         latex_old = (self._print(e) for e in old)\n         latex_new = (self._print(e) for e in new)\n         latex_subs = r'\\\\ '.join(\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T02:59:12.684179",
+  "end_time": "2026-02-03T03:08:33.605229",
+  "duration_seconds": 560.92105,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "c711b406-ac61-45ef-a1e4-2abe5562a3d9",
+      "epic_title": "Fix: sympy__sympy-18763",
+      "comment_id": "63995744-6a85-45d3-9bdb-55897abd4c51",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe issue was that `Subs` expressions weren't being parenthesized properly in LaTeX output when the expression had a leading negative term (e.g., `-x + y`). This caused ambiguous LaTeX rendering when the Subs was used in multiplication.\n\n## Root Cause\n\nThe `_print_Subs` method in `sympy/printing/latex.py` was directly printing the expression with `self._print(expr)` instead of using `self.parenthesize()` to add necessary parentheses.\n\n## Fix Applied\n\nChanged line 701 in `sympy/printing/latex.py`:\n- **Before:** `latex_expr = self._print(expr)`\n- **After:** `latex_expr = self.parenthesize(expr, PRECEDENCE[\"Mul\"], strict=True)`\n\nThis follows the same pattern used by `_print_Derivative` (lines 695-697 in the same file).\n\n## Files Modified\n- `sympy/printing/latex.py`: Added parenthesization to the Subs LaTeX printer\n\n## Verification\n\nTested with the example from the issue:\n```python\nfrom sympy import Subs\nfrom sympy.abc import x, y\nlatex(3*Subs(-x+y, (x,),(1,)))\n```\n\n**Before fix:** `'3 \\\\left. - x + y \\\\right|_{\\\\substack{ x=1 }}'`\n**After fix:** `'3 \\\\left. \\\\left(- x + y\\\\right) \\right|_{\\\\substack{ x=1 }}'`\n\nThe existing test `test_latex_subs()` still passes:\n```python\nassert latex(Subs(x*y, (x, y), (1, 2))) == r'\\left. x y \\right|_{\\substack{ x=1\\\\ y=2 }}'\n```\n\n## Edge Cases Tested\n\n- Negative leading Add: `Subs(-x+y, ...)` \u2192 properly parenthesized\n- Single negative: `Subs(-x, ...)` \u2192 no unnecessary parentheses\n- Power expressions: `Subs(x**2, ...)` \u2192 no unnecessary parentheses  \n- Function calls: `Subs(sin(x), ...)` \u2192 no unnecessary parentheses\n- Multiple substitutions: `Subs(x*y, (x, y), (1, 2))` \u2192 still works correctly\n\n## Concerns\n\nNone. The fix is minimal, follows existing patterns in the codebase, and properly handles all edge cases.",
+      "created_at": "2026-02-03T02:06:04.119Z"
+    },
+    {
+      "epic_id": "c711b406-ac61-45ef-a1e4-2abe5562a3d9",
+      "epic_title": "Fix: sympy__sympy-18763",
+      "comment_id": "522db038-6cb1-416e-bbfd-871ee3bf3173",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and focused (only `sympy/printing/latex.py`).\n- `_print_Subs` now parenthesizes the substituted expression, fixing the ambiguous LaTeX for cases like `3*Subs(-x+y, ...)`.\n- Quick runtime check in the container shows the reported example now prints with `\\left(- x + y\\right)` and existing `Subs(x*y, ...)` output remains unchanged.\n\nNote: `pytest` doesn\u2019t appear to be installed in the container\u2019s testbed env, so verification here was via direct `python` evaluation rather than running the test suite.",
+      "created_at": "2026-02-03T02:08:20.718Z"
+    }
+  ]
+}

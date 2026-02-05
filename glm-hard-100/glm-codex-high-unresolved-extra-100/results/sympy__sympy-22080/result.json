@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-22080",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/precedence.py b/sympy/printing/precedence.py\nindex 47ff463faf..088029a127 100644\n--- a/sympy/printing/precedence.py\n+++ b/sympy/printing/precedence.py\n@@ -48,6 +48,7 @@\n     \"KroneckerProduct\": PRECEDENCE[\"Mul\"],\n     \"Equality\": PRECEDENCE[\"Mul\"],\n     \"Unequality\": PRECEDENCE[\"Mul\"],\n+    \"Mod\": PRECEDENCE[\"Add\"],\n }\n \n # Sometimes it's not enough to assign a fixed precedence value to a\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T07:01:45.921796",
+  "end_time": "2026-02-03T07:17:57.305977",
+  "duration_seconds": 971.384181,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "f7ac08af-3594-4c91-a806-46747a280a35",
+      "epic_title": "Fix: sympy__sympy-22080",
+      "comment_id": "ab06c418-f888-4cfd-ad5e-0c49f29e409b",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe bug was in how the `Mod` function's precedence was determined when generating Python code via `lambdify`. When an expression like `-Mod(x, y)` was lambdified with `modules=[]`, it incorrectly generated `-x % y` instead of `-(x % y)`.\n\nThe root cause: `Mod` inherited precedence 70 (Function precedence) through its MRO, but in Python the `%` operator has the same precedence as `*` (50). More critically, when `Mod` appears as a child of a negative multiplication (e.g., `-Mod(x, y)` which is `Mul(-1, Mod(x, y))`), the Mul's precedence drops to 40 (Add precedence) due to the negative coefficient. With Mod at 70, no parentheses were added (70 > 40), resulting in `-x % y` which Python evaluates as `(-x) % y`.\n\nThe fix adds `\"Mod\": PRECEDENCE[\"Add\"]` to `PRECEDENCE_VALUES` in `sympy/printing/precedence.py`. With Mod at precedence 40 (Add), the parenthesization check (precedence <= level) correctly adds parentheses when Mod is a child of a negative Mul.\n\n## Files Modified\n- `sympy/printing/precedence.py`: Added `\"Mod\": PRECEDENCE[\"Add\"]` to PRECEDENCE_VALUES dictionary\n\n## Test Results\n- **Test file:** sympy/utilities/tests/test_lambdify.py\n- **Baseline (before fix):** 62 passed, 50 skipped\n- **After fix:** 62 passed, 50 skipped\n- **Regression check:** No new failures introduced\n- **Additional tests passed:**\n  - test_pycode.py: 19 passed, 2 skipped\n  - test_precedence.py: 13 passed\n  - test_str.py: 106 passed\n  - test_latex.py: 156 passed, 2 expected to fail\n\n## Verification\nTest cases verified:\n1. `-Mod(x, y)` with `modules=[]`: Now generates `-(x % y)`, returns `-3` for `(3, 7)` \u2713\n2. `-2*Mod(x, y)`: Now generates `-2*(x % y)`, returns `-6` for `(3, 7)` \u2713\n3. `Mod(x + y, z)`: Still generates `(x + y) % z`, returns `0` for `(3, 7, 5)` \u2713\n4. `x * Mod(y, z)`: Still generates `x*(y % z)`, returns `6` for `(2, 3, 7)` \u2713\n5. `Mod(x, y) + z`: Still generates `z + x % y`, returns `8` for `(3, 7, 5)` \u2713\n\n## Concerns\nNone. The change is minimal and well-tested. Setting Mod's precedence to Add (40) correctly reflects that in Python code, the `%` operator needs parentheses when combined with unary minus, while still correctly parenthesizing Add expressions within Mod arguments.",
+      "created_at": "2026-02-03T06:16:04.868Z"
+    },
+    {
+      "epic_id": "f7ac08af-3594-4c91-a806-46747a280a35",
+      "epic_title": "Fix: sympy__sympy-22080",
+      "comment_id": "8227909e-3530-40ad-bc80-c82d78368992",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Diff is minimal and source-only: only `sympy/printing/precedence.py` changed; no tests/build configs touched.\n- Change directly addresses the reported `lambdify(modules=[])` precedence bug: lowering `Mod` precedence forces parentheses so Python doesn\u2019t parse `expr*Mod(a, b)` as `(expr*a) % b` or `-Mod(x, y)` as `(-x) % y`.\n- Brainstormer\u2019s verification shows baseline == post-fix for relevant test suites, so no obvious regressions.",
+      "created_at": "2026-02-03T06:17:47.989Z"
+    }
+  ]
+}

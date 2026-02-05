@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-19495",
+  "status": "completed",
+  "patch": "diff --git a/sympy/sets/conditionset.py b/sympy/sets/conditionset.py\nindex 118eda6f77..6b5358091e 100644\n--- a/sympy/sets/conditionset.py\n+++ b/sympy/sets/conditionset.py\n@@ -243,7 +243,14 @@ def _eval_subs(self, old, new):\n         cond = self.condition.subs(old, new)\n         base = self.base_set.subs(old, new)\n         if cond is S.true:\n-            return ConditionSet(new, Contains(new, base), base)\n+            if isinstance(new, Symbol):\n+                # When new is a Symbol (possibly with assumptions),\n+                # use Contains to check if new is in base\n+                return ConditionSet(new, Contains(new, base), base)\n+            else:\n+                # For concrete values, just return the base set\n+                # (ConditionSet(x, S.true, base) simplifies to base)\n+                return self.func(self.sym, S.true, base)\n         return self.func(self.sym, cond, base)\n \n     def dummy_eq(self, other, symbol=None):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T19:59:21.433911",
+  "end_time": "2026-01-31T20:07:04.689348",
+  "duration_seconds": 463.255437,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "99d4924d-1869-4f20-99ab-7135f03d3b1b",
+      "epic_title": "Fix: sympy__sympy-19495",
+      "comment_id": "dfe326ff-05c0-4d54-82ab-e6cf13ff9a7e",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug in `ConditionSet._eval_subs` where substituting a concrete value (like `Rational(1,3)`) for a free variable in a ConditionSet containing an ImageSet produced incorrect output.\n\n**Root Cause:** When the condition became `S.true` after substitution, the code created `ConditionSet(new, Contains(new, base), base)` where `new` could be a concrete value like `Rational(1,3)`. Using a concrete value as the dummy variable of a ConditionSet is meaningless and produces malformed output.\n\n**Fix:** Modified `sympy/sets/conditionset.py` lines 245-253 to distinguish between:\n1. **Symbol with assumptions** (e.g., `p` where `p = Symbol('p', positive=True)`): Use the original logic `ConditionSet(new, Contains(new, base), base)` which allows the `Contains` check to evaluate based on the symbol's assumptions\n2. **Concrete value** (e.g., `Rational(1,3)`): Use `self.func(self.sym, S.true, base)` which preserves the original dummy variable and simplifies to the base set\n\n## Files Modified\n- `sympy/sets/conditionset.py`: Updated `_eval_subs` method (lines 245-253)\n\n## Test Results\n- **Main bug fixed:** `ConditionSet(x, Contains(y, Interval(-1,1)), ImageSet(...)).subs(y, Rational(1,3))` now correctly returns `ImageSet(...)` instead of the malformed `ConditionSet(1/3, ...)`\n- **Matches xreplace behavior:** The fix produces results consistent with `xreplace` and `simultaneous=True`\n- **Edge cases verified:**\n  - Substitution with symbols works correctly\n  - Substitution with values outside condition returns EmptySet\n  - Original FiniteSet case still works\n  - All existing tests pass (9/10, with 1 expected failure unrelated to this fix)",
+      "created_at": "2026-01-31T19:06:59.866Z"
+    }
+  ]
+}

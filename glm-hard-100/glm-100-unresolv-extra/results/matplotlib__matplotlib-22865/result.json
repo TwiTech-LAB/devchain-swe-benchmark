@@ -1,0 +1,22 @@
+{
+  "instance_id": "matplotlib__matplotlib-22865",
+  "status": "completed",
+  "patch": "diff --git a/lib/matplotlib/colorbar.py b/lib/matplotlib/colorbar.py\nindex c59b0ac815..04c2ef08c9 100644\n--- a/lib/matplotlib/colorbar.py\n+++ b/lib/matplotlib/colorbar.py\n@@ -651,8 +651,18 @@ class Colorbar:\n             if not self.drawedges:\n                 if len(self._y) >= self.n_rasterize:\n                     self.solids.set_rasterized(True)\n-        self.dividers.set_segments(\n-            np.dstack([X, Y])[1:-1] if self.drawedges else [])\n+        if self.drawedges:\n+            segments = np.dstack([X, Y])\n+            # Exclude segments at boundaries that are outside the plot area.\n+            # When there are extensions, we need to include segments at the\n+            # boundaries between the main colorbar and the extension patches.\n+            if not self._extend_lower():\n+                segments = segments[1:]\n+            if not self._extend_upper():\n+                segments = segments[:-1]\n+            self.dividers.set_segments(segments)\n+        else:\n+            self.dividers.set_segments([])\n \n     def _add_solids_patches(self, X, Y, C, mappable):\n         hatches = mappable.hatches * len(C)  # Have enough hatches.\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T20:08:52.759966",
+  "end_time": "2026-01-31T20:16:06.567403",
+  "duration_seconds": 433.807437,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "adc8eec8-c305-43f2-8853-af9e658177d8",
+      "epic_title": "Fix: matplotlib__matplotlib-22865",
+      "comment_id": "c340ea15-db24-4e5e-9748-29d4fddcdec7",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where colorbar edges were not drawn at the boundaries between the main colorbar and extension triangles/rectangles when `drawedges=True` and `extend='both'`.\n\n## Root Cause\n\nIn `lib/matplotlib/colorbar.py`, the `_add_solids()` method was always excluding the first and last divider segments with `segments[1:-1]`, regardless of whether extensions were present. For normal colorbars (no extensions), this is correct because the outermost boundaries are handled by the outline. However, when `extend='both'`, the first and last segments represent internal boundaries between the main colorbar and the extension patches, which should have edges drawn.\n\n## Files Modified\n\n- `lib/matplotlib/colorbar.py`: Modified `_add_solids()` method (lines 654-665) to conditionally include or exclude boundary segments based on the extension settings.\n\n## Test Results\n\n- **Baseline (before fix):** 56 passed, 1 skipped\n- **After fix:** 56 passed, 1 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n\nTested with all extend modes:\n- `extend='both'`: 10 divider segments (all boundaries including those adjacent to extensions)\n- `extend='max'`: 9 divider segments (upper boundary included)\n- `extend='min'`: 9 divider segments (lower boundary included)\n- `extend='neither'`: 8 divider segments (only internal boundaries)\n\nAlso verified with:\n- Vertical orientation\n- `extendrect=True` (rectangular extensions)\n- Exact reproduction code from the bug report\n\n## Edge Cases Considered\n\n- Empty inputs, None values\n- Different orientations (horizontal/vertical)\n- Different extension shapes (triangular/rectangular)\n- All four extend modes ('neither', 'both', 'min', 'max')\n\n## Concerns\n\nNone - the fix is minimal, focused, and handles all edge cases correctly.",
+      "created_at": "2026-01-31T19:15:54.365Z"
+    }
+  ]
+}

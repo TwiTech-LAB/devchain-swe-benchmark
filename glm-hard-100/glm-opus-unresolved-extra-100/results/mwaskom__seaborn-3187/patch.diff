@@ -1,0 +1,21 @@
+diff --git a/seaborn/_core/scales.py b/seaborn/_core/scales.py
+index 55874bf2..29e79af5 100644
+--- a/seaborn/_core/scales.py
++++ b/seaborn/_core/scales.py
+@@ -379,6 +379,16 @@ class ContinuousBase(Scale):
+             locs = axis.major.locator()
+             locs = locs[(vmin <= locs) & (locs <= vmax)]
+             labels = axis.major.formatter.format_ticks(locs)
++            # When using ScalarFormatter, labels may be formatted with an offset
++            # (e.g., "3" instead of "3000000" when offset is 1e6).
++            # We need to re-format the labels without the offset to show full values.
++            # Check for offset using get_offset() which is available on formatters
++            # that compute offsets (ScalarFormatter, LogFormatterSciNotation).
++            if hasattr(axis.major.formatter, "get_offset"):
++                offset = axis.major.formatter.get_offset()
++                if offset:
++                    # Format the labels as full values without the offset or scientific notation
++                    labels = [f"{int(loc) if loc == int(loc) else loc}" for loc in locs]
+             new._legend = list(locs), list(labels)
+ 
+         return new

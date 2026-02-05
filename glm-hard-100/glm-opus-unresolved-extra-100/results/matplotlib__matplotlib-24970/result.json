@@ -1,0 +1,30 @@
+{
+  "instance_id": "matplotlib__matplotlib-24970",
+  "status": "completed",
+  "patch": "diff --git a/lib/matplotlib/colors.py b/lib/matplotlib/colors.py\nindex 2d3072da04..a9cc5b88eb 100644\n--- a/lib/matplotlib/colors.py\n+++ b/lib/matplotlib/colors.py\n@@ -725,6 +725,10 @@ class Colormap:\n                 # Avoid converting large positive values to negative integers.\n                 np.clip(xa, -1, self.N, out=xa)\n                 xa = xa.astype(int)\n+        # Ensure integer arrays can hold the special index values.\n+        if xa.dtype.kind in (\"i\", \"u\"):\n+            if np.iinfo(xa.dtype).max < self.N + 2:\n+                xa = xa.astype(int)\n         # Set the over-range indices before the under-range;\n         # otherwise the under-range values get converted to over-range.\n         xa[xa > self.N - 1] = self._i_over\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T22:08:16.128342",
+  "end_time": "2026-01-31T22:12:37.981173",
+  "duration_seconds": 261.852831,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "4770bbf9-deb1-4489-817f-ec31c5b07c09",
+      "epic_title": "Fix: matplotlib__matplotlib-24970",
+      "comment_id": "0703b575-f835-4b65-8770-4ee022739f3c",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed NumPy 1.24 deprecation warnings when calling `plt.get_cmap()(np.empty((0, ), dtype=np.uint8))`.\n\nThe issue was that when input arrays have small integer dtypes (like uint8), assigning special index values (`self._i_under` = N, `self._i_over` = N+1, `self._i_bad` = N+2) caused deprecation warnings because these values (256, 257, 258 for N=256) exceed uint8's range (0-255).\n\n**Root cause:** The code path for float inputs converts `xa` to `int` at line 727, but integer dtypes were not checked or converted.\n\n**Fix:** Added a check after the float handling block (line 728-730) that converts integer dtypes that can't hold N+2 to the default `int` dtype (int64), which can accommodate all special index values.\n\n## Files Modified\n- `/testbed/lib/matplotlib/colors.py`: Added integer dtype conversion check at lines 728-730\n\n## Test Results\n- **Test file:** `/testbed/lib/matplotlib/tests/test_colors.py`\n- **Baseline (before fix):** 250 passed, 1 failed (pre-existing), 1 skipped\n- **After fix:** 250 passed, 1 failed (pre-existing), 1 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested the original bug reproduction case:\n```python\nplt.get_cmap()(np.empty((0, ), dtype=np.uint8))\n```\nResult: No deprecation warnings (previously 3 warnings)\n\nAlso tested edge cases:\n- Empty uint8 array\n- Normal uint8 array\n- uint16, int8 arrays\n- Negative values\n- Large values\n- Float arrays\nAll passed without warnings.\n\n## Concerns\n- None. The fix is minimal and follows existing code patterns (using `astype(int)` like the float path).",
+      "created_at": "2026-01-31T21:10:58.422Z"
+    },
+    {
+      "epic_id": "4770bbf9-deb1-4489-817f-ec31c5b07c09",
+      "epic_title": "Fix: matplotlib__matplotlib-24970",
+      "comment_id": "e1058380-3858-44ea-ada8-ac3757f1c166",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review: PASSED \u2713\n\n**Fix Quality:** Excellent - minimal, targeted, and follows existing code patterns.\n\n**What was verified:**\n- \u2713 Only source code modified (lib/matplotlib/colors.py) - no test files touched\n- \u2713 Root cause correctly identified and fixed: converts integer dtypes that can't hold N+2 (256, 257, 258) to int64 before assignment\n- \u2713 Placement is correct: conversion happens before special index assignments\n- \u2713 Code follows existing pattern: uses `astype(int)` like the float handling block above\n- \u2713 No test regressions: 250 passed (same as baseline)\n- \u2713 Original bug verified fixed: no deprecation warnings\n\n**Technical soundness:**\nThe fix correctly checks if `xa.dtype.kind in (\"i\", \"u\")` (signed/unsigned integers) and uses `np.iinfo(xa.dtype).max < self.N + 2` to determine if conversion is needed. This prevents NumPy 1.24 from rejecting out-of-bound integer assignments.\n\n**Approval:** Moving to Done status.",
+      "created_at": "2026-01-31T21:12:15.286Z"
+    }
+  ]
+}

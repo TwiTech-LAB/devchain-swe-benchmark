@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-11477",
+  "status": "completed",
+  "patch": "diff --git a/django/urls/base.py b/django/urls/base.py\nindex 0e1c3d909c..9de4fcd80c 100644\n--- a/django/urls/base.py\n+++ b/django/urls/base.py\n@@ -172,7 +172,10 @@ def translate_url(url, lang_code):\n         to_be_reversed = \"%s:%s\" % (match.namespace, match.url_name) if match.namespace else match.url_name\n         with override(lang_code):\n             try:\n-                url = reverse(to_be_reversed, args=match.args, kwargs=match.kwargs)\n+                # Remove None values from kwargs. These can occur when optional\n+                # named groups in a URL pattern don't match.\n+                kwargs = {k: v for k, v in match.kwargs.items() if v is not None}\n+                url = reverse(to_be_reversed, args=match.args, kwargs=kwargs)\n             except NoReverseMatch:\n                 pass\n             else:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T16:47:45.466891",
+  "end_time": "2026-01-31T16:55:37.589358",
+  "duration_seconds": 472.122467,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "f9ed43d5-ce00-41db-911a-67d70d9ee557",
+      "epic_title": "Fix: django__django-11477",
+      "comment_id": "52009c80-d3be-47db-b7f8-25841b739314",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `translate_url()` creating incorrect URLs when optional named groups are missing in the URL pattern.\n\n### Root Cause\n\nWhen a URL pattern contains optional named groups (e.g., `(?:(?P<page>\\d+)/)?`) and the URL doesn't include that optional part, Python's `re.match().groupdict()` returns the group name with a value of `None`. For example, when matching `/test/123/` against pattern `^test/(?P<id>\\d+)/(?:(?P<page>\\d+)/)?`, the `groupdict()` returns `{'id': '123', 'page': None}`.\n\nThe `translate_url()` function was passing these `None` values directly to `reverse()`, which would then generate URLs like `/test/123/None/` instead of the correct `/test/123/`.\n\n### Solution\n\nAdded a filter in `translate_url()` to remove `None` values from `kwargs` before passing them to `reverse()`:\n\n```python\nkwargs = {k: v for k, v in match.kwargs.items() if v is not None}\n```\n\nThis ensures that optional named groups that didn't match are excluded from the reverse call, allowing the URL to be correctly generated.\n\n### Files Modified\n- `django/urls/base.py`: Added filtering of `None` values from `match.kwargs` before passing to `reverse()`\n\n### Test Results\n\nVerified the fix with:\n1. URLs without optional groups - correctly excludes `None` values\n2. URLs with optional groups present - correctly includes the values\n3. Edge cases - `0`, `False`, empty strings are correctly preserved (only `None` is filtered)\n4. Existing i18n tests - all pass without regression",
+      "created_at": "2026-01-31T15:55:23.741Z"
+    }
+  ]
+}

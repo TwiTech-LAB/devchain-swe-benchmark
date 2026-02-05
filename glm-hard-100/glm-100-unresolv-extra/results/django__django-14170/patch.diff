@@ -1,0 +1,194 @@
+diff --git a/django/db/models/functions/datetime.py b/django/db/models/functions/datetime.py
+index 90e6f41be0..bbe9fa8c79 100644
+--- a/django/db/models/functions/datetime.py
++++ b/django/db/models/functions/datetime.py
+@@ -164,12 +164,6 @@ ExtractYear.register_lookup(YearGte)
+ ExtractYear.register_lookup(YearLt)
+ ExtractYear.register_lookup(YearLte)
+ 
+-ExtractIsoYear.register_lookup(YearExact)
+-ExtractIsoYear.register_lookup(YearGt)
+-ExtractIsoYear.register_lookup(YearGte)
+-ExtractIsoYear.register_lookup(YearLt)
+-ExtractIsoYear.register_lookup(YearLte)
+-
+ 
+ class Now(Func):
+     template = 'CURRENT_TIMESTAMP'
+diff --git a/simple_verify.py b/simple_verify.py
+new file mode 100644
+index 0000000000..1d75d82dd8
+--- /dev/null
++++ b/simple_verify.py
+@@ -0,0 +1,64 @@
++#!/usr/bin/env python
++"""
++Simple verification that ExtractIsoYear no longer has YearLookup registrations.
++"""
++import sys
++sys.path.insert(0, '/testbed')
++
++from django.db.models.functions.datetime import ExtractIsoYear, ExtractYear
++from django.db.models.lookups import YearExact, YearGt, YearGte, YearLt, YearLte
++
++print("=" * 60)
++print("Verifying fix for django__django-14170")
++print("=" * 60)
++
++# Check the registered lookups on ExtractIsoYear
++print("\n1. Checking lookups registered on ExtractIsoYear:")
++iso_year_lookups = ExtractIsoYear.get_lookups()
++print(f"   Registered lookups: {list(iso_year_lookups.keys())}")
++
++# Check if YearLookup classes are registered
++year_lookup_names = ['exact', 'gt', 'gte', 'lt', 'lte']
++year_lookup_classes = [YearExact, YearGt, YearGte, YearLt, YearLte]
++
++registered_but_should_not = []
++for cls in year_lookup_classes:
++    lookup_name = cls.lookup_name if hasattr(cls, 'lookup_name') else None
++    if lookup_name and lookup_name in iso_year_lookups:
++        if iso_year_lookups[lookup_name] == cls:
++            registered_but_should_not.append((lookup_name, cls.__name__))
++
++if registered_but_should_not:
++    print(f"   ERROR: The following YearLookup classes are incorrectly registered on ExtractIsoYear:")
++    for name, cls in registered_but_should_not:
++        print(f"     - {cls} (lookup_name: {name})")
++else:
++    print(f"   CORRECT: No YearLookup classes (YearExact, YearGt, etc.) are registered on ExtractIsoYear")
++
++# Check ExtractYear still has them
++print("\n2. Checking lookups registered on ExtractYear (should have YearLookup):")
++year_lookups = ExtractYear.get_lookups()
++print(f"   Registered lookups: {list(year_lookups.keys())}")
++
++registered_year_lookups = []
++for cls in year_lookup_classes:
++    lookup_name = cls.lookup_name if hasattr(cls, 'lookup_name') else None
++    if lookup_name and lookup_name in year_lookups:
++        if year_lookups[lookup_name] == cls:
++            registered_year_lookups.append((lookup_name, cls.__name__))
++
++if registered_year_lookups:
++    print(f"   CORRECT: YearLookup classes are properly registered on ExtractYear:")
++    for name, cls in registered_year_lookups:
++        print(f"     - {cls} (lookup_name: {name})")
++else:
++    print(f"   ERROR: YearLookup classes are missing from ExtractYear")
++
++print("\n" + "=" * 60)
++if not registered_but_should_not and registered_year_lookups:
++    print("SUCCESS: Fix is correctly applied!")
++    print("  - ExtractIsoYear does NOT have YearLookup registrations")
++    print("  - ExtractYear DOES have YearLookup registrations")
++else:
++    print("FAILURE: Fix not correctly applied!")
++print("=" * 60)
+diff --git a/verify_fix.py b/verify_fix.py
+new file mode 100644
+index 0000000000..ac9e8a850d
+--- /dev/null
++++ b/verify_fix.py
+@@ -0,0 +1,101 @@
++#!/usr/bin/env python
++"""
++Verification script for django__django-14170 fix.
++
++This script demonstrates that the iso_year lookup now correctly uses EXTRACT
++instead of BETWEEN after removing the YearLookup registrations from ExtractIsoYear.
++"""
++import os
++import sys
++import django
++
++# Setup Django
++sys.path.insert(0, '/testbed')
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tests.db_functions.settings')
++django.setup()
++
++from datetime import datetime
++from django.db.models.functions import ExtractIsoYear, ExtractYear
++from tests.db_functions.models import DTModel
++
++# Clear any existing data
++DTModel.objects.all().delete()
++
++# Create test data with ISO year boundary cases
++# Dec 31, 2014 is in ISO week 1 of 2015
++week_1_day_2014_2015 = datetime(2014, 12, 31, 13, 0)
++# Dec 31, 2015 is in ISO week 53 of 2015
++week_53_day_2015 = datetime(2015, 12, 31, 13, 0)
++# A normal day in 2015
++normal_day_2015 = datetime(2015, 6, 15, 14, 10)
++
++DTModel.objects.create(name='dec31_2014', start_datetime=week_1_day_2014_2015, end_datetime=normal_day_2015)
++DTModel.objects.create(name='dec31_2015', start_datetime=week_53_day_2015, end_datetime=normal_day_2015)
++DTModel.objects.create(name='jun15_2015', start_datetime=normal_day_2015, end_datetime=week_1_day_2014_2015)
++
++print("=" * 60)
++print("Test Data Created:")
++print("  - 2014-12-31 (ISO year 2015)")
++print("  - 2015-12-31 (ISO year 2015)")
++print("  - 2015-06-15 (ISO year 2015)")
++print("=" * 60)
++
++# Test 1: Check that ExtractIsoYear annotation works correctly
++print("\n1. Testing ExtractIsoYear annotation (should work):")
++qs = DTModel.objects.annotate(
++    extracted=ExtractIsoYear('start_datetime')
++).order_by('start_datetime')
++for obj in qs:
++    print(f"   {obj.start_datetime.date()} -> ISO year: {obj.extracted}")
++
++# Test 2: Check the SQL generated for iso_year lookup
++print("\n2. SQL generated for iso_year=2015 lookup:")
++qs = DTModel.objects.filter(start_datetime__iso_year=2015)
++sql = str(qs.query)
++print(f"   {sql}")
++if 'BETWEEN' in sql.upper():
++    print("   ERROR: Still using BETWEEN (incorrect for ISO year!)")
++elif 'EXTRACT' in sql.upper() or 'extract' in sql.lower():
++    print("   CORRECT: Using EXTRACT for ISO year lookup")
++else:
++    print(f"   INFO: SQL doesn't contain BETWEEN or EXTRACT")
++
++# Test 3: Check the SQL generated for year lookup (should still use BETWEEN)
++print("\n3. SQL generated for year=2015 lookup (should use BETWEEN):")
++qs = DTModel.objects.filter(start_datetime__year=2015)
++sql = str(qs.query)
++print(f"   {sql}")
++if 'BETWEEN' in sql.upper():
++    print("   CORRECT: Using BETWEEN for calendar year lookup")
++else:
++    print("   INFO: Not using BETWEEN")
++
++# Test 4: Verify correct results with ISO year filtering
++print("\n4. Testing ISO year filtering correctness:")
++qs = DTModel.objects.filter(start_datetime__iso_year=2015).order_by('start_datetime')
++print(f"   Found {qs.count()} records with iso_year=2015")
++for obj in qs:
++    print(f"   - {obj.start_datetime.date()} (name: {obj.name})")
++
++# All three dates should be in ISO year 2015
++expected_count = 3
++if qs.count() == expected_count:
++    print(f"   CORRECT: Found all {expected_count} dates in ISO year 2015")
++else:
++    print(f"   ERROR: Expected {expected_count} dates, found {qs.count()}")
++
++# Test 5: Verify annotation used in filter
++print("\n5. Testing annotation used in filter:")
++qs = DTModel.objects.annotate(
++    extracted=ExtractIsoYear('start_datetime')
++).filter(extracted=2015)
++sql = str(qs.query)
++print(f"   SQL: {sql}")
++if 'BETWEEN' in sql.upper():
++    print("   WARNING: Using BETWEEN even with annotation")
++else:
++    print("   CORRECT: Not using BETWEEN with annotation")
++
++print("\n" + "=" * 60)
++print("Verification complete!")
++print("=" * 60)

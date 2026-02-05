@@ -1,0 +1,30 @@
+{
+  "instance_id": "pylint-dev__pylint-4604",
+  "status": "completed",
+  "patch": "diff --git a/pylint/checkers/variables.py b/pylint/checkers/variables.py\nindex 3ddafd599..a890d3e7c 100644\n--- a/pylint/checkers/variables.py\n+++ b/pylint/checkers/variables.py\n@@ -1826,21 +1826,26 @@ class VariablesChecker(BaseChecker):\n             self._type_annotation_names.append(type_annotation.name)\n             return\n \n-        if not isinstance(type_annotation, astroid.Subscript):\n-            return\n+        if isinstance(type_annotation, astroid.Subscript):\n+            if (\n+                isinstance(type_annotation.value, astroid.Attribute)\n+                and isinstance(type_annotation.value.expr, astroid.Name)\n+                and type_annotation.value.expr.name == TYPING_MODULE\n+            ):\n+                self._type_annotation_names.append(TYPING_MODULE)\n+                return\n \n-        if (\n-            isinstance(type_annotation.value, astroid.Attribute)\n-            and isinstance(type_annotation.value.expr, astroid.Name)\n-            and type_annotation.value.expr.name == TYPING_MODULE\n-        ):\n-            self._type_annotation_names.append(TYPING_MODULE)\n+            self._type_annotation_names.extend(\n+                annotation.name\n+                for annotation in type_annotation.nodes_of_class(astroid.Name)\n+            )\n             return\n \n-        self._type_annotation_names.extend(\n-            annotation.name\n-            for annotation in type_annotation.nodes_of_class(astroid.Name)\n-        )\n+        if isinstance(type_annotation, astroid.Attribute):\n+            self._type_annotation_names.extend(\n+                annotation.name\n+                for annotation in type_annotation.nodes_of_class(astroid.Name)\n+            )\n \n     def _store_type_annotation_names(self, node):\n         type_annotation = node.type_annotation\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T03:19:47.653116",
+  "end_time": "2026-02-03T03:35:23.516829",
+  "duration_seconds": 935.863713,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "db6d4c87-bf6d-4c86-b107-8ba400ab5f74",
+      "epic_title": "Fix: pylint-dev__pylint-4604",
+      "comment_id": "c0e04428-e7d4-4ed2-a6df-3b1bd5117b08",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the unused-import false positive when a module is used in a type comment with attribute access (e.g., `# type: abc.ABC`).\n\nThe bug was in `_store_type_annotation_node()` method in `pylint/checkers/variables.py`. The method handled:\n- `astroid.Name` nodes (e.g., `ABC`)\n- `astroid.Subscript` nodes (e.g., `List[int]`)\n\nBut it returned early for any other node type, including `astroid.Attribute` nodes (e.g., `abc.ABC`).\n\nThe fix adds handling for `astroid.Attribute` nodes by extracting all name nodes using `nodes_of_class(astroid.Name)`, similar to how Subscript nodes are handled.\n\n## Files Modified\n- `pylint/checkers/variables.py`: Added handling for `Attribute` nodes in `_store_type_annotation_node()` method\n\n## Test Results\n- **Main test case:** `/tmp/test_issue.py` - PASS (10.00/10 rating)\n- **Edge cases tested:** Simple attribute access, subscript with attribute, nested attributes\n- **Functional tests:** All 6 unused_import tests pass\n- **Unit tests:** All 20 unittest_variables tests pass\n- **Type annotation tests:** All 7 type-related functional tests pass\n- **Issue #3112 regression:** Verified still works\n\n## Additional Verification\n```python\n# Original bug example - now fixed\nimport abc\nfrom abc import ABC\n\nX = ...  # type: abc.ABC  # abc is now recognized as used\nY = ...  # type: ABC       # ABC is recognized as used\n```\n\n## Concerns\n- The `collections.abc` case (e.g., `import collections.abc` with `# type: collections.abc.Mapping`) has a pre-existing issue where only `collections` is recognized as used, not `collections.abc`. This is a separate issue not introduced by this fix.",
+      "created_at": "2026-02-03T02:34:22.398Z"
+    },
+    {
+      "epic_id": "db6d4c87-bf6d-4c86-b107-8ba400ab5f74",
+      "epic_title": "Fix: pylint-dev__pylint-4604",
+      "comment_id": "e8a2f10d-6d04-4136-9cc6-6125f636aaf8",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and focused: only `pylint/checkers/variables.py` updated; no tests/build configs touched.\n- `_store_type_annotation_node()` now records names in `astroid.Attribute` type comments (e.g. `abc.ABC`), which should prevent the reported `unused-import` false positive.\n- Existing `typing.<X>[...]` special-case behavior for `Subscript` is preserved; other node types remain no-ops as before.\n\nNo blocking issues found.",
+      "created_at": "2026-02-03T02:35:17.530Z"
+    }
+  ]
+}

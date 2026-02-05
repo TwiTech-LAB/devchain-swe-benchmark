@@ -1,0 +1,98 @@
+diff --git a/pylint/pyreverse/inspector.py b/pylint/pyreverse/inspector.py
+index 8fa122022..7d9d28e28 100644
+--- a/pylint/pyreverse/inspector.py
++++ b/pylint/pyreverse/inspector.py
+@@ -166,6 +166,10 @@ class Linker(IdGeneratorMixIn, utils.LocalsVisitor):
+             for assignattr in assignattrs:
+                 if not isinstance(assignattr, astroid.Unknown):
+                     self.handle_assignattr_type(assignattr, node)
++        # handle type annotations (AnnAssign nodes)
++        for child in node.body:
++            if isinstance(child, astroid.AnnAssign):
++                self.visit_annassign(child)
+         # resolve implemented interface
+         try:
+             node.implements = list(interfaces(node, self.inherited_interfaces))
+@@ -236,6 +240,82 @@ class Linker(IdGeneratorMixIn, utils.LocalsVisitor):
+         except astroid.InferenceError:
+             pass
+ 
++        # Check if the assigned value has a type annotation in the function parameters
++        # This handles cases like: self.a = a where 'a' has a type annotation
++        try:
++            # Get the parent Assign node which contains the assigned value
++            assign_node = node.parent
++            if isinstance(assign_node, astroid.Assign) and isinstance(assign_node.value, astroid.Name):
++                assigned_name = assign_node.value.name
++                # Check if this is inside a function
++                frame = assign_node.frame()
++                if isinstance(frame, astroid.FunctionDef):
++                    args = frame.args
++                    if args:
++                        # Find the index of this parameter
++                        for i, arg in enumerate(args.args):
++                            if arg.name == assigned_name:
++                                # Check if there's a type annotation for this parameter
++                                if i < len(args.annotations) and args.annotations[i] is not None:
++                                    annotation = args.annotations[i]
++                                    # Infer the type from the annotation
++                                    try:
++                                        types = set()
++                                        for inferred in annotation.infer():
++                                            if inferred is not astroid.Uninferable:
++                                                types.add(inferred)
++                                        if types:
++                                            current = set(parent.instance_attrs_type[node.attrname])
++                                            parent.instance_attrs_type[node.attrname] = list(current | types)
++                                    except astroid.InferenceError:
++                                        pass
++                                break
++        except (AttributeError, IndexError, astroid.InferenceError):
++            pass
++
++    def visit_annassign(self, node):
++        """visit an astroid.AnnAssign node and handle type annotations."""
++        # Get the frame (class) containing this annotation
++        frame = node.frame()
++        if not isinstance(frame, astroid.ClassDef):
++            return
++
++        # Ensure the class has been visited and has instance_attrs_type
++        if not hasattr(frame, "instance_attrs_type"):
++            self.visit_classdef(frame)
++
++        # Extract the variable name from the annotation target
++        target = node.target
++        # Determine the type dictionary to use and the attribute name
++        if isinstance(target, astroid.AssignName):
++            # Class-level annotation like: a: str
++            # Store in locals_type
++            name = target.name
++            type_dict = frame.locals_type
++        elif isinstance(target, astroid.AssignAttr):
++            # Instance attribute annotation like: self.a: str
++            # Store in instance_attrs_type
++            name = target.attrname
++            type_dict = frame.instance_attrs_type
++        else:
++            return
++
++        # Extract the type from the annotation
++        if node.annotation is not None:
++            try:
++                # Try to infer the type from the annotation
++                types = set()
++                for inferred in node.annotation.infer():
++                    if inferred is not astroid.Uninferable:
++                        types.add(inferred)
++
++                # If we have inferred types, add them to the appropriate dictionary
++                if types:
++                    current = set(type_dict[name])
++                    type_dict[name] = list(current | types)
++            except astroid.InferenceError:
++                pass
++
+     def visit_import(self, node):
+         """visit an astroid.Import node
+ 

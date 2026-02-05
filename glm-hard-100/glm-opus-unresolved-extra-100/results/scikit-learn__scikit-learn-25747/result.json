@@ -1,0 +1,30 @@
+{
+  "instance_id": "scikit-learn__scikit-learn-25747",
+  "status": "completed",
+  "patch": "diff --git a/sklearn/utils/_set_output.py b/sklearn/utils/_set_output.py\nindex 335773c6a..5652c3aab 100644\n--- a/sklearn/utils/_set_output.py\n+++ b/sklearn/utils/_set_output.py\n@@ -55,10 +55,23 @@ def _wrap_in_pandas_container(\n     if isinstance(data_to_wrap, pd.DataFrame):\n         if columns is not None:\n             data_to_wrap.columns = columns\n-        if index is not None:\n+        if index is not None and len(data_to_wrap.index) == len(index):\n             data_to_wrap.index = index\n         return data_to_wrap\n \n+    if isinstance(data_to_wrap, pd.Series):\n+        # For Series, preserve the existing index if:\n+        # 1. The provided index has a different length, or\n+        # 2. The Series has a non-RangeIndex (meaningful index like from groupby)\n+        # Otherwise, use the provided index (standard case)\n+        if index is not None:\n+            if len(data_to_wrap.index) != len(index):\n+                # Length mismatch: preserve Series' index\n+                index = None\n+            elif not isinstance(data_to_wrap.index, pd.RangeIndex):\n+                # Series has a meaningful index: preserve it\n+                index = None\n+\n     return pd.DataFrame(data_to_wrap, index=index, columns=columns)\n \n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T10:51:39.350808",
+  "end_time": "2026-02-03T11:02:20.272702",
+  "duration_seconds": 640.921894,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "95092776-054f-41f1-ac37-01e2ad2d6ff4",
+      "epic_title": "Fix: scikit-learn__scikit-learn-25747",
+      "comment_id": "c37997e7-eb30-4b78-bd38-2be3ab15ab8d",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where FeatureUnion with `set_config(transform_output=\"pandas\")` fails when a transformer returns aggregated data (different number of rows than the input).\n\n## Root Cause\n\nThe `_wrap_in_pandas_container` function in `sklearn/utils/_set_output.py` was unconditionally setting the index of returned DataFrames to the original input's index. When transformers return aggregated data with fewer rows, this caused a `ValueError: Length mismatch`.\n\n## Files Modified\n\n- `sklearn/utils/_set_output.py`: Added logic to preserve the existing index when:\n  1. DataFrame has a different length than the provided index (aggregation case)\n  2. Series has a non-RangeIndex (meaningful index like from groupby)\n\n## Test Results\n\n- **Reproduction test**: The original issue now works correctly\n- **Edge cases tested**:\n  - Standard case (same rows): Uses provided index \u2713\n  - Aggregation case (fewer rows): Preserves aggregation index \u2713\n  - Series with RangeIndex: Uses provided index \u2713\n  - Series with meaningful index: Preserves meaningful index \u2713\n\n- **Existing tests**:\n  - `sklearn/tests/test_base.py`: 37 passed\n  - `sklearn/tests/test_pipeline.py`: 89 passed\n  - `sklearn/tests/test_common.py` (pandas-related): 450 passed\n\n## Additional Verification\n\n```python\n# Original reproduction case now works:\nset_config(transform_output=\"pandas\")\nresult = make_union(MyTransformer()).fit_transform(data)\n# Returns DataFrame with preserved aggregation index\n```\n\n## Concerns\n\n- The fix preserves meaningful indices from aggregations, which is the expected behavior\n- Standard transformers (same number of rows) still get the input index, maintaining backward compatibility",
+      "created_at": "2026-02-03T10:00:26.912Z"
+    },
+    {
+      "epic_id": "95092776-054f-41f1-ac37-01e2ad2d6ff4",
+      "epic_title": "Fix: scikit-learn__scikit-learn-25747",
+      "comment_id": "89ae86b5-578b-4b56-be8b-e42afb60539b",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED\n\n**Reviewed:** `sklearn/utils/_set_output.py`\n\n**Checklist:**\n- \u2705 No test files modified \u2014 source code only\n- \u2705 No unrelated files modified \u2014 single file, directly relevant\n- \u2705 Fix logically addresses the problem\n- \u2705 No obvious crash bugs or logical errors\n- \u2705 Changes are minimal and focused\n\n**Analysis:**\n\nThe DataFrame fix (adding `len(data_to_wrap.index) == len(index)` guard) directly prevents the reported `ValueError: Length mismatch` by only overwriting the index when lengths match. The Series handling correctly preserves meaningful indices (e.g., from groupby aggregation) while maintaining backward compatibility for standard cases (same-length, RangeIndex).\n\nBackward compatibility is maintained: same-length DataFrames and RangeIndex Series still receive the input index as before.\n\nReported test results show no regressions: `test_base.py` (37 passed), `test_pipeline.py` (89 passed), `test_common.py` (450 passed).\n\nVerdict: **PASS**",
+      "created_at": "2026-02-03T10:02:12.656Z"
+    }
+  ]
+}

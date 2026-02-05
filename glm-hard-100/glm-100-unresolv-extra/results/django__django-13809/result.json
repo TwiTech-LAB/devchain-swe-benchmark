@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-13809",
+  "status": "completed",
+  "patch": "diff --git a/django/core/management/commands/runserver.py b/django/core/management/commands/runserver.py\nindex d9fb088350..51b32b1cd8 100644\n--- a/django/core/management/commands/runserver.py\n+++ b/django/core/management/commands/runserver.py\n@@ -51,6 +51,10 @@ class Command(BaseCommand):\n             '--noreload', action='store_false', dest='use_reloader',\n             help='Tells Django to NOT use the auto-reloader.',\n         )\n+        parser.add_argument(\n+            '--skip-checks', action='store_true',\n+            help='Skip system checks.',\n+        )\n \n     def execute(self, *args, **options):\n         if options['no_color']:\n@@ -114,11 +118,12 @@ class Command(BaseCommand):\n         shutdown_message = options.get('shutdown_message', '')\n         quit_command = 'CTRL-BREAK' if sys.platform == 'win32' else 'CONTROL-C'\n \n-        self.stdout.write(\"Performing system checks...\\n\\n\")\n-        self.check(display_num_errors=True)\n-        # Need to check migrations here, so can't use the\n-        # requires_migrations_check attribute.\n-        self.check_migrations()\n+        if not options['skip_checks']:\n+            self.stdout.write(\"Performing system checks...\\n\\n\")\n+            self.check(display_num_errors=True)\n+            # Need to check migrations here, so can't use the\n+            # requires_migrations_check attribute.\n+            self.check_migrations()\n         now = datetime.now().strftime('%B %d, %Y - %X')\n         self.stdout.write(now)\n         self.stdout.write((\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T15:20:16.988020",
+  "end_time": "2026-01-31T15:27:10.055918",
+  "duration_seconds": 413.067898,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "83ac277f-fbae-4030-8162-c827eb0c8f39",
+      "epic_title": "Fix: django__django-13809",
+      "comment_id": "53788b7d-ae4c-4140-a16d-9ab2487ad323",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nAdded `--skip-checks` option to the `runserver` management command. This allows developers to skip system checks during development, speeding up server reloads for those who prefer to run checks only in CI/CD.\n\n## Implementation\n\nFollowing the pattern used by the `migrate` command (which also has `requires_system_checks = []` but manually adds `--skip-checks`):\n\n1. Added `--skip-checks` argument to `add_arguments()` method\n2. Modified `inner_run()` to conditionally skip system checks when the option is provided\n\n## Files Modified\n\n- `django/core/management/commands/runserver.py`:\n  - Lines 54-57: Added `--skip-checks` option in `add_arguments()`\n  - Lines 121-126: Wrapped system checks in `if not options['skip_checks']:` condition\n\n## Test Results\n\n- **Test suite:** admin_scripts tests (runserver-related)\n- **Baseline (before fix):** 197 tests passed\n- **After fix:** 197 tests passed\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n\n- `--skip-checks` option appears in help output correctly\n- Option defaults to False (checks run by default - backward compatible)\n- Option parses correctly when provided\n\n## Edge Cases Considered\n\n- Empty/default: Works correctly (checks run by default)\n- With `--skip-checks`: Checks are skipped\n- Compatible with existing options: Works with `--noreload`, `--nothreading`, etc.\n- Autoreloader compatibility: The option is passed through `autoreload.run_with_reloader()` to `inner_run()`",
+      "created_at": "2026-01-31T14:26:51.938Z"
+    }
+  ]
+}

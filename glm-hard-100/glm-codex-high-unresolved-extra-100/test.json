@@ -1,0 +1,9 @@
+{
+  "name": "glm-codex-high-extra-100",
+  "created_at": "2026-01-31T15:32:26.658116",
+  "timeout_minutes": 30,
+  "workers": 4,
+  "description": "",
+  "template_path": "<redacted>",
+  "preset_name": "glm-gpt-high"
+}

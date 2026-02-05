@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-18199",
+  "status": "completed",
+  "patch": "diff --git a/sympy/ntheory/residue_ntheory.py b/sympy/ntheory/residue_ntheory.py\nindex 9a3052d4c3..8841d9523a 100644\n--- a/sympy/ntheory/residue_ntheory.py\n+++ b/sympy/ntheory/residue_ntheory.py\n@@ -776,6 +776,9 @@ def nthroot_mod(a, n, p, all_roots=False):\n     if not isprime(p):\n         raise NotImplementedError(\"Not implemented for composite p\")\n \n+    if a % p == 0:\n+        return [0] if all_roots else 0\n+\n     if (p - 1) % n == 0:\n         return _nthroot_mod1(a, n, p, all_roots)\n     # The roots of ``x**n - a = 0 (mod p)`` are roots of\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T17:36:43.828711",
+  "end_time": "2026-01-31T17:39:56.470019",
+  "duration_seconds": 192.641308,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "34203250-9326-4372-b301-31bcf061ab6c",
+      "epic_title": "Fix: sympy__sympy-18199",
+      "comment_id": "bc72e87d-d0e1-4a7f-9266-81224af88fe1",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe `nthroot_mod` function was missing a check for the special case when `a % p == 0`. When solving `x**n = a mod p` and `a % p == 0`, the only solution is `x = 0 mod p` (since p is prime).\n\nThe original code tried to use algorithms (`_nthroot_mod1` and `discrete_log`) that assume non-zero values, which caused a `ValueError: Log does not exist` when `a = 0`.\n\n## Files Modified\n\n- `sympy/ntheory/residue_ntheory.py`: Added check for `a % p == 0` case at line 780-781. When this condition is true, the function now returns `[0]` if `all_roots=True`, or `0` otherwise.\n\n## Test Results\n\n- **Test file:** /testbed/sympy/ntheory/tests/test_residue.py\n- **Full ntheory test suite:** 57 passed, 1 skipped\n- **No regressions introduced**\n\n## Verification\n\nTest cases that now work correctly:\n- `nthroot_mod(0, 3, 7, all_roots=True)` \u2192 `[0]`\n- `nthroot_mod(0, 3, 7, all_roots=False)` \u2192 `0`\n- `nthroot_mod(17, 3, 17, all_roots=True)` \u2192 `[0]`\n- `nthroot_mod(289, 5, 17, all_roots=True)` \u2192 `[0]` (the original example from the issue)\n\nRegular cases continue to work:\n- `nthroot_mod(11, 4, 19, all_roots=True)` \u2192 `[8, 11]`\n- `nthroot_mod(11, 3, 109, all_roots=True)` \u2192 `None` (no solution)\n\n## Concerns\n\nNone. The fix is minimal and correctly handles the edge case without affecting the main algorithm.",
+      "created_at": "2026-01-31T16:39:45.811Z"
+    }
+  ]
+}

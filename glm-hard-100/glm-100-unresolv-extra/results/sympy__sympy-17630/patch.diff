@@ -1,0 +1,29 @@
+diff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py
+index 95302a05ca..ceb86262e1 100644
+--- a/sympy/matrices/expressions/blockmatrix.py
++++ b/sympy/matrices/expressions/blockmatrix.py
+@@ -164,7 +164,23 @@ def structurally_equal(self, other):
+     def _blockmul(self, other):
+         if (isinstance(other, BlockMatrix) and
+                 self.colblocksizes == other.rowblocksizes):
+-            return BlockMatrix(self.blocks*other.blocks)
++            blocks_prod = self.blocks*other.blocks
++            # Replace scalar Zero with properly sized ZeroMatrix
++            # ImmutableDenseMatrix cannot be modified in place, so create a new one
++            from sympy.core.numbers import Zero as ZeroScalar
++            new_blocks = []
++            for i in range(blocks_prod.rows):
++                row = []
++                for j in range(blocks_prod.cols):
++                    block = blocks_prod[i, j]
++                    if isinstance(block, ZeroScalar):
++                        rows = self.rowblocksizes[i]
++                        cols = other.colblocksizes[j]
++                        row.append(ZeroMatrix(rows, cols))
++                    else:
++                        row.append(block)
++                new_blocks.append(row)
++            return BlockMatrix(new_blocks)
+ 
+         return self * other
+ 

@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-11400",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/filters.py b/django/contrib/admin/filters.py\nindex d65e01d5e2..838e7745db 100644\n--- a/django/contrib/admin/filters.py\n+++ b/django/contrib/admin/filters.py\n@@ -198,6 +198,8 @@ class RelatedFieldListFilter(FieldListFilter):\n         related_admin = model_admin.admin_site._registry.get(field.remote_field.model)\n         if related_admin is not None:\n             ordering = related_admin.get_ordering(request)\n+        if not ordering:\n+            ordering = field.remote_field.model._meta.ordering\n         return field.get_choices(include_blank=False, ordering=ordering)\n \n     def choices(self, changelist):\n@@ -418,5 +420,14 @@ FieldListFilter.register(lambda f: True, AllValuesFieldListFilter)\n \n class RelatedOnlyFieldListFilter(RelatedFieldListFilter):\n     def field_choices(self, field, request, model_admin):\n+        ordering = ()\n+        related_admin = model_admin.admin_site._registry.get(field.remote_field.model)\n+        if related_admin is not None:\n+            ordering = related_admin.get_ordering(request)\n+        if not ordering:\n+            ordering = field.remote_field.model._meta.ordering\n         pk_qs = model_admin.get_queryset(request).distinct().values_list('%s__pk' % self.field_path, flat=True)\n-        return field.get_choices(include_blank=False, limit_choices_to={'pk__in': pk_qs})\n+        return field.get_choices(\n+            include_blank=False, ordering=ordering,\n+            limit_choices_to={'pk__in': pk_qs}\n+        )\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T10:30:38.121846",
+  "end_time": "2026-02-03T10:48:20.258237",
+  "duration_seconds": 1062.136391,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "0ccf9cb3-049e-4458-8901-544355b0781a",
+      "epic_title": "Fix: django__django-11400",
+      "comment_id": "11aa0054-8b7e-411e-8b41-c7e2ec90da3e",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed ordering problems in `RelatedFieldListFilter` and `RelatedOnlyFieldListFilter`:\n\n1. **RelatedFieldListFilter** - Now falls back to `Model._meta.ordering` when:\n   - No ModelAdmin is registered for the related model, OR\n   - ModelAdmin.get_ordering() returns an empty tuple or None\n\n2. **RelatedOnlyFieldListFilter** - Now properly applies ordering by:\n   - Using ModelAdmin.get_ordering() when available\n   - Falling back to Model._meta.ordering when ModelAdmin ordering is empty/unavailable\n   - Passing the `ordering` kwarg to `field.get_choices()` (which was previously omitted)\n\n## Files Modified\n- `django/contrib/admin/filters.py`:\n  - `RelatedFieldListFilter.field_choices()`: Added fallback to `field.remote_field.model._meta.ordering`\n  - `RelatedOnlyFieldListFilter.field_choices()`: Added full ordering logic and included `ordering` parameter\n\n## Test Results\n- **Test file:** tests/admin_filters/tests.py\n- **Baseline (before fix):** 32 passed, 0 failed, 0 errors\n- **After fix:** 32 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\nCreated verification script that tests:\n1. RelatedFieldListFilter without ModelAdmin falls back to _meta.ordering \u2713\n2. RelatedFieldListFilter with ModelAdmin ordering uses it \u2713\n3. RelatedOnlyFieldListFilter with ModelAdmin ordering uses it \u2713\n4. RelatedOnlyFieldListFilter without ModelAdmin falls back to _meta.ordering \u2713\n5. Empty ModelAdmin ordering falls back to _meta.ordering \u2713\n6. None ModelAdmin ordering falls back to _meta.ordering \u2713\n\n## Concerns\nNone - The fix follows existing code patterns and handles all edge cases (empty tuple, None, no ModelAdmin).",
+      "created_at": "2026-02-03T09:46:46.467Z"
+    },
+    {
+      "epic_id": "0ccf9cb3-049e-4458-8901-544355b0781a",
+      "epic_title": "Fix: django__django-11400",
+      "comment_id": "2eb0c626-b140-43a2-a2cb-035e5548b3d9",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review: PASSED\n\n**Review Checklist:**\n- [x] No test files modified (source code only)\n- [x] No unrelated files modified (only `django/contrib/admin/filters.py`)\n- [x] Fix logically addresses the problem described in the problem statement\n- [x] No obvious crash bugs or logical errors introduced\n- [x] Changes are minimal and focused on the stated problem\n\n**Analysis:**\n\n1. **`RelatedFieldListFilter.field_choices()`** \u2014 The added `if not ordering:` fallback to `field.remote_field.model._meta.ordering` is correctly placed *outside* the `if related_admin is not None:` block. This handles both cases: no ModelAdmin registered (ordering stays `()`), and ModelAdmin exists but returns empty ordering. Directly addresses the first reported issue.\n\n2. **`RelatedOnlyFieldListFilter.field_choices()`** \u2014 Adds the full ordering logic (ModelAdmin \u2192 `_meta.ordering` fallback) and passes the `ordering` kwarg to `field.get_choices()`, which was previously omitted entirely. The ordering logic duplication (vs calling `super()`) is justified because the child method needs to pass additional `limit_choices_to` to `field.get_choices()`. Directly addresses the second reported issue.\n\n**Test Results:** 32 passed, 0 failed, 0 errors \u2014 no regressions.\n\nNo issues found. Fix is clean, minimal, and correctly addresses both problems described in the issue.",
+      "created_at": "2026-02-03T09:48:14.545Z"
+    }
+  ]
+}

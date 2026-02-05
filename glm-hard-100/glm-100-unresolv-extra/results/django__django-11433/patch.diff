@@ -1,0 +1,38 @@
+diff --git a/django/forms/models.py b/django/forms/models.py
+index 5edbbd376f..5d05cd2328 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -46,11 +46,28 @@ def construct_instance(form, instance, fields=None, exclude=None):
+             continue
+         if exclude and f.name in exclude:
+             continue
+-        # Leave defaults for fields that aren't in POST data, except for
+-        # checkbox inputs because they don't appear in POST data if not checked.
+-        if (f.has_default() and
+-                form[f.name].field.widget.value_omitted_from_data(form.data, form.files, form.add_prefix(f.name))):
+-            continue
++        # If a field has a model default and was omitted from the POST data,
++        # use the model default instead of the cleaned_data value. This allows
++        # cleaned_data to override the default when the field is not in the form
++        # (e.g., added in clean()), while preserving model defaults for fields
++        # that are in the form but not submitted. The value_omitted_from_data
++        # method handles widget-specific behavior (e.g., CheckboxSelectMultiple
++        # returns False for empty data, TextInput returns True).
++        if f.has_default() and f.name in form.fields:
++            # For FileFields, check both data and files; for other fields, use
++            # the widget's value_omitted_from_data method.
++            if isinstance(f, models.FileField):
++                value_was_submitted = (
++                    f.name in form.data or
++                    (f.name in form.files and cleaned_data[f.name])
++                )
++            else:
++                value_was_submitted = not form[
++                    f.name].field.widget.value_omitted_from_data(
++                        form.data, form.files, form.add_prefix(f.name))
++            if not value_was_submitted:
++                # Field is in form but not submitted - use model default
++                continue
+         # Defer saving file-type fields until after the other fields, so a
+         # callable upload_to can use the values from other fields.
+         if isinstance(f, models.FileField):

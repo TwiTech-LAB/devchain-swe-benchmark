@@ -1,0 +1,62 @@
+diff --git a/pylint/__init__.py b/pylint/__init__.py
+index 9f3dd74e6..044045cfb 100644
+--- a/pylint/__init__.py
++++ b/pylint/__init__.py
+@@ -86,8 +86,8 @@ def modify_sys_path() -> None:
+     stdlib or pylint's own modules.
+     CPython issue: https://bugs.python.org/issue33053
+ 
+-    - Remove the first entry. This will always be either "" or the working directory
+-    - Remove the working directory from the second and third entries
++    - Remove the first entry if it is "", "." or the working directory.
++    - Remove any additional "" or "." entries that would be added
+       if PYTHONPATH includes a ":" at the beginning or the end.
+       https://github.com/PyCQA/pylint/issues/3636
+       Don't remove it if PYTHONPATH contains the cwd or '.' as the entry will
+@@ -96,13 +96,42 @@ def modify_sys_path() -> None:
+       if pylint is installed in an editable configuration (as the last item).
+       https://github.com/PyCQA/pylint/issues/4161
+     """
+-    sys.path.pop(0)
+-    env_pythonpath = os.environ.get("PYTHONPATH", "")
+     cwd = os.getcwd()
+-    if env_pythonpath.startswith(":") and env_pythonpath not in (f":{cwd}", ":."):
++    env_pythonpath = os.environ.get("PYTHONPATH", "")
++
++    # Remove the first entry only if it's the current working directory indicator
++    first_was_removed = False
++    if sys.path and sys.path[0] in ("", ".", cwd):
+         sys.path.pop(0)
++        first_was_removed = True
++
++    # Handle additional cwd entries that PYTHONPATH might add
++    # (when PYTHONPATH starts or ends with ":")
++    if env_pythonpath.startswith(":") and env_pythonpath not in (f":{cwd}", ":."):
++        # PYTHONPATH starting with ":" adds an empty string at the start.
++        # Remove empty strings from the appropriate position.
++        if first_was_removed:
++            # First element was removed, empty strings are now at the front
++            for _ in range(2):
++                if sys.path and sys.path[0] in ("", ".", cwd):
++                    sys.path.pop(0)
++                else:
++                    break
++        else:
++            # First element was preserved (custom path), empty strings start at position 1
++            for _ in range(2):
++                if len(sys.path) > 1 and sys.path[1] in ("", ".", cwd):
++                    sys.path.pop(1)
++                else:
++                    break
+     elif env_pythonpath.endswith(":") and env_pythonpath not in (f"{cwd}:", ".:"):
+-        sys.path.pop(1)
++        # PYTHONPATH ending with ":" adds an empty string after the first entry.
++        # Remove empty strings from position 1 (up to 2 total).
++        for _ in range(2):
++            if len(sys.path) > 1 and sys.path[1] in ("", ".", cwd):
++                sys.path.pop(1)
++            else:
++                break
+ 
+ 
+ version = __version__

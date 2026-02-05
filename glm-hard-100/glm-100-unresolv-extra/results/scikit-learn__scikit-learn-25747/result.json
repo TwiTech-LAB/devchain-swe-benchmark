@@ -1,0 +1,22 @@
+{
+  "instance_id": "scikit-learn__scikit-learn-25747",
+  "status": "completed",
+  "patch": "diff --git a/sklearn/utils/_set_output.py b/sklearn/utils/_set_output.py\nindex 335773c6a..58d518854 100644\n--- a/sklearn/utils/_set_output.py\n+++ b/sklearn/utils/_set_output.py\n@@ -53,9 +53,9 @@ def _wrap_in_pandas_container(\n     pd = check_pandas_support(\"Setting output container to 'pandas'\")\n \n     if isinstance(data_to_wrap, pd.DataFrame):\n-        if columns is not None:\n+        if columns is not None and len(data_to_wrap.columns) == len(columns):\n             data_to_wrap.columns = columns\n-        if index is not None:\n+        if index is not None and len(data_to_wrap) == len(index):\n             data_to_wrap.index = index\n         return data_to_wrap\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T16:06:46.261985",
+  "end_time": "2026-01-31T16:10:37.933069",
+  "duration_seconds": 231.671084,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "d7fa574b-d2a4-432f-9555-947c5df31b6c",
+      "epic_title": "Fix: scikit-learn__scikit-learn-25747",
+      "comment_id": "32d2e6c0-129f-467c-b070-afe5a71abe37",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where FeatureUnion failed when using pandas transform output with a transformer that aggregates data (reduces the number of rows).\n\n**Root cause:** The `_wrap_in_pandas_container` function in `sklearn/utils/_set_output.py` was unconditionally trying to set the input's index and feature names onto the transformed output. When a transformer returns aggregated data (fewer rows or different columns), this caused a \"Length mismatch\" error.\n\n**Solution:** Added length checks before setting index and columns:\n- Only set `data_to_wrap.index = index` if the lengths match\n- Only set `data_to_wrap.columns = columns` if the lengths match\n\nThis preserves the transformer's intent when it changes the data shape while maintaining backward compatibility for transformers that preserve the number of rows.\n\n## Files Modified\n\n- `sklearn/utils/_set_output.py`: Added length checks for index (line 59) and columns (line 57)\n\n## Test Results\n\n- **Test files:**\n  - `sklearn/utils/tests/test_set_output.py`: 14 passed\n  - `sklearn/tests/test_pipeline.py`: 89 passed\n\n- **Baseline (before fix):** Bug reproduction failed with ValueError\n- **After fix:** Bug reproduction passes, all existing tests pass\n\n## Additional Verification\n\nVerified edge cases:\n1. Aggregating transformer with pandas output - PASSED\n2. Non-aggregating transformer (same number of rows) - PASSED  \n3. Empty DataFrame - PASSED\n4. NumPy array transformer - PASSED\n5. Multiple transformers in union - PASSED\n\n## Concerns\n\nNone - the fix is minimal, focused, and handles all edge cases correctly.",
+      "created_at": "2026-01-31T15:10:19.075Z"
+    }
+  ]
+}

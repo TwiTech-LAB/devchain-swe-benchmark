@@ -1,0 +1,22 @@
+{
+  "instance_id": "astropy__astropy-13977",
+  "status": "completed",
+  "patch": "diff --git a/astropy/units/quantity.py b/astropy/units/quantity.py\nindex b98abfafb0..3c2a68452b 100644\n--- a/astropy/units/quantity.py\n+++ b/astropy/units/quantity.py\n@@ -667,7 +667,15 @@ class Quantity(np.ndarray):\n         arrays = []\n         for input_, converter in zip(inputs, converters):\n             input_ = getattr(input_, \"value\", input_)\n-            arrays.append(converter(input_) if converter else input_)\n+            if converter:\n+                try:\n+                    input_ = converter(input_)\n+                except Exception:\n+                    # If conversion fails, we cannot handle this operation,\n+                    # so return NotImplemented to allow the other operand\n+                    # to try its implementation (e.g., for duck arrays).\n+                    return NotImplemented\n+            arrays.append(input_)\n \n         # Call our superclass's __array_ufunc__\n         result = super().__array_ufunc__(function, method, *arrays, **kwargs)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T21:35:35.521706",
+  "end_time": "2026-01-31T21:38:18.978475",
+  "duration_seconds": 163.456769,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "cddcb30b-6e28-4b01-83c5-12d24839aaf2",
+      "epic_title": "Fix: astropy__astropy-13977",
+      "comment_id": "d0aaf881-b2d9-4fe3-8c13-7287309e467a",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nThe issue was that `Quantity.__array_ufunc__()` raised `ValueError` when a duck array type with a `unit` attribute (but not a real Quantity) was passed with incompatible units. This prevented proper duck typing because the reflected operator (like `__radd__`) never got called.\n\nAccording to numpy's `__array_ufunc__` protocol, the method should return `NotImplemented` when it cannot handle the inputs, allowing other operands to try their implementation.\n\n## Files Modified\n- `astropy/units/quantity.py` (lines 666-673): Added try-except block around the converter call to catch exceptions and return `NotImplemented` instead of raising `ValueError`.\n\n## Test Results\n- **Test files:** `/testbed/astropy/units/tests/test_quantity_ufuncs.py`, `/testbed/astropy/units/tests/test_quantity.py`\n- **Baseline (before fix):** 294 passed, 4 skipped, 1 xfailed\n- **After fix:** 294 passed, 4 skipped, 1 xfailed\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nCreated and tested a `DuckArray` class (as described in the issue) to verify the fix works:\n- `DuckArray(1 * u.mm) + (1 * u.m)` \u2713 Works\n- `(1 * u.mm) + DuckArray(1 * u.mm)` \u2713 Works\n- `(1 * u.m) + DuckArray(1 * u.mm)` \u2713 **Now works** (previously raised `ValueError`)\n\n## Concerns\n- The fix catches all exceptions during conversion and returns `NotImplemented`. This is the correct behavior per numpy's protocol, but it may hide some errors that would have been raised previously. However, this is the intended behavior to allow duck typing to work correctly.",
+      "created_at": "2026-01-31T20:38:08.219Z"
+    }
+  ]
+}

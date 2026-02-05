@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-12308",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/utils.py b/django/contrib/admin/utils.py\nindex e4ddc8f017..c27628a134 100644\n--- a/django/contrib/admin/utils.py\n+++ b/django/contrib/admin/utils.py\n@@ -398,6 +398,8 @@ def display_for_field(value, field, empty_value_display):\n         return formats.number_format(value)\n     elif isinstance(field, models.FileField) and value:\n         return format_html('<a href=\"{}\">{}</a>', value.url, value)\n+    elif isinstance(field, models.JSONField):\n+        return field.formfield().prepare_value(value)\n     else:\n         return display_for_value(value, empty_value_display)\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:50:06.459571",
+  "end_time": "2026-02-03T01:56:38.293318",
+  "duration_seconds": 391.833747,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "1ff6732b-58b6-44d9-acd1-98d79751356e",
+      "epic_title": "Fix: django__django-12308",
+      "comment_id": "ca20aba8-cf43-48b1-8a23-b65685fadb16",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed JSONField display in Django admin when fields are readonly. Previously, JSONField values were displayed as Python dict string representation (e.g., `{'foo': 'bar'}`), which is not valid JSON. Now they are properly displayed as valid JSON (e.g., `{\"foo\": \"bar\"}`).\n\n## Files Modified\n\n- `django/contrib/admin/utils.py`: Added special case for JSONField in `display_for_field()` function to call `field.formfield().prepare_value(value)`, which uses `json.dumps()` internally. This also handles the `InvalidJSONInput` case properly by returning it as-is.\n\n## Test Results\n\nVerification script shows all cases work correctly:\n- Simple dict: `'{\"foo\": \"bar\"}'` \u2713\n- Empty dict: `'{}'` \u2713\n- List: `'[1, 2, 3]'` \u2713\n- Nested: `'{\"a\": {\"b\": [1, 2]}}'` \u2713\n- None value: `'-'` (empty_value_display) \u2713\n- String: `'\"test\"'` (properly JSON-quoted) \u2713\n- Number: `'42'` \u2713\n\n## Additional Verification\n\nThe fix uses `field.formfield().prepare_value(value)` which:\n1. Returns the value as-is if it's an `InvalidJSONInput`\n2. Otherwise returns `json.dumps(value, cls=self.encoder)` for valid JSON serialization\n\nThis approach follows the existing pattern in Django and properly handles all edge cases including None values, empty dicts, lists, nested structures, and invalid JSON input.\n\n## Concerns\n\nNo concerns identified. The fix is minimal and follows existing code patterns in the admin utils.",
+      "created_at": "2026-02-03T00:55:11.260Z"
+    },
+    {
+      "epic_id": "1ff6732b-58b6-44d9-acd1-98d79751356e",
+      "epic_title": "Fix: django__django-12308",
+      "comment_id": "cdfbc0c0-55b6-458f-a7c4-974babc973ea",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and targeted: only `django/contrib/admin/utils.py` updated, no tests touched.\n- Fix matches the problem statement: `display_for_field()` now special-cases `models.JSONField` to use `field.formfield().prepare_value(value)`, producing valid JSON output for readonly admin display and preserving `InvalidJSONInput` handling.\n- No obvious regressions: `None` values still return `empty_value_display` due to the existing `value is None` branch above the JSONField case.",
+      "created_at": "2026-02-03T00:56:30.627Z"
+    }
+  ]
+}

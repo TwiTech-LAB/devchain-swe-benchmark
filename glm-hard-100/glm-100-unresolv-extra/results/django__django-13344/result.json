@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-13344",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/deprecation.py b/django/utils/deprecation.py\nindex b2c681b33c..2769a9ba14 100644\n--- a/django/utils/deprecation.py\n+++ b/django/utils/deprecation.py\n@@ -102,14 +102,16 @@ class MiddlewareMixin:\n         If get_response is a coroutine function, turns us into async mode so\n         a thread is not consumed during a whole request.\n         \"\"\"\n-        if asyncio.iscoroutinefunction(self.get_response):\n+        if asyncio.iscoroutinefunction(self.get_response) and self.async_capable:\n             # Mark the class as async-capable, but do the actual switch\n             # inside __call__ to avoid swapping out dunder methods\n             self._is_coroutine = asyncio.coroutines._is_coroutine\n+        else:\n+            self._is_coroutine = None\n \n     def __call__(self, request):\n         # Exit out to async mode, if needed\n-        if asyncio.iscoroutinefunction(self.get_response):\n+        if self._is_coroutine:\n             return self.__acall__(request)\n         response = None\n         if hasattr(self, 'process_request'):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T21:39:29.057761",
+  "end_time": "2026-01-31T21:51:15.315731",
+  "duration_seconds": 706.25797,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "65116b87-d0c4-4822-a181-b40424fb8498",
+      "epic_title": "Fix: django__django-13344",
+      "comment_id": "c5efa3dd-6498-4314-a66f-4434bdcf434c",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where the first middleware in the MIDDLEWARE list receives a coroutine instead of an HttpResponse in its `process_response` method when using ASGI.\n\n## Root Cause\n\nThe `MiddlewareMixin._async_check()` method was setting `_is_coroutine` whenever `get_response` was a coroutine function, **regardless of whether the middleware was `async_capable`**. This caused `convert_exception_to_response` to create an async wrapper even for sync-only middleware, which could lead to coroutines being passed through to `process_response`.\n\n## Files Modified\n\n- `django/utils/deprecation.py`:\n  - Line 105: Added `and self.async_capable` check to only set `_is_coroutine` when the middleware is actually async-capable\n  - Lines 109-110: Added `else: self._is_coroutine = None` to explicitly clear the flag when not async\n  - Line 114: Changed from checking `asyncio.iscoroutinefunction(self.get_response)` to checking `self._is_coroutine`\n\n## Verification\n\n- ASGIHandler loads and processes requests correctly\n- Middleware properly identifies as sync/async based on `async_capable` flag\n- `convert_exception_to_response` correctly uses sync wrapper for non-async-capable middleware\n- Test `test_sync_to_async_uses_base_thread_and_connection` passes\n- All edge cases tested (sync/sync, sync/async, async/sync, async/async handler/middleware combinations)\n\n## Additional Notes\n\nThe fix follows the same pattern as the upstream commit 33401cba93 \"Optimized MiddlewareMixin coroutine check\". The key insight is that `__call__` should check the `_is_coroutine` flag (which considers both the handler type AND middleware capability) rather than just checking if `get_response` is a coroutine function.",
+      "created_at": "2026-01-31T20:51:00.591Z"
+    }
+  ]
+}

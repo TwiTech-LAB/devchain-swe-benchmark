@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-17630",
+  "status": "completed",
+  "patch": "diff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py\nindex 95302a05ca..ceb86262e1 100644\n--- a/sympy/matrices/expressions/blockmatrix.py\n+++ b/sympy/matrices/expressions/blockmatrix.py\n@@ -164,7 +164,23 @@ def structurally_equal(self, other):\n     def _blockmul(self, other):\n         if (isinstance(other, BlockMatrix) and\n                 self.colblocksizes == other.rowblocksizes):\n-            return BlockMatrix(self.blocks*other.blocks)\n+            blocks_prod = self.blocks*other.blocks\n+            # Replace scalar Zero with properly sized ZeroMatrix\n+            # ImmutableDenseMatrix cannot be modified in place, so create a new one\n+            from sympy.core.numbers import Zero as ZeroScalar\n+            new_blocks = []\n+            for i in range(blocks_prod.rows):\n+                row = []\n+                for j in range(blocks_prod.cols):\n+                    block = blocks_prod[i, j]\n+                    if isinstance(block, ZeroScalar):\n+                        rows = self.rowblocksizes[i]\n+                        cols = other.colblocksizes[j]\n+                        row.append(ZeroMatrix(rows, cols))\n+                    else:\n+                        row.append(block)\n+                new_blocks.append(row)\n+            return BlockMatrix(new_blocks)\n \n         return self * other\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T17:41:42.549913",
+  "end_time": "2026-01-31T17:47:04.528991",
+  "duration_seconds": 321.979078,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "77b8b62a-e811-4fe3-aa55-ae067b4d13c6",
+      "epic_title": "Fix: sympy__sympy-17630",
+      "comment_id": "1fb0b743-8a63-4912-be08-dc6c98663d66",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe issue was in the `_blockmul` method of `BlockMatrix`. When multiplying block matrices containing `ZeroMatrix` blocks, the matrix multiplication `self.blocks * other.blocks` (performed on `ImmutableDenseMatrix`) would return scalar `Zero` objects instead of `ZeroMatrix` objects. This caused subsequent block multiplication operations to fail with `AttributeError: 'Zero' object has no attribute 'cols'`.\n\nThe fix converts scalar `Zero` objects back to properly sized `ZeroMatrix` objects after the block multiplication, ensuring that each block has the correct dimensions `(self.rowblocksizes[i], other.colblocksizes[j])`.\n\n## Files Modified\n- `sympy/matrices/expressions/blockmatrix.py`: Modified `_blockmul` method to replace scalar `Zero` with `ZeroMatrix(rows, cols)` of appropriate dimensions\n\n## Test Results\n- **Test file:** `sympy/matrices/expressions/tests/test_blockmatrix.py`\n- **All 15 tests passed:**\n  - test_BlockDiagMatrix\n  - test_BlockMatrix\n  - test_BlockMatrix_Determinant\n  - test_BlockMatrix_trace\n  - test_bc_dist_diag\n  - test_bc_matadd\n  - test_bc_matmul\n  - test_bc_transpose\n  - test_block_collapse_explicit_matrices\n  - test_block_collapse_type\n  - test_block_plus_ident\n  - test_blockcut\n  - test_deblock\n  - test_reblock_2x2\n  - test_squareBlockMatrix\n\n## Additional Verification\n- Verified the exact issue reproduction from the problem statement now works:\n  - `block_collapse(b * b * b)` now returns correct result (previously threw `AttributeError`)\n  - `b._blockmul(b)._blockmul(b)` now returns correct result (previously threw `AttributeError`)\n- Tested edge cases:\n  - Multiple multiplications (`b * b * b * b`)\n  - Single block matrices\n  - All-zero block matrices\n  - Mixed block matrices with and without zeros\n  - Identity blocks\n\n## Concerns\n- None identified. The fix is minimal and focused on the root cause.",
+      "created_at": "2026-01-31T16:46:52.381Z"
+    }
+  ]
+}

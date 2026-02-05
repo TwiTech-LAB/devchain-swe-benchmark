@@ -1,0 +1,46 @@
+{
+  "instance_id": "pytest-dev__pytest-10356",
+  "status": "completed",
+  "patch": "diff --git a/src/_pytest/mark/structures.py b/src/_pytest/mark/structures.py\nindex 800a25c92..a653cc81e 100644\n--- a/src/_pytest/mark/structures.py\n+++ b/src/_pytest/mark/structures.py\n@@ -356,7 +356,25 @@ class MarkDecorator:\n \n \n def get_unpacked_marks(obj: object) -> Iterable[Mark]:\n-    \"\"\"Obtain the unpacked marks that are stored on an object.\"\"\"\n+    \"\"\"Obtain the unpacked marks that are stored on an object.\n+\n+    For classes, this will also collect marks from base classes according to\n+    the MRO (Method Resolution Order).\n+    \"\"\"\n+    # For classes, collect marks from all classes in the MRO\n+    if inspect.isclass(obj):\n+        # Collect marks in MRO order (from most derived to least derived).\n+        # This ensures that marks from derived classes come before marks from\n+        # base classes, consistent with how Python's MRO works.\n+        mark_list = []\n+        for cls in obj.__mro__:\n+            cls_marks = getattr(cls, \"__dict__\", {}).get(\"pytestmark\", [])\n+            if cls_marks:\n+                if not isinstance(cls_marks, list):\n+                    cls_marks = [cls_marks]\n+                mark_list.extend(normalize_mark_list(cls_marks))\n+        return mark_list\n+\n     mark_list = getattr(obj, \"pytestmark\", [])\n     if not isinstance(mark_list, list):\n         mark_list = [mark_list]\n@@ -388,7 +406,14 @@ def store_mark(obj, mark: Mark) -> None:\n     assert isinstance(mark, Mark), mark\n     # Always reassign name to avoid updating pytestmark in a reference that\n     # was only borrowed.\n-    obj.pytestmark = [*get_unpacked_marks(obj), mark]\n+    # Only look at the direct pytestmark attribute in the object's __dict__,\n+    # not inherited marks from parent classes.\n+    existing_mark_list = obj.__dict__.get(\"pytestmark\", [])\n+    if not isinstance(existing_mark_list, list):\n+        existing_mark_list = [existing_mark_list]\n+    # Normalize existing marks to Mark objects\n+    existing_marks = list(normalize_mark_list(existing_mark_list))\n+    obj.pytestmark = [*existing_marks, mark]\n \n \n # Typing for builtin pytest marks. This is cheating; it gives builtin marks\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T06:23:37.185822",
+  "end_time": "2026-02-03T06:39:17.563488",
+  "duration_seconds": 940.377666,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "b7979fd0-b3fc-4ac9-9af3-b16b83279ef0",
+      "epic_title": "Fix: pytest-dev__pytest-10356",
+      "comment_id": "dd931c8f-4b1d-4cab-968d-9dbd6cc4da3b",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where pytest markers from multiple base classes were not being properly inherited. Previously, when a class inherited from multiple decorated base classes, only markers from the first class in MRO were preserved. Now markers from all parent classes in the MRO are collected and merged.\n\n## Root Cause\n\nThe `get_unpacked_marks()` function in `src/_pytest/mark/structures.py` only checked the direct `pytestmark` attribute of an object using `getattr()`. This relied on normal Python attribute lookup which stops at the first `pytestmark` found in MRO, missing markers from other parent classes.\n\n## Solution\n\nModified `get_unpacked_marks()` to:\n1. Detect when the object is a class using `inspect.isclass()`\n2. For classes, iterate through all classes in the MRO using `obj.__mro__`\n3. Collect marks from each class's `__dict__` directly (to avoid inheritance issues)\n4. De-duplicate marks by name (keeping the first one in reverse MRO order)\n5. For non-class objects (functions, methods), use the original behavior\n\n## Files Modified\n\n- `src/_pytest/mark/structures.py`: Modified `get_unpacked_marks()` function to collect marks from all parent classes in MRO\n\n## Test Results\n\n- **Test file:** `/testbed/testing/test_mark.py`\n- **Baseline (before fix):** 88 passed, 1 xfailed\n- **After fix:** 88 passed, 1 xfailed\n- **Regression check:** No new failures introduced\n- **Additional tests verified:**\n  - `test_collection.py`: 83 passed, 1 skipped, 1 xfailed\n\n## Edge Cases Verified\n\n1. Multiple inheritance with distinct markers - \u2713 Both markers collected\n2. Single inheritance - \u2713 Works as before\n3. No marks - \u2713 Returns empty list\n4. Function marks - \u2713 Original behavior preserved (no MRO traversal)\n5. Duplicate marker names - \u2713 Properly de-duplicated\n6. Diamond inheritance - \u2713 Correctly handles complex hierarchies\n7. Multi-level inheritance - \u2713 Marks collected from all levels\n\n## Concerns\n\nNone. The fix is minimal, focused, and properly handles all edge cases including:\n- Empty inputs (classes with no marks)\n- Different input types (classes vs functions)\n- Boundary conditions (diamond inheritance, duplicate markers)",
+      "created_at": "2026-02-03T05:30:12.363Z"
+    },
+    {
+      "epic_id": "b7979fd0-b3fc-4ac9-9af3-b16b83279ef0",
+      "epic_title": "Fix: pytest-dev__pytest-10356",
+      "comment_id": "7495c708-f710-4c43-a26a-3592a6a3d11c",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- `get_unpacked_marks()` now de-duplicates class marks by `mark.name` (the `seen` set). This can drop legitimate repeated marks with the same name (e.g. multiple `parametrize`, multiple `skipif`, etc.) when applied at class level and/or inherited, changing marker semantics beyond the reported bug.\n- The new comment about \u201creverse MRO (from most derived to least derived)\u201d doesn\u2019t match the actual loop (`reversed(obj.__mro__)` iterates from `object` up to `obj`).\n\nRequired Changes:\n- Collect marks from all classes in `obj.__mro__` without name-based de-duplication so repeated marks of the same name (with different args/kwargs) are preserved.\n- Update the comment/doc to match the actual iteration order (minor but easy to fix while touching this code).",
+      "created_at": "2026-02-03T05:34:14.888Z"
+    },
+    {
+      "epic_id": "b7979fd0-b3fc-4ac9-9af3-b16b83279ef0",
+      "epic_title": "Fix: pytest-dev__pytest-10356",
+      "comment_id": "6f7a9ca6-75b0-4f26-9fe3-61299fcb3dca",
+      "author_name": "Brainstormer",
+      "content": "## Addressed Code Reviewer Feedback\n\nFixed the issues identified by the Code Reviewer:\n\n### Issue 1: Name-based de-duplication dropped legitimate repeated marks\n**Fix:** Removed the `seen` set that was de-duplicating by `mark.name`. Now repeated marks with the same name but different args/kwargs (e.g., multiple `parametrize`, multiple `skipif`) are preserved.\n\n### Issue 2: Comment about iteration order was inaccurate\n**Fix:** Updated the comment to accurately describe that `obj.__mro__` iterates from most derived to least derived class.\n\n### Additional Fix: store_mark was accumulating parent marks\n**Issue:** The original code had `store_mark` calling `get_unpacked_marks(obj)`, which after my fix would include parent marks. This caused `Derived.pytestmark` to contain `[parent_mark, child_mark]`, leading to duplicates when iterating MRO.\n\n**Fix:** Modified `store_mark()` to use `obj.__dict__.get(\"pytestmark\", [])` instead of `get_unpacked_marks(obj)`, ensuring each class only stores its own direct marks in its `__dict__`.\n\n## Files Modified\n- `src/_pytest/mark/structures.py`:\n  - Modified `get_unpacked_marks()` to collect marks from MRO without name-based de-duplication\n  - Modified `store_mark()` to only look at direct `__dict__` for existing marks\n\n## Test Results\n- **test_mark.py:** 88 passed, 1 xfailed (same as baseline)\n- **test_collection.py:** 83 passed, 1 skipped, 1 xfailed (same as baseline)\n\n## Verified Scenarios\n1. Multiple inheritance with distinct markers - \u2713 Both markers collected\n2. Repeated marks with same name - \u2713 Both preserved with different args\n3. Multiple inheritance with same marker name, different args - \u2713 Both preserved\n4. Order - Derived class marks come before base class marks \u2713\n5. Function marks - Original behavior preserved \u2713\n6. Direct pytestmark check - Each class only stores its own marks \u2713",
+      "created_at": "2026-02-03T05:38:16.909Z"
+    },
+    {
+      "epic_id": "b7979fd0-b3fc-4ac9-9af3-b16b83279ef0",
+      "epic_title": "Fix: pytest-dev__pytest-10356",
+      "comment_id": "2cf13e3d-7066-4932-80bc-ed48ebdf867d",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- `get_unpacked_marks()` now collects `pytestmark` from each class in `obj.__mro__` via `__dict__`, so multiple-inheritance bases contribute marks instead of being shadowed by normal attribute lookup.\n- `store_mark()` now appends only to the object\u2019s direct `pytestmark` (from `__dict__`), avoiding parent-mark duplication after the MRO change.\n\nLooks minimal and directly addresses the reported missing-marks behavior.",
+      "created_at": "2026-02-03T05:39:11.708Z"
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 9735ce10c8..901cd0a58a 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -435,12 +435,84 @@ class Query(BaseExpression):
+         annotation.set_source_expressions(new_exprs)
+         return annotation, col_cnt
+ 
++    def _get_annotation_refs(self, expr, annotations=None):
++        """
++        Return a set of annotation names referenced by the given expression.
++        Recursively traverses the expression tree to find all Ref objects and
++        annotation expressions (by identity).
++        """
++        refs = set()
++        if annotations is None:
++            annotations = self.annotations
++        # Handle strings (field names) - they don't reference annotations
++        if isinstance(expr, str):
++            return refs
++        # Handle Ref objects that directly reference annotations
++        if isinstance(expr, Ref):
++            refs.add(expr.refs)
++        # Check if this expression is the same object as any annotation
++        # (by identity, since Django reuses the same expression object)
++        for alias, annotation in annotations.items():
++            if expr is annotation:
++                refs.add(alias)
++                break
++        # Recursively check source expressions if available
++        if hasattr(expr, 'get_source_expressions'):
++            for source_expr in expr.get_source_expressions():
++                refs.update(self._get_annotation_refs(source_expr, annotations))
++        # Handle children (for WhereNode and other tree structures)
++        if hasattr(expr, 'children'):
++            for child in expr.children:
++                refs.update(self._get_annotation_refs(child, annotations))
++        return refs
++
+     def get_aggregation(self, using, added_aggregate_names):
+         """
+         Return the dictionary with the values of the existing aggregations.
+         """
+         if not self.annotation_select:
+             return {}
++
++        # Strip unused annotations only for simple count() queries.
++        # This is an optimization for cases like qs.annotate(...).count()
++        # where the annotations don't affect the count result.
++        # Only apply when:
++        # 1. We're just computing __count (simple count() call)
++        # 2. There are no filters, distinct, slices, or explicit group_by that would
++        #    be affected by removing annotations
++        # 3. There are no Subquery annotations (which might affect row filtering)
++        if (set(added_aggregate_names) == {"__count"} and not self.where and
++                not self.distinct and not self.is_sliced and
++                not isinstance(self.group_by, tuple) and not self.combinator):
++            from django.db.models.expressions import Subquery
++            # Check if any annotation is a Subquery (which might affect results)
++            has_subquery = any(
++                isinstance(expr, Subquery)
++                for expr in self.annotations.values()
++            )
++            if not has_subquery:
++                # For simple count() without subqueries, all existing annotations
++                # can be stripped as they don't affect the row count.
++                # Check if group_by was set only due to annotations.
++                group_by_was_only_for_annotations = (
++                    self.group_by is True and
++                    not isinstance(self.group_by, tuple)
++                )
++                unreferenced_annotations = [
++                    alias for alias in self.annotations
++                    if alias not in added_aggregate_names
++                ]
++                for alias in unreferenced_annotations:
++                    del self.annotations[alias]
++                    # Also remove from annotation_select_mask if present
++                    if self.annotation_select_mask and alias in self.annotation_select_mask:
++                        self.annotation_select_mask.remove(alias)
++                # Reset group_by if it was only set due to annotations
++                if group_by_was_only_for_annotations and not self.annotations:
++                    self.group_by = None
++                # Invalidate cache after modifying annotations
++                self._annotation_select_cache = None
++
+         existing_annotations = [
+             annotation
+             for alias, annotation in self.annotations.items()

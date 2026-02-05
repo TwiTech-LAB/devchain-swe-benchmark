@@ -1,0 +1,9 @@
+{
+  "instance_id": "django__django-15022",
+  "extraction_time": "2026-01-31T20:25:51+01:00",
+  "files_changed": 4,
+  "lines_added": 372,
+  "lines_removed": 1,
+  "patch_file": "<redacted>",
+  "has_changes": true
+}

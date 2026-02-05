@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-15252",
+  "status": "completed",
+  "patch": "diff --git a/django/db/migrations/recorder.py b/django/db/migrations/recorder.py\nindex 1a37c6b7d0..8ad0bf80bb 100644\n--- a/django/db/migrations/recorder.py\n+++ b/django/db/migrations/recorder.py\n@@ -1,5 +1,5 @@\n from django.apps.registry import Apps\n-from django.db import DatabaseError, models\n+from django.db import DatabaseError, models, router\n from django.utils.functional import classproperty\n from django.utils.timezone import now\n \n@@ -62,6 +62,9 @@ class MigrationRecorder:\n         # in the codebase.\n         if self.has_table():\n             return\n+        # Check if the router allows migration for this model on this database.\n+        if not router.allow_migrate_model(self.connection.alias, self.Migration):\n+            return\n         # Make the table\n         try:\n             with self.connection.schema_editor() as editor:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T10:06:20.281304",
+  "end_time": "2026-02-03T10:16:38.827194",
+  "duration_seconds": 618.54589,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "d831154f-abd9-4687-8689-6b94d2544be4",
+      "epic_title": "Fix: django__django-15252",
+      "comment_id": "6ca7062b-8b2d-457d-ac4b-9e15dde0c67b",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `MigrationRecorder.ensure_schema()` to respect database router `allow_migrate` rules. Previously, the method would unconditionally create the `django_migrations` table even when a router disallowed migration on a specific database connection.\n\n## Root Cause\n\nThe `ensure_schema()` method in `django/db/migrations/recorder.py` was creating the `django_migrations` table without checking `router.allow_migrate_model()`. This caused the table to be created on all database connections during test setup, even when routers disallowed migration.\n\n## Files Modified\n\n- `django/db/migrations/recorder.py`:\n  - Added import of `router` from `django.db`\n  - Added router check in `ensure_schema()` method before creating the table\n\n## Fix Details\n\n```python\n# Check if the router allows migration for this model on this database.\nif not router.allow_migrate_model(self.connection.alias, self.Migration):\n    return\n```\n\nWhen the router returns `False` for `allow_migrate`, the method now returns early without attempting to create the table.\n\n## Test Results\n\n- **Test file:** `tests/migrations/test_executor.py`, `tests/migrations/test_multidb.py`\n- **Baseline (before fix):** 629 tests passed\n- **After fix:** 629 tests passed, 1 skipped\n- **Regression check:** No new failures introduced\n\n## Edge Cases Considered\n\n- Empty inputs: Not applicable (no inputs to this method)\n- None values: Not applicable (no nullable parameters)\n- Different input types: Router can return `True`, `False`, or `None` (no opinion)\n  - `True`: Allows migration - table will be created if needed\n  - `False`: Disallows migration - table will NOT be created\n  - `None`: No opinion - falls through to default behavior (allows migration)\n\n## Concerns\n\nNone - the fix follows existing patterns used throughout Django for checking migration permission via routers.",
+      "created_at": "2026-02-03T09:15:06.412Z"
+    },
+    {
+      "epic_id": "d831154f-abd9-4687-8689-6b94d2544be4",
+      "epic_title": "Fix: django__django-15252",
+      "comment_id": "68cec973-a373-44c9-965e-23d8c01f4e50",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review: PASSED\n\n**Review Checklist:**\n- [x] No test files modified (source code only) \u2014 only `django/db/migrations/recorder.py`\n- [x] No unrelated files modified \u2014 single focused file change\n- [x] Fix logically addresses the problem \u2014 adds `router.allow_migrate_model()` check in `ensure_schema()` before table creation\n- [x] No obvious crash bugs or logical errors \u2014 uses the standard `router.allow_migrate_model()` pattern consistent with Django's codebase\n- [x] Changes are minimal and focused \u2014 3 lines total (1 import modification + 2 lines of router check logic)\n\n**Code Review Notes:**\n1. The import of `router` from `django.db` is correct and follows existing Django conventions.\n2. The router check is correctly placed AFTER the `has_table()` check \u2014 if the table already exists, no need to consult the router.\n3. `router.allow_migrate_model()` correctly handles the three return cases: `True` (allow), `False` (disallow), and `None` (no opinion \u2192 defaults to allow). The `not` check ensures the table is only skipped when explicitly disallowed.\n4. The downstream methods (`applied_migrations`, `record_applied`, `record_unapplied`) are safe: the migration executor respects routers and won't call `record_applied`/`record_unapplied` for connections where migrations are disallowed, while `applied_migrations` already returns `{}` when the table doesn't exist.\n\n**Verdict:** PASS \u2014 Clean, minimal fix that directly addresses the reported issue.",
+      "created_at": "2026-02-03T09:16:33.805Z"
+    }
+  ]
+}

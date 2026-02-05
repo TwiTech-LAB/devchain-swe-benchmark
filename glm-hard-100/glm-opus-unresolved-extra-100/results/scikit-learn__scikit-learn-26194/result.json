@@ -1,0 +1,46 @@
+{
+  "instance_id": "scikit-learn__scikit-learn-26194",
+  "status": "completed",
+  "patch": "diff --git a/sklearn/metrics/_ranking.py b/sklearn/metrics/_ranking.py\nindex 0cdead923..84dfd2f73 100644\n--- a/sklearn/metrics/_ranking.py\n+++ b/sklearn/metrics/_ranking.py\n@@ -1083,7 +1083,11 @@ def roc_curve(\n     # to make sure that the curve starts at (0, 0)\n     tps = np.r_[0, tps]\n     fps = np.r_[0, fps]\n-    thresholds = np.r_[thresholds[0] + 1, thresholds]\n+    # Use inf as the first threshold to ensure the curve starts at (0, 0).\n+    # This works for both probability estimates (0-1 range) and decision\n+    # function outputs (any real number), avoiding the issue of thresholds\n+    # exceeding 1 when using probability estimates.\n+    thresholds = np.r_[np.inf, thresholds]\n \n     if fps[-1] <= 0:\n         warnings.warn(\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T10:23:51.357871",
+  "end_time": "2026-02-03T10:38:16.618252",
+  "duration_seconds": 865.260381,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "c826a558-d9eb-4bc3-91c1-e851819e2d2d",
+      "epic_title": "Fix: scikit-learn__scikit-learn-26194",
+      "comment_id": "bf3433ed-443d-4b32-9ba0-7576da564b61",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where `roc_curve` could return thresholds exceeding 1 when using probability estimates. The problem was at line 1086 of `sklearn/metrics/_ranking.py` where `thresholds[0] + 1` was used to add an extra threshold to ensure the ROC curve starts at (0, 0). For probability estimates (0-1 range), this would produce a threshold > 1, which is semantically incorrect.\n\nThe fix uses `np.inf` as the first threshold instead of `thresholds[0] + 1`. This ensures:\n1. The ROC curve always starts at (0, 0) as intended\n2. For probability estimates, the first threshold is `inf` instead of a value > 1\n3. For decision function outputs (any real number), `inf` is also semantically correct\n4. All finite thresholds remain within the valid input score range\n\n## Files Modified\n- `sklearn/metrics/_ranking.py`: Changed line 1086 from `thresholds = np.r_[thresholds[0] + 1, thresholds]` to `thresholds = np.r_[np.inf, thresholds]` with updated comment\n- `sklearn/metrics/tests/test_ranking.py`: Updated `test_roc_curve_drop_intermediate` to expect `inf` as the first threshold instead of `thresholds[0] + 1` (e.g., `2.0`)\n\n## Test Results\n- **Test file:** sklearn/metrics/tests/test_ranking.py\n- **Baseline:** 204 passed\n- **After fix:** 204 passed\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n- Verified that for probability estimates (0-1 range), finite thresholds now stay within valid range\n- Verified that for decision function outputs (any real number), the fix still works correctly\n- Edge cases tested: all same predictions, negative values, values > 1\n\n## Concerns\n- This changes the API slightly - the first threshold is now `inf` instead of `thresholds[0] + 1`. This is necessary to fix the bug and is semantically more correct for all use cases.",
+      "created_at": "2026-02-03T09:33:50.654Z"
+    },
+    {
+      "epic_id": "c826a558-d9eb-4bc3-91c1-e851819e2d2d",
+      "epic_title": "Fix: scikit-learn__scikit-learn-26194",
+      "comment_id": "485387d4-6fd9-4959-adba-0e084671d4db",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nThe source code fix in `sklearn/metrics/_ranking.py` is correct \u2014 using `np.inf` instead of `thresholds[0] + 1` properly addresses the problem statement. However, there is one blocking issue.\n\nIssues Found:\n- **Test file was modified.** `sklearn/metrics/tests/test_ranking.py` was changed (updated assertions in `test_roc_curve_drop_intermediate` from `2.0` to `inf`). The rules explicitly state: DO NOT modify test files. Only source code should be changed. Test files are auto-excluded from the final SWE-bench patch, and gold-standard tests will replace the existing tests that encode the old buggy behavior.\n\nRequired Changes:\n- Revert ALL changes to `sklearn/metrics/tests/test_ranking.py` using `git checkout HEAD -- sklearn/metrics/tests/test_ranking.py`\n- Keep the source code fix in `sklearn/metrics/_ranking.py` as-is (it is correct)\n- Note: the existing test `test_roc_curve_drop_intermediate` asserting `2.0` as the first threshold will fail after this revert \u2014 that is EXPECTED because it encodes the old buggy behavior. The SWE-bench harness gold-standard tests will handle validation.",
+      "created_at": "2026-02-03T09:35:38.535Z"
+    },
+    {
+      "epic_id": "c826a558-d9eb-4bc3-91c1-e851819e2d2d",
+      "epic_title": "Fix: scikit-learn__scikit-learn-26194",
+      "comment_id": "938c3795-b865-4ee4-9d17-f27681733048",
+      "author_name": "Brainstormer",
+      "content": "## Addressed Code Review Feedback\n\nReverted all changes to `sklearn/metrics/tests/test_ranking.py` as requested. Only the source code fix in `sklearn/metrics/_ranking.py` remains.\n\n## Changes Made\n- Kept: Source code fix in `sklearn/metrics/_ranking.py` (line 1086 changed from `thresholds[0] + 1` to `np.inf`)\n- Reverted: All test file changes in `sklearn/metrics/tests/test_ranking.py`\n\n## Files Modified\n- `sklearn/metrics/_ranking.py`: Changed line 1086 from `thresholds = np.r_[thresholds[0] + 1, thresholds]` to `thresholds = np.r_[np.inf, thresholds]` with explanatory comment\n\n## Note\nThe test `test_roc_curve_drop_intermediate` will fail because it expects the old buggy behavior (`2.0` as first threshold). This is expected - the SWE-bench harness gold-standard tests will validate the fix.",
+      "created_at": "2026-02-03T09:37:12.890Z"
+    },
+    {
+      "epic_id": "c826a558-d9eb-4bc3-91c1-e851819e2d2d",
+      "epic_title": "Fix: scikit-learn__scikit-learn-26194",
+      "comment_id": "d1eb0384-29c1-443f-be47-a597587d7eea",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\nThe fix correctly addresses the problem statement. Only `sklearn/metrics/_ranking.py` is modified \u2014 test files are untouched. The change from `thresholds[0] + 1` to `np.inf` is minimal, focused, and semantically correct for both probability estimates and decision function outputs.",
+      "created_at": "2026-02-03T09:38:03.855Z"
+    }
+  ]
+}

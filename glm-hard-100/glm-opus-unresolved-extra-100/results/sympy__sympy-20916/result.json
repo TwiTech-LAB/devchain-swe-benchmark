@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-20916",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/conventions.py b/sympy/printing/conventions.py\nindex 9a3be6bbe9..978643cb72 100644\n--- a/sympy/printing/conventions.py\n+++ b/sympy/printing/conventions.py\n@@ -7,7 +7,7 @@\n from collections.abc import Iterable\n from sympy import Derivative\n \n-_name_with_digits_p = re.compile(r'^([a-zA-Z]+)([0-9]+)$')\n+_name_with_digits_p = re.compile(r'^([^\\W\\d_]+)([0-9]+)$', re.UNICODE)\n \n \n def split_super_sub(text):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T17:20:51.600600",
+  "end_time": "2026-02-03T17:31:13.644115",
+  "duration_seconds": 622.043515,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "e9337f7a-bb3b-452b-92ce-1e3d2e5b532a",
+      "epic_title": "Fix: sympy__sympy-20916",
+      "comment_id": "393318f0-ae05-4e5c-88e6-0ceb71c601c8",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where pprint unicode did not format subscripts on Greek letters when using literal Unicode characters (e.g., `\u03c90` was displayed as `\u03c90` instead of `\u03c9\u2080`).\n\n## Root Cause\n\nThe regex pattern `_name_with_digits_p` in `sympy/printing/conventions.py` only matched ASCII letters `[a-zA-Z]`, so when a symbol name contained Unicode Greek letters followed by digits (like `\u03c90`), the trailing digits were not extracted as subscripts.\n\n## Fix Applied\n\nChanged the regex from:\n```python\n_name_with_digits_p = re.compile(r'^([a-zA-Z]+)([0-9]+)$')\n```\n\nTo:\n```python\n_name_with_digits_p = re.compile(r'^([^\\W\\d_]+)([0-9]+)$', re.UNICODE)\n```\n\nThe pattern `[^\\W\\d_]+` matches Unicode word characters that are NOT digits or underscores - effectively matching Unicode letters from any alphabet (Greek, Cyrillic, etc.).\n\n## Files Modified\n- `sympy/printing/conventions.py`: Updated regex pattern to be Unicode-aware\n\n## Test Results\n- **Test file:** sympy/printing/pretty/tests/test_pretty.py\n- **Baseline:** 142 passed\n- **After fix:** 142 passed (no regressions)\n- **All printing tests:** 966 passed, 23 skipped, 11 expected to fail\n\n## Additional Verification\n```python\n# Before fix: \u03c90 (digit not converted to subscript)\n# After fix: \u03c9\u2080 (digit correctly converted to subscript)\n\nfrom sympy import symbols, Matrix\nfrom sympy.printing.pretty import pretty\nfrom sympy.printing.pretty.pretty_symbology import pretty_use_unicode\n\npretty_use_unicode(True)\nmat = Matrix([[-symbols(\"t0\")*symbols(\"\u03c90\"), ...]])\n# Now correctly shows: [-t\u2080\u22c5\u03c9\u2080  -t\u2081\u22c5\u03c9\u2080  -t\u2082\u22c5\u03c9\u2080]\n```\n\n## Concerns\nNone - the fix is minimal, focused, and handles all Unicode letters correctly.",
+      "created_at": "2026-02-03T16:30:06.358Z"
+    },
+    {
+      "epic_id": "e9337f7a-bb3b-452b-92ce-1e3d2e5b532a",
+      "epic_title": "Fix: sympy__sympy-20916",
+      "comment_id": "e1d96862-8ca0-4772-ab0d-ba55aca15a15",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review: PASSED\n\n**Checklist:**\n- [x] No test files modified \u2014 only `sympy/printing/conventions.py` changed\n- [x] No unrelated files modified \u2014 single file, directly relevant\n- [x] Fix logically addresses the problem\n- [x] No obvious crash bugs or logical errors\n- [x] Changes are minimal and focused\n\n**Review Details:**\n\nThe fix correctly identifies the root cause: the regex `^([a-zA-Z]+)([0-9]+)$` only matched ASCII letters, so Greek letters like `\u03c9` followed by digits were not split into name + subscript.\n\nThe new pattern `^([^\\W\\d_]+)([0-9]+)$` with `re.UNICODE` uses a well-established regex idiom \u2014 `[^\\W\\d_]` matches Unicode word characters excluding digits and underscores, i.e., letters in any script (Greek, Cyrillic, etc.). This correctly handles `\u03c90` \u2192 `\u03c9` + `0`, enabling subscript formatting.\n\nTest results confirm no regressions: 142/142 pretty printing tests pass, and 966 broader printing tests pass.",
+      "created_at": "2026-02-03T16:31:08.224Z"
+    }
+  ]
+}

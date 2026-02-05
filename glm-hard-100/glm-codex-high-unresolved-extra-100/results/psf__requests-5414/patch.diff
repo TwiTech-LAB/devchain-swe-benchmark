@@ -1,0 +1,22 @@
+diff --git a/requests/adapters.py b/requests/adapters.py
+index fe22ff45..b808a139 100644
+--- a/requests/adapters.py
++++ b/requests/adapters.py
+@@ -20,6 +20,7 @@ from urllib3.exceptions import ClosedPoolError
+ from urllib3.exceptions import ConnectTimeoutError
+ from urllib3.exceptions import HTTPError as _HTTPError
+ from urllib3.exceptions import InvalidHeader as _InvalidHeader
++from urllib3.exceptions import LocationParseError
+ from urllib3.exceptions import MaxRetryError
+ from urllib3.exceptions import NewConnectionError
+ from urllib3.exceptions import ProxyError as _ProxyError
+@@ -524,6 +525,9 @@ class HTTPAdapter(BaseAdapter):
+         except _ProxyError as e:
+             raise ProxyError(e)
+ 
++        except LocationParseError as e:
++            raise InvalidURL("URL has an invalid label.", request=request)
++
+         except (_SSLError, _HTTPError) as e:
+             if isinstance(e, _SSLError):
+                 # This branch is for urllib3 versions earlier than v1.22

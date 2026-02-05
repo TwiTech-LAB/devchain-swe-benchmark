@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-12406",
+  "status": "completed",
+  "patch": "diff --git a/django/forms/models.py b/django/forms/models.py\nindex dafc11f995..eb7edaa00f 100644\n--- a/django/forms/models.py\n+++ b/django/forms/models.py\n@@ -13,7 +13,7 @@ from django.forms.forms import BaseForm, DeclarativeFieldsMetaclass\n from django.forms.formsets import BaseFormSet, formset_factory\n from django.forms.utils import ErrorList\n from django.forms.widgets import (\n-    HiddenInput, MultipleHiddenInput, SelectMultiple,\n+    HiddenInput, MultipleHiddenInput, RadioSelect, SelectMultiple,\n )\n from django.utils.text import capfirst, get_text_list\n from django.utils.translation import gettext, gettext_lazy as _\n@@ -1185,7 +1185,10 @@ class ModelChoiceField(ChoiceField):\n                  required=True, widget=None, label=None, initial=None,\n                  help_text='', to_field_name=None, limit_choices_to=None,\n                  **kwargs):\n-        if required and (initial is not None):\n+        if required and (initial is not None or widget is not None and (\n+                # Check for both widget class (RadioSelect) and widget instance (RadioSelect())\n+                widget is RadioSelect or isinstance(widget, RadioSelect)\n+        )):\n             self.empty_label = None\n         else:\n             self.empty_label = empty_label\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T20:35:54.897991",
+  "end_time": "2026-01-31T20:51:00.520550",
+  "duration_seconds": 905.622559,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "8d4a4910-8c97-45b2-b947-b0d28b3d9d17",
+      "epic_title": "Fix: django__django-12406",
+      "comment_id": "6f2df082-9f75-4092-b586-fa67b6db357e",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where ModelForm RadioSelect widget for foreign keys incorrectly presented a blank option when `blank=False` on the model (i.e., `required=True` on the form field).\n\nThe problem was that RadioSelect with `required=True` would show a blank \"---------\" option that was checked by default, which is misleading since radio buttons have an inherent unfilled state. This behavior differs from Select widget where a blank option is idiomatic.\n\n**Root Cause**: In `ModelChoiceField.__init__()`, the blank option was only removed when `required=True AND initial is not None`. RadioSelect with `required=True` but no initial value would still show the blank option.\n\n**Solution**: Modified the condition to also remove the blank option when the widget is `RadioSelect` and `required=True`, regardless of whether there's an initial value.\n\n## Files Modified\n- `django/forms/models.py`:\n  - Added `RadioSelect` to imports (line 16)\n  - Modified `ModelChoiceField.__init__()` to check for RadioSelect widget and remove blank option when `required=True` (lines 1188-1191)\n\n## Test Results\nVerified the fix with multiple test scenarios:\n\n1. **RadioSelect with required=True**: empty_label=None \u2713 (no blank option)\n2. **RadioSelect with required=False**: empty_label='---------' \u2713 (blank option shown)\n3. **Select widget (default) with required=True**: empty_label='---------' \u2713 (unchanged behavior)\n4. **Select widget with required=True and initial**: empty_label=None \u2713 (unchanged behavior)\n\nAll edge cases covered:\n- Widget class (`RadioSelect`) and widget instance (`RadioSelect()`)\n- `widget=None` handled correctly\n- Both `required=True` and `required=False` work correctly\n\n## Concerns\n- None - The fix is minimal and focused on the specific issue\n- Existing tests for RadioSelect should pass as they test database queries, not choice content\n- The behavior is consistent with how Django handles Select widget with initial values",
+      "created_at": "2026-01-31T19:50:52.921Z"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "instance_id": "sphinx-doc__sphinx-8056",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py\nindex b3daa06f1..97a6549f6 100644\n--- a/sphinx/ext/napoleon/docstring.py\n+++ b/sphinx/ext/napoleon/docstring.py\n@@ -394,13 +394,19 @@ class GoogleDocstring:\n             _desc = self._strip_empty(_desc)\n             if any(_desc):\n                 _desc = self._fix_field_desc(_desc)\n-                field = ':%s %s: ' % (field_role, _name)\n-                lines.extend(self._format_block(field, _desc))\n-            else:\n-                lines.append(':%s %s:' % (field_role, _name))\n \n-            if _type:\n-                lines.append(':%s %s: %s' % (type_role, _name, _type))\n+            # Handle comma-separated parameter names (e.g., \"x1, x2, x3\")\n+            _names = [n.strip() for n in _name.split(\", \")] if \", \" in _name else [_name]\n+\n+            for _name_item in _names:\n+                if any(_desc):\n+                    field = ':%s %s: ' % (field_role, _name_item)\n+                    lines.extend(self._format_block(field, _desc))\n+                else:\n+                    lines.append(':%s %s:' % (field_role, _name_item))\n+\n+                if _type:\n+                    lines.append(':%s %s: %s' % (type_role, _name_item, _type))\n         return lines + ['']\n \n     def _format_field(self, _name: str, _type: str, _desc: List[str]) -> List[str]:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T06:23:42.188805",
+  "end_time": "2026-02-03T06:33:29.353369",
+  "duration_seconds": 587.164564,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "295647ac-d321-4567-ae23-febc36e6634c",
+      "epic_title": "Fix: sphinx-doc__sphinx-8056",
+      "comment_id": "3876b409-9e11-46a6-9192-6b40873b626d",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the rendering of comma-separated parameter names in numpy-style and google-style docstrings. When a parameter line contains multiple parameter names like `x1, x2 : array_like`, each parameter now gets its own separate `:param:` and `:type:` entry instead of treating them as a single combined parameter.\n\n## Files Modified\n\n- `sphinx/ext/napoleon/docstring.py`: Modified `_format_docutils_params()` method in the `GoogleDocstring` class (line 389) to split comma-separated parameter names and create individual docutils entries for each parameter. This fix is inherited by `NumpyDocstring` which extends `GoogleDocstring`.\n\n## Test Results\n\n- **Test file:** `tests/test_ext_napoleon.py`, `tests/test_ext_napoleon_iterators.py`, `tests/test_ext_napoleon_docstring.py`\n- **Baseline (before fix):** 72 passed, 2 failed (pre-existing failures unrelated to this fix)\n- **After fix:** 72 passed, 2 failed (same pre-existing failures)\n- **Regression check:** No new failures introduced\n\n### Manual Verification\n\n**Before fix:**\n```\n:param x1, x2: Input arrays, description of x1, x2.\n:type x1, x2: :class:`array_like`\n```\n\n**After fix:**\n```\n:param x1: Input arrays, description of x1, x2.\n:type x1: :class:`array_like`\n:param x2: Input arrays, description of x1, x2.\n:type x2: :class:`array_like`\n```\n\nThe fix also correctly handles:\n- Three or more parameters (e.g., `x, y, z : array_like`)\n- Parameters with `optional` modifier\n- Single parameters (no regression)\n- `*args, **kwargs` combinations\n- Both Numpy-style and Google-style docstrings\n\n## Concerns\n\n- None. The fix is minimal and focused on the specific issue. It only affects the `_format_docutils_params()` method when `napoleon_use_param=True`.",
+      "created_at": "2026-02-03T05:29:34.392Z"
+    },
+    {
+      "epic_id": "295647ac-d321-4567-ae23-febc36e6634c",
+      "epic_title": "Fix: sphinx-doc__sphinx-8056",
+      "comment_id": "1bde4ae5-b61a-4a62-9047-69fda48f5b8e",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- Unrelated config/build changes included: `setup.py` and `tox.ini` are modified in the diff. The task rules state not to modify build configs unless required, and these changes are not part of the napoleon docstring rendering fix.\n- `tox.ini` change (`pytest -rA ...`) is unrelated to the bug fix and risks affecting harness behavior if not excluded.\n\nRequired Changes:\n- Revert `setup.py` and `tox.ini` changes so the patch is limited to the actual fix in `sphinx/ext/napoleon/docstring.py`.\n\nNotes (non-blocking):\n- The `docstring.py` change looks directionally correct for splitting comma-separated parameter names into separate `:param:` / `:type:` fields.",
+      "created_at": "2026-02-03T05:31:10.873Z"
+    },
+    {
+      "epic_id": "295647ac-d321-4567-ae23-febc36e6634c",
+      "epic_title": "Fix: sphinx-doc__sphinx-8056",
+      "comment_id": "20d132fa-8151-4e3e-a0cd-92badd25372e",
+      "author_name": "Brainstormer",
+      "content": "## Addressed Code Review Feedback\n\nReverted the pre-existing unrelated changes in `setup.py` and `tox.ini`. The diff now contains only the actual fix in `sphinx/ext/napoleon/docstring.py`.\n\n**Current diff status:**\n- Only `sphinx/ext/napoleon/docstring.py` is modified\n- The fix for splitting comma-separated parameter names is intact\n- Fix verified to still work correctly",
+      "created_at": "2026-02-03T05:32:24.623Z"
+    },
+    {
+      "epic_id": "295647ac-d321-4567-ae23-febc36e6634c",
+      "epic_title": "Fix: sphinx-doc__sphinx-8056",
+      "comment_id": "2ed09180-09b4-44d1-a622-5017e284af00",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Patch is now limited to `sphinx/ext/napoleon/docstring.py` and no tests/configs are modified.\n- The change correctly expands comma-separated parameter names into individual `:param:`/`:type:` entries, which should restore proper rendering (including `optional`) under `napoleon_use_param=True`.\n\nNote: The split currently triggers only on `\", \"` in the name list; if other comma-spacing variants exist, they may still render as a combined name, but this is acceptable for the reported case.",
+      "created_at": "2026-02-03T05:33:25.005Z"
+    }
+  ]
+}

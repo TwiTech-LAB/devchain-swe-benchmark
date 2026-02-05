@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-13974",
+  "status": "completed",
+  "patch": "diff --git a/sympy/physics/quantum/tensorproduct.py b/sympy/physics/quantum/tensorproduct.py\nindex 9dd10d219e..20a7a2bac3 100644\n--- a/sympy/physics/quantum/tensorproduct.py\n+++ b/sympy/physics/quantum/tensorproduct.py\n@@ -314,6 +314,9 @@ def tensor_product_simp_Mul(e):\n     # TODO: This only works for the equivalent of single Qbit gates.\n     if not isinstance(e, Mul):\n         return e\n+    # First simplify each part of the Mul (e.g., handle Pow of TensorProduct)\n+    parts = [tensor_product_simp(arg) for arg in e.args]\n+    e = Mul(*parts)\n     c_part, nc_part = e.args_cnc()\n     n_nc = len(nc_part)\n     if n_nc == 0 or n_nc == 1:\n@@ -382,6 +385,10 @@ def tensor_product_simp(e, **hints):\n     if isinstance(e, Add):\n         return Add(*[tensor_product_simp(arg) for arg in e.args])\n     elif isinstance(e, Pow):\n+        # For powers of TensorProducts, distribute the power over components\n+        # TensorProduct(A,B)**n -> TensorProduct(A**n, B**n)\n+        if isinstance(e.base, TensorProduct):\n+            return TensorProduct(*[arg**e.exp for arg in e.base.args])\n         return tensor_product_simp(e.base) ** e.exp\n     elif isinstance(e, Mul):\n         return tensor_product_simp_Mul(e)\n@@ -391,3 +398,14 @@ def tensor_product_simp(e, **hints):\n         return AntiCommutator(*[tensor_product_simp(arg) for arg in e.args])\n     else:\n         return e\n+\n+\n+# Monkey-patch Pow to add _eval_expand_tensorproduct support\n+def _pow_eval_expand_tensorproduct(self, **hints):\n+    \"\"\"Handle expand(tensorproduct=True) for powers of TensorProducts.\"\"\"\n+    if isinstance(self.base, TensorProduct):\n+        return tensor_product_simp(self)\n+    return self\n+\n+\n+Pow._eval_expand_tensorproduct = _pow_eval_expand_tensorproduct\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T19:38:26.277469",
+  "end_time": "2026-01-31T19:47:27.321871",
+  "duration_seconds": 541.044402,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "3862578f-0db7-4306-bae0-1951f0b2845c",
+      "epic_title": "Fix: sympy__sympy-13974",
+      "comment_id": "a9fe0be9-23bc-42b0-9a3b-cf507b039b29",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where powers of `TensorProduct` expressions were not being evaluated correctly by either `expand(tensorproduct=True)` or `tensor_product_simp`.\n\nThe problem was that when you multiply two identical `TensorProduct`s (e.g., `tp(1,1)*tp(1,1)`), SymPy's `Mul` class automatically simplifies this to `Pow(TensorProduct(1,1), 2)`, which displays as `1x1**2`. The `tensor_product_simp` function wasn't handling `Pow` objects with `TensorProduct` bases correctly.\n\n## Files Modified\n\n- `sympy/physics/quantum/tensorproduct.py`:\n  1. Modified `tensor_product_simp` function (lines 389-392): Added logic to handle `Pow` objects with `TensorProduct` base by distributing the power over components: `TensorProduct(A,B)**n` \u2192 `TensorProduct(A**n, B**n)`\n  2. Modified `tensor_product_simp_Mul` function (lines 315-319): Added recursive call to `tensor_product_simp` on each argument of the `Mul` before processing\n  3. Added monkey-patch for `Pow._eval_expand_tensorproduct` (lines 404-410): Enables `expand(tensorproduct=True)` to work for powers of `TensorProduct`\n\n## Test Results\n\n- **Test file:** `sympy/physics/quantum/tests/test_tensorproduct.py`\n- **Baseline (before fix):** 6 passed, 1 errors (pre-existing)\n- **After fix:** 6 passed, 1 errors (no new regressions)\n\n## Verification\n\nAll examples from the problem statement now work correctly:\n- `tps(tp(1,1)*tp(1,1))` \u2192 `1x1` \u2713\n- `(tp(1,1)*tp(1,1)).expand(tensorproduct=True)` \u2192 `1x1` \u2713\n- `tps(tp(1,Pauli(3))*tp(1,Pauli(3)))` \u2192 `1x1` \u2713\n- `(tp(1,Pauli(3))*tp(1,Pauli(3))).expand(tensorproduct=True)` \u2192 `1x1` \u2713\n\nThe fix also handles:\n- Higher powers: `tp(1,1)**3` \u2192 `1x1`\n- Non-commutative symbols: `tp(1,a)**2` \u2192 `1x(a**2)`\n- Mixed with commutative scalars: `(2*tp(1,1))**2` \u2192 `4*1x1`",
+      "created_at": "2026-01-31T18:47:19.154Z"
+    }
+  ]
+}

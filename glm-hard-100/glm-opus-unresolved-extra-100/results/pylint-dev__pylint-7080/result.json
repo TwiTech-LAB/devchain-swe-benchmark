@@ -1,0 +1,30 @@
+{
+  "instance_id": "pylint-dev__pylint-7080",
+  "status": "completed",
+  "patch": "diff --git a/pylint/lint/expand_modules.py b/pylint/lint/expand_modules.py\nindex 5cacc0371..83e59bade 100644\n--- a/pylint/lint/expand_modules.py\n+++ b/pylint/lint/expand_modules.py\n@@ -51,12 +51,26 @@ def _is_ignored_file(\n     ignore_list: list[str],\n     ignore_list_re: list[Pattern[str]],\n     ignore_list_paths_re: list[Pattern[str]],\n+    element_is_directory: bool = False,\n ) -> bool:\n+    \"\"\"Check if a file or directory element should be ignored.\n+\n+    When element_is_directory is True, the element is treated as a directory\n+    and a trailing separator is added when checking against ignore_list_paths_re.\n+    This is necessary because ignore-paths patterns often expect directory\n+    paths to end with a separator (e.g., '^src/gen/.*$' to match 'src/gen/').\n+    \"\"\"\n     basename = os.path.basename(element)\n+    # When checking if a directory should be ignored by path patterns,\n+    # add a trailing separator to match patterns like '^src/gen/.*$'\n+    element_for_path_check = (\n+        element if not element_is_directory or element.endswith(os.sep)\n+        else element + os.sep\n+    )\n     return (\n         basename in ignore_list\n         or _is_in_ignore_list_re(basename, ignore_list_re)\n-        or _is_in_ignore_list_re(element, ignore_list_paths_re)\n+        or _is_in_ignore_list_re(element_for_path_check, ignore_list_paths_re)\n     )\n \n \ndiff --git a/pylint/lint/pylinter.py b/pylint/lint/pylinter.py\nindex e2bbf061e..23507e003 100644\n--- a/pylint/lint/pylinter.py\n+++ b/pylint/lint/pylinter.py\n@@ -602,6 +602,7 @@ class PyLinter(\n                         self.config.ignore,\n                         self.config.ignore_patterns,\n                         self.config.ignore_paths,\n+                        element_is_directory=True,\n                     ):\n                         skip_subtrees.append(root)\n                         continue\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:09:46.028745",
+  "end_time": "2026-02-03T11:28:27.320269",
+  "duration_seconds": 1121.291524,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "3350e0e8-2d42-482c-86e6-08523d8dd226",
+      "epic_title": "Fix: pylint-dev__pylint-7080",
+      "comment_id": "94045a5b-02f2-4579-aa59-24c4c1aa3f01",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where `--recursive=y` ignores `ignore-paths` configuration. The issue was that `os.walk()` yields directory paths without trailing slashes (e.g., `src/gen`), but ignore-paths patterns like `^src/gen/.*$` expect paths with trailing slashes to match `src/gen/`.\n\n## Root Cause\n\nIn `pylint/lint/pylinter.py`, the `_discover_files()` method calls `_is_ignored_file()` to check if a directory should be skipped. The directory paths from `os.walk()` don't have trailing slashes, so patterns like `^src/gen/.*$` don't match `src/gen`.\n\n## Changes Made\n\n1. **pylint/lint/expand_modules.py**: Modified `_is_ignored_file()` to add an `element_is_directory` parameter. When `True`, a trailing separator is added to the element path when checking against `ignore_list_paths_re`, allowing patterns like `^src/gen/.*$` to match directory paths like `src/gen`.\n\n2. **pylint/lint/pylinter.py**: Updated `_discover_files()` to pass `element_is_directory=True` when calling `_is_ignored_file()` for directory paths from `os.walk()`.\n\n## Files Modified\n- `pylint/lint/expand_modules.py`: Added `element_is_directory` parameter to `_is_ignored_file()`\n- `pylint/lint/pylinter.py`: Updated `_discover_files()` to pass `element_is_directory=True` for directories\n\n## Test Results\n- All 6 existing `test_recursive_ignore` tests pass\n- All 5 `test_expand_modules` tests pass\n- Manual verification: `pylint --recursive=y --ignore-paths='^src/gen/.*$' src/` now correctly ignores files in `src/gen/`\n\n## Edge Cases Considered\n- The fix only applies when checking against `ignore_paths` (via `ignore_list_paths_re`)\n- The `ignore` and `ignore_patterns` checks are unaffected (they use basename which doesn't work with trailing slashes)\n- Paths already ending with `os.sep` are not modified",
+      "created_at": "2026-02-03T10:26:46.262Z"
+    },
+    {
+      "epic_id": "3350e0e8-2d42-482c-86e6-08523d8dd226",
+      "epic_title": "Fix: pylint-dev__pylint-7080",
+      "comment_id": "654f1412-576b-4680-ba00-c17a6b7b7af3",
+      "author_name": "Code Reviewer",
+      "content": "Code Review PASSED\n\n**Checklist:**\n- [x] No test files modified \u2014 only `pylint/lint/expand_modules.py` and `pylint/lint/pylinter.py`\n- [x] No unrelated files modified\n- [x] Fix logically addresses the problem\n- [x] No crash bugs or logical errors introduced\n- [x] Changes are minimal and focused\n\n**Assessment:**\n\nThe root cause is correctly identified: `os.walk()` yields directory paths without trailing separators (e.g., `src/gen`), so regex patterns like `^src/gen/.*$` fail to match. The fix appends `os.sep` to directory paths before checking against `ignore_list_paths_re`, turning `src/gen` into `src/gen/` which correctly matches the pattern (`.*` matches zero or more characters).\n\nThe implementation is clean:\n- Backward-compatible: `element_is_directory` defaults to `False`, so all existing callers are unaffected\n- Scoped correctly: only applies to `ignore_list_paths_re` checks, not `ignore_list` or `ignore_list_re` (which use basename and don't need trailing separators)\n- Edge case handled: paths already ending with `os.sep` are not modified\n- The only new caller in `_discover_files()` correctly passes `element_is_directory=True` for directories from `os.walk()`\n\nGood fix. Approved.",
+      "created_at": "2026-02-03T10:28:22.949Z"
+    }
+  ]
+}

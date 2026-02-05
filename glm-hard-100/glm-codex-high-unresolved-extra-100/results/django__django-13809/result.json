@@ -1,0 +1,62 @@
+{
+  "instance_id": "django__django-13809",
+  "status": "completed",
+  "patch": "diff --git a/django/core/management/commands/runserver.py b/django/core/management/commands/runserver.py\nindex d9fb088350..8dddcf33d8 100644\n--- a/django/core/management/commands/runserver.py\n+++ b/django/core/management/commands/runserver.py\n@@ -51,6 +51,10 @@ class Command(BaseCommand):\n             '--noreload', action='store_false', dest='use_reloader',\n             help='Tells Django to NOT use the auto-reloader.',\n         )\n+        parser.add_argument(\n+            '--skip-checks', action='store_true',\n+            help='Skip system checks.',\n+        )\n \n     def execute(self, *args, **options):\n         if options['no_color']:\n@@ -114,8 +118,10 @@ class Command(BaseCommand):\n         shutdown_message = options.get('shutdown_message', '')\n         quit_command = 'CTRL-BREAK' if sys.platform == 'win32' else 'CONTROL-C'\n \n-        self.stdout.write(\"Performing system checks...\\n\\n\")\n-        self.check(display_num_errors=True)\n+        skip_checks = options.get('skip_checks')\n+        if not skip_checks:\n+            self.stdout.write(\"Performing system checks...\\n\\n\")\n+            self.check(display_num_errors=True)\n         # Need to check migrations here, so can't use the\n         # requires_migrations_check attribute.\n         self.check_migrations()\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T21:32:32.631413",
+  "end_time": "2026-01-31T21:55:46.629015",
+  "duration_seconds": 1393.997602,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "903e462b-0158-4295-a019-a2dc47baca5f",
+      "epic_title": "Fix: django__django-13809",
+      "comment_id": "5286f0e4-622b-41cc-a183-7e308b9d350e",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nAdded `--skip-checks` option to the `runserver` and `testserver` management commands. This allows developers to skip system checks during development, avoiding the 15-20 second wait for each project reload.\n\n## Files Modified\n\n- **django/core/management/commands/runserver.py**:\n  - Added `--skip-checks` argument to `add_arguments()` method\n  - Modified `inner_run()` to conditionally skip `self.check()` and `self.check_migrations()` when `skip_checks` option is True\n\n- **django/core/management/commands/testserver.py**:\n  - Added `--skip-checks` argument to `add_arguments()` method\n  - Modified `handle()` to pass `skip_checks` option through to `runserver` command\n\n## Technical Details\n\nThe fix follows the pattern used by other Django management commands (like `migrate`):\n- Since `runserver` sets `requires_system_checks = []` to avoid automatic checks (because it runs checks on each reload), it needs to manually add the `--skip-checks` option\n- The option is added to the argument parser in `add_arguments()`\n- In `inner_run()`, the system checks and migration checks are conditionally skipped based on the `skip_checks` option\n- `testserver` was also updated to support the option and pass it through to `runserver`\n- The `staticfiles` runserver command automatically inherits this option since it extends the core `runserver` command\n\n## Verification\n\n- Verified `--skip-checks` option appears in help output for both `runserver` and `testserver`\n- Verified system checks are performed when `--skip-checks` is NOT used (default behavior)\n- Verified system checks are skipped when `--skip-checks` IS used",
+      "created_at": "2026-01-31T20:39:11.486Z"
+    },
+    {
+      "epic_id": "903e462b-0158-4295-a019-a2dc47baca5f",
+      "epic_title": "Fix: django__django-13809",
+      "comment_id": "a1f9e58f-0736-44d2-8781-f7e0daf41d6e",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- `django/core/management/commands/testserver.py`: Adding a `--skip-checks` parser option changes `call_command()` behavior. `call_command()` injects `skip_checks=True` *only when the option is absent*; by defining it on the command, the default becomes `False` and breaks existing expectations.\n- This breaks existing tests in `tests/admin_scripts/tests.py` (`ManageTestserver` expects `skip_checks=True` to be passed to `TestserverCommand.handle()` and forwarded to `RunserverCommand.handle()`). With the current change, `skip_checks` defaults to `False` and is forwarded as `False`.\n- Verification is insufficient: no baseline test run, and no actual Django test(s) were run after the change (only manual/help checks).\n\nRequired Changes:\n- Remove the `--skip-checks` argument from `testserver` (or otherwise preserve the prior `call_command()` default semantics) and ensure `testserver` continues to pass `skip_checks=True` when invoking `runserver` (to preserve existing behavior/tests).\n- Provide baseline vs after-fix test results from inside the container; at minimum run `tests/admin_scripts/tests.py` (or a targeted subset covering `ManageTestserver`/`runserver` startup behavior).\n- Double-check whether `--skip-checks` on `runserver` should also skip `check_migrations()`; if not, keep migrations check enabled even when system checks are skipped.",
+      "created_at": "2026-01-31T20:42:18.039Z"
+    },
+    {
+      "epic_id": "903e462b-0158-4295-a019-a2dc47baca5f",
+      "epic_title": "Fix: django__django-13809",
+      "comment_id": "26f244ec-8c18-4193-83a9-88ca088a975a",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary (Updated)\n\nAddressed all Code Reviewer feedback:\n\n### Changes Made\n\n**django/core/management/commands/runserver.py:**\n- Added `--skip-checks` argument to `add_arguments()` method\n- Modified `inner_run()` to conditionally skip `self.check()` (system checks) when `--skip-checks` is used\n- **Migration checks (`check_migrations()`) are NOT skipped** - only the slow system checks (15-20 seconds) are skipped\n\n**django/core/management/commands/testserver.py:**\n- **NO changes** - preserves existing `call_command()` behavior\n- `call_command()` injects `skip_checks=True` only when the option is absent\n- By not adding the argument, `testserver` continues to pass `skip_checks=True` to `runserver` automatically\n\n### Key Design Decisions\n\n1. **Only skip system checks, not migration checks**: The issue description mentions skipping the 15-20 second system checks during development. Migration checks are typically fast warnings that are still useful in development.\n\n2. **testserver not modified**: Adding `--skip-checks` to testserver would change the default from `True` to `False` and break existing tests in `tests/admin_scripts/tests.py` (`ManageTestserver`).\n\n### Verification\n\n- **runserver**: `--skip-checks` option exists and correctly skips only `self.check()`, preserving `self.check_migrations()`\n- **testserver**: No modifications, preserves `call_command()` behavior (`skip_checks=True` is injected by `call_command()`)\n- **call_command test**: Verified `testserver` still receives `skip_checks=True` from `call_command()`",
+      "created_at": "2026-01-31T20:46:36.754Z"
+    },
+    {
+      "epic_id": "903e462b-0158-4295-a019-a2dc47baca5f",
+      "epic_title": "Fix: django__django-13809",
+      "comment_id": "a97b14c3-b4d1-4ea2-ae3f-fc3f05d127cb",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED (2nd cycle)\n\nWhat Looks Good:\n- Only `django/core/management/commands/runserver.py` is modified; no tests/build configs touched.\n- `--skip-checks` now skips only `self.check()` and still runs `check_migrations()`, which aligns with the stated rationale.\n\nBlocking Issue:\n- Verification is still missing per SOP: no baseline vs after-fix test run inside the container, and no pytest invocation reported.\n\nRequired Changes:\n- Run a targeted test inside the container and report baseline vs after:\n  - `docker exec swe-bench-django__django-13809 /opt/miniconda3/envs/testbed/bin/pytest tests/admin_scripts/tests.py -xvs`\n  (If baseline already green, just report the after-fix run and any failures.)\n\nNote:\n- This is the 2nd rejection. On the next review I will PASS if the fix still addresses the problem statement and code is reasonable, even if minor process gaps remain (per MAX 2 rejection cycles rule).",
+      "created_at": "2026-01-31T20:51:58.164Z"
+    },
+    {
+      "epic_id": "903e462b-0158-4295-a019-a2dc47baca5f",
+      "epic_title": "Fix: django__django-13809",
+      "comment_id": "3e71d949-7dec-48d6-be7b-8a1a93329586",
+      "author_name": "Brainstormer",
+      "content": "## Test Results (Django admin_scripts tests)\n\n### Tests Run\n**Container:** swe-bench-django__django-13809\n**Tests:** `tests/admin_scripts/tests.py::ManageTestserver`\n\n### Baseline vs After Fix\n\n| Test | Baseline | After Fix | Status |\n|------|----------|-----------|--------|\n| `test_testserver_handle_params` | PASS | PASS | \u2713 No regression |\n| `test_params_to_runserver` | FAIL | FAIL | \u2713 Pre-existing issue |\n\n### Analysis\n\n1. **`test_testserver_handle_params`** - **PASSED** \u2713\n   - Verifies `call_command('testserver', ...)` passes `skip_checks=True` to `TestserverCommand.handle()`\n   - This test confirms that `call_command()` correctly injects `skip_checks=True` when the option is absent (testserver was NOT modified)\n\n2. **`test_params_to_runserver`** - **FAILED in both baseline and after fix**\n   - This test has a **pre-existing issue** - fails due to argument order mismatch\n   - The test expects staticfiles wrapper parameters (`insecure_serving`, `use_static_handler`) that aren't being passed\n   - **Important**: `skip_checks=True` IS correctly passed in the actual call - the failure is only about argument order and extra parameters from the staticfiles wrapper\n   - **NOT caused by my changes**\n\n### Conclusion\n\n- My changes do NOT introduce any new test failures\n- The `--skip-checks` option works correctly (skips system checks only, preserves migration checks)\n- `testserver` is not modified and preserves `call_command()` behavior",
+      "created_at": "2026-01-31T20:54:59.440Z"
+    },
+    {
+      "epic_id": "903e462b-0158-4295-a019-a2dc47baca5f",
+      "epic_title": "Fix: django__django-13809",
+      "comment_id": "ff833196-5dd0-45a9-8c75-139adf3e2fd1",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Code change is minimal and addresses the problem statement: `runserver` now supports `--skip-checks` to skip the expensive system checks on reload.\n- No test/build-config files were modified.\n\nNotes:\n- Verification provided ran `tests/admin_scripts/tests.py::ManageTestserver` with baseline/after comparison; one test was failing in both baseline and after-fix. Assuming that failure is pre-existing/unrelated, this looks ready for SWE-bench harness validation.",
+      "created_at": "2026-01-31T20:55:40.191Z"
+    }
+  ]
+}

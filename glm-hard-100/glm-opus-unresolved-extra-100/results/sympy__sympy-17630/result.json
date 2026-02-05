@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-17630",
+  "status": "completed",
+  "patch": "diff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py\nindex 95302a05ca..83108a43b5 100644\n--- a/sympy/matrices/expressions/blockmatrix.py\n+++ b/sympy/matrices/expressions/blockmatrix.py\n@@ -164,7 +164,15 @@ def structurally_equal(self, other):\n     def _blockmul(self, other):\n         if (isinstance(other, BlockMatrix) and\n                 self.colblocksizes == other.rowblocksizes):\n-            return BlockMatrix(self.blocks*other.blocks)\n+            from sympy.core.numbers import Zero\n+            from sympy.matrices.immutable import ImmutableDenseMatrix\n+\n+            blocks = self.blocks * other.blocks\n+            # Replace scalar Zero objects with ZeroMatrix of appropriate dimensions\n+            new_blocks = ImmutableDenseMatrix(blocks.rows, blocks.cols,\n+                lambda i, j: (ZeroMatrix(self.blocks[i, 0].rows, other.blocks[0, j].cols)\n+                             if isinstance(blocks[i, j], Zero) else blocks[i, j]))\n+            return BlockMatrix(new_blocks)\n \n         return self * other\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:53:34.636052",
+  "end_time": "2026-02-03T11:59:55.193322",
+  "duration_seconds": 380.55727,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "a89cdda7-62db-48de-b804-5141d8f14328",
+      "epic_title": "Fix: sympy__sympy-17630",
+      "comment_id": "6cede8b1-637e-4bfb-8028-93005926b6df",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where multiplying a BlockMatrix containing ZeroMatrix blocks would fail on subsequent multiplications. The root cause was that the matrix multiplication `self.blocks * other.blocks` produces scalar `Zero` objects instead of `ZeroMatrix` objects. When the resulting BlockMatrix was used in another multiplication, the `colblocksizes` property tried to access `.cols` on these `Zero` objects, causing `AttributeError: 'Zero' object has no attribute 'cols'`.\n\n## Files Modified\n- `sympy/matrices/expressions/blockmatrix.py`: Modified the `_blockmul` method to convert scalar `Zero` objects to `ZeroMatrix` objects with appropriate dimensions before wrapping them in a `BlockMatrix`.\n\n## Test Results\n- **Test file:** `sympy/matrices/expressions/tests/test_blockmatrix.py`\n- **Baseline:** 15/15 tests passed\n- **After fix:** 15/15 tests passed\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified the fix works with:\n1. Single multiplication: `block_collapse(b * b)` \u2713\n2. Double multiplication: `block_collapse(b * b * b)` \u2713\n3. Triple multiplication: `block_collapse(b * b * b * b)` \u2713\n4. All ZeroMatrix blocks: Multiple multiplications work \u2713\n5. Mixed symbols and zeros: Works correctly \u2713\n\n## Concerns\n- The fix handles the specific case of `Zero` objects from the `sympy.core.numbers` module\n- The dimensions for the `ZeroMatrix` are correctly derived from the row size of the left block and column size of the right block",
+      "created_at": "2026-02-03T10:58:11.081Z"
+    },
+    {
+      "epic_id": "a89cdda7-62db-48de-b804-5141d8f14328",
+      "epic_title": "Fix: sympy__sympy-17630",
+      "comment_id": "3ab85609-97e3-4f8c-8efd-2a95950369bc",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n**Review Checklist:**\n- [x] No test files modified (source code only \u2014 `blockmatrix.py` only)\n- [x] No unrelated files modified\n- [x] Fix logically addresses the problem\n- [x] No obvious crash bugs or logical errors introduced\n- [x] Changes are minimal and focused\n\n**Analysis:**\nThe fix correctly identifies and addresses the root cause: `self.blocks * other.blocks` produces scalar `Zero` objects instead of `ZeroMatrix` when block products sum to zero, and subsequent operations on the result fail with `AttributeError: 'Zero' object has no attribute 'cols'`.\n\nThe solution scans the resulting blocks matrix after multiplication, replacing any scalar `Zero` with `ZeroMatrix(self.blocks[i, 0].rows, other.blocks[0, j].cols)`. The dimension derivation is correct \u2014 row height comes from the left operand's block row, column width from the right operand's block column. This is safe because the code runs inside the guard that already validated `self.colblocksizes == other.rowblocksizes`, ensuring both operands are well-formed BlockMatrix objects.\n\n15/15 existing tests pass. Fix is clean and minimal.",
+      "created_at": "2026-02-03T10:59:50.284Z"
+    }
+  ]
+}

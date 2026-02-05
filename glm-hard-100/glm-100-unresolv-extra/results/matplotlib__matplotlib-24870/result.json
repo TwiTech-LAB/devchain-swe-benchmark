@@ -1,0 +1,22 @@
+{
+  "instance_id": "matplotlib__matplotlib-24870",
+  "status": "completed",
+  "patch": "diff --git a/lib/matplotlib/contour.py b/lib/matplotlib/contour.py\nindex 144eadeae2..305a27180d 100644\n--- a/lib/matplotlib/contour.py\n+++ b/lib/matplotlib/contour.py\n@@ -1446,11 +1446,37 @@ class QuadContourSet(ContourSet):\n         else:\n             fn = 'contour'\n         nargs = len(args)\n+\n+        # Auto-detect boolean arrays and set levels to [0.5] if not specified\n+        # self.levels is set in __init__ from the levels keyword argument\n+        levels_provided = self.levels is not None\n+        if not levels_provided and nargs >= 2:\n+            # Check if levels is provided as a positional argument\n+            # (after Z for nargs <= 2, or after X,Y,Z for nargs <= 4)\n+            if nargs <= 2:\n+                # contour(Z, levels) or contour(Z)\n+                levels_provided = (nargs == 2)\n+            else:\n+                # contour(X, Y, Z, levels) or contour(X, Y, Z)\n+                levels_provided = (nargs == 4)\n+\n         if nargs <= 2:\n+            # Check if Z is boolean before converting to float\n+            z_input = np.asarray(args[0])\n+            if (not levels_provided and\n+                    hasattr(z_input, 'dtype') and\n+                    z_input.dtype.kind == 'b'):\n+                self.levels = [0.5]\n             z = ma.asarray(args[0], dtype=np.float64)\n             x, y = self._initialize_x_y(z)\n             args = args[1:]\n         elif nargs <= 4:\n+            # Check if Z is boolean before converting to float\n+            z_input = np.asarray(args[2])\n+            if (not levels_provided and\n+                    hasattr(z_input, 'dtype') and\n+                    z_input.dtype.kind == 'b'):\n+                self.levels = [0.5]\n             x, y, z = self._check_xyz(args[:3], kwargs)\n             args = args[3:]\n         else:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T19:14:03.176270",
+  "end_time": "2026-01-31T19:19:58.243267",
+  "duration_seconds": 355.066997,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "b8ebe38d-9d17-4b5a-923a-42e98e4d4cc9",
+      "epic_title": "Fix: matplotlib__matplotlib-24870",
+      "comment_id": "120dd642-c000-4a0b-baf9-b6fb7b615513",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nAuto-detect boolean arrays passed to `contour()` and `contourf()` and default `levels` to `[0.5]` when no explicit levels are provided. Previously, boolean arrays were converted to float (0.0 and 1.0), and the default 8 levels (0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05) resulted in all contour lines being drawn on top of each other at the boundary between True and False regions.\n\n## Files Modified\n\n- `lib/matplotlib/contour.py` (_contour_args method): Added boolean array detection before the Z array is converted to float64. If the input is boolean (`dtype.kind == 'b'`) and no explicit levels are provided, sets `self.levels = [0.5]`.\n\n## Implementation Details\n\nThe fix checks for boolean arrays in two places in `_contour_args`:\n1. When `nargs <= 2` (contour(Z) or contour(Z, levels)): checks `args[0]`\n2. When `nargs <= 4` (contour(X, Y, Z) or contour(X, Y, Z, levels)): checks `args[2]`\n\nThe check respects:\n- Explicit levels as keyword argument (`levels=[...]`)\n- Explicit levels as positional argument\n- Integer levels argument (e.g., `contour(bool_array, 5)` generates 5 levels)\n\n## Test Results\n\n- **Test file:** lib/matplotlib/tests/test_contour.py\n- **Baseline (before fix):** 65 passed, 1 skipped\n- **After fix:** 65 passed, 1 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n\nTested various scenarios:\n- Boolean array without levels \u2192 auto-sets to [0.5] \u2713\n- Boolean array with explicit levels \u2192 uses provided levels \u2713\n- Boolean array with integer levels arg \u2192 generates N levels \u2713\n- Boolean list (not numpy array) \u2192 works correctly \u2713\n- Non-boolean arrays \u2192 unchanged behavior \u2713\n\n## Concerns\n\nNone identified. The fix is minimal and focused on the specific issue.",
+      "created_at": "2026-01-31T18:19:49.298Z"
+    }
+  ]
+}

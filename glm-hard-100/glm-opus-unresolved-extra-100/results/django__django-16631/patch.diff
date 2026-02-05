@@ -1,0 +1,94 @@
+diff --git a/django/contrib/auth/__init__.py b/django/contrib/auth/__init__.py
+index 155330c596..890ade94b9 100644
+--- a/django/contrib/auth/__init__.py
++++ b/django/contrib/auth/__init__.py
+@@ -5,7 +5,7 @@ from django.apps import apps as django_apps
+ from django.conf import settings
+ from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+ from django.middleware.csrf import rotate_token
+-from django.utils.crypto import constant_time_compare
++from django.utils.crypto import compare_digest_with_hmac, constant_time_compare
+ from django.utils.module_loading import import_string
+ from django.views.decorators.debug import sensitive_variables
+ 
+@@ -199,10 +199,19 @@ def get_user(request):
+             # Verify the session
+             if hasattr(user, "get_session_auth_hash"):
+                 session_hash = request.session.get(HASH_SESSION_KEY)
+-                session_hash_verified = session_hash and constant_time_compare(
+-                    session_hash, user.get_session_auth_hash()
++                session_hash_verified = session_hash and compare_digest_with_hmac(
++                    session_hash,
++                    user.password,
++                    "django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash",
++                    algorithm="sha256",
+                 )
+-                if not session_hash_verified:
++                if session_hash_verified:
++                    # If the session was verified with a fallback key, update the
++                    # session hash to use the current key.
++                    current_hash = user.get_session_auth_hash()
++                    if session_hash != current_hash:
++                        request.session[HASH_SESSION_KEY] = current_hash
++                else:
+                     request.session.flush()
+                     user = None
+ 
+diff --git a/django/utils/crypto.py b/django/utils/crypto.py
+index 1c0e7001c6..4b0ed527e8 100644
+--- a/django/utils/crypto.py
++++ b/django/utils/crypto.py
+@@ -66,6 +66,53 @@ def constant_time_compare(val1, val2):
+     return secrets.compare_digest(force_bytes(val1), force_bytes(val2))
+ 
+ 
++def compare_digest_with_hmac(
++    value_1,
++    value_2,
++    key_salt,
++    *,
++    secret=None,
++    fallback_secrets=None,
++    algorithm="sha1",
++):
++    """
++    Compare two HMAC digest values. The value_1 is expected to be a digest
++    (hexdigest string) and value_2 is the input to HMAC. The comparison will
++    be tried with the primary secret and optionally with fallback secrets.
++
++    This is useful for verifying HMACs created with a rotated secret key.
++
++    Args:
++        value_1: The stored HMAC digest (hexdigest string)
++        value_2: The value to hash and compare
++        key_salt: The salt for the HMAC
++        secret: The primary secret (defaults to settings.SECRET_KEY)
++        fallback_secrets: List of fallback secrets to try (defaults to settings.SECRET_KEY_FALLBACKS)
++        algorithm: Hash algorithm to use (defaults to "sha1")
++
++    Returns:
++        True if value_1 matches the HMAC of value_2 with any of the secrets, False otherwise.
++    """
++    from django.conf import settings
++
++    if secret is None:
++        secret = settings.SECRET_KEY
++    if fallback_secrets is None:
++        fallback_secrets = settings.SECRET_KEY_FALLBACKS
++
++    # Try the primary secret first, then fallbacks
++    for test_secret in [secret, *fallback_secrets]:
++        hmac_value = salted_hmac(
++            key_salt,
++            value_2,
++            secret=test_secret,
++            algorithm=algorithm,
++        ).hexdigest()
++        if constant_time_compare(value_1, hmac_value):
++            return True
++    return False
++
++
+ def pbkdf2(password, salt, iterations, dklen=0, digest=None):
+     """Return the hash of password using pbkdf2."""
+     if digest is None:

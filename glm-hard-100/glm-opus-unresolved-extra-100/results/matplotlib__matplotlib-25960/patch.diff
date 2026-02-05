@@ -1,0 +1,82 @@
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index dab2bc4a5a..8269a98034 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -2274,17 +2274,70 @@ class SubFigure(FigureBase):
+             return
+         # need to figure out *where* this subplotspec is.
+         gs = self._subplotspec.get_gridspec()
++        nrows, ncols = gs.get_geometry()
++
++        # For constrained layout, don't apply margins or spacing
++        if self.get_constrained_layout():
++            left = 0.
++            right = 1.
++            bottom = 0.
++            top = 1.
++            wspace = 0.
++            hspace = 0.
++        else:
++            # Get subplot parameters from figure and GridSpec
++            subplot_params = gs.get_subplot_params(self.figure)
++            left = subplot_params.left
++            right = subplot_params.right
++            bottom = subplot_params.bottom
++            top = subplot_params.top
++            wspace = subplot_params.wspace
++            hspace = subplot_params.hspace
++
++        tot_width = right - left
++        tot_height = top - bottom
++
++        # Calculate grid positions accounting for wspace and hspace
+         wr = np.asarray(gs.get_width_ratios())
+         hr = np.asarray(gs.get_height_ratios())
+-        dx = wr[self._subplotspec.colspan].sum() / wr.sum()
+-        dy = hr[self._subplotspec.rowspan].sum() / hr.sum()
+-        x0 = wr[:self._subplotspec.colspan.start].sum() / wr.sum()
+-        y0 = 1 - hr[:self._subplotspec.rowspan.stop].sum() / hr.sum()
++
++        # calculate accumulated heights
++        cell_h = tot_height / (nrows + hspace * (nrows - 1))
++        sep_h = hspace * cell_h
++        norm = cell_h * nrows / sum(hr)
++        cell_heights = [r * norm for r in hr]
++        sep_heights = [0] + ([sep_h] * (nrows - 1))
++        cell_hs = np.cumsum(np.column_stack([sep_heights, cell_heights]).flat)
++        # .T swaps the rows and columns after reshape
++        fig_tops, fig_bottoms = (top - cell_hs).reshape((-1, 2)).T
++
++        # calculate accumulated widths
++        cell_w = tot_width / (ncols + wspace * (ncols - 1))
++        sep_w = wspace * cell_w
++        norm = cell_w * ncols / sum(wr)
++        cell_widths = [r * norm for r in wr]
++        sep_widths = [0] + ([sep_w] * (ncols - 1))
++        cell_ws = np.cumsum(np.column_stack([sep_widths, cell_widths]).flat)
++        # .T swaps the rows and columns after reshape
++        fig_lefts, fig_rights = (left + cell_ws).reshape((-1, 2)).T
++
++        # Get the position for this subplotspec's rows and columns
++        rows = np.arange(self._subplotspec.rowspan.start,
++                         self._subplotspec.rowspan.stop)
++        cols = np.arange(self._subplotspec.colspan.start,
++                         self._subplotspec.colspan.stop)
++
++        fig_bottom = fig_bottoms[rows].min()
++        fig_top = fig_tops[rows].max()
++        fig_left = fig_lefts[cols].min()
++        fig_right = fig_rights[cols].max()
++
+         if self.bbox_relative is None:
+-            self.bbox_relative = Bbox.from_bounds(x0, y0, dx, dy)
++            self.bbox_relative = Bbox.from_extents(
++                fig_left, fig_bottom, fig_right, fig_top)
+         else:
+-            self.bbox_relative.p0 = (x0, y0)
+-            self.bbox_relative.p1 = (x0 + dx, y0 + dy)
++            self.bbox_relative.p0 = (fig_left, fig_bottom)
++            self.bbox_relative.p1 = (fig_right, fig_top)
+ 
+     def get_constrained_layout(self):
+         """

@@ -1,0 +1,96 @@
+diff --git a/django/utils/numberformat.py b/django/utils/numberformat.py
+index 88b35fc435..fb8c3fa3b3 100644
+--- a/django/utils/numberformat.py
++++ b/django/utils/numberformat.py
+@@ -30,7 +30,12 @@ def format(number, decimal_sep, decimal_pos=None, grouping=0, thousand_sep='',
+         # Format values with more than 200 digits (an arbitrary cutoff) using
+         # scientific notation to avoid high memory usage in {:f}'.format().
+         _, digits, exponent = number.as_tuple()
+-        if abs(exponent) + len(digits) > 200:
++        # When decimal_pos is given, format the number as '0' with the
++        # specified number of decimal places if it's smaller than what
++        # decimal_pos can represent.
++        if decimal_pos is not None and exponent + len(digits) <= -decimal_pos:
++            str_number = '0'
++        elif abs(exponent) + len(digits) > 200:
+             number = '{:e}'.format(number)
+             coefficient, exponent = number.split('e')
+             # Format the coefficient.
+diff --git a/run_numberformat_tests.py b/run_numberformat_tests.py
+new file mode 100644
+index 0000000000..6e66f5b2c3
+--- /dev/null
++++ b/run_numberformat_tests.py
+@@ -0,0 +1,35 @@
++import os
++import sys
++import django
++from django.conf import settings
++
++# Configure Django settings
++settings.configure(
++    DEBUG=True,
++    SECRET_KEY='test-secret-key-for-numberformat-tests',
++    USE_L10N=False,
++    USE_THOUSAND_SEPARATOR=False,
++    DATABASES={
++        'default': {
++            'ENGINE': 'django.db.backends.sqlite3',
++            'NAME': ':memory:',
++        }
++    },
++    INSTALLED_APPS=[
++        'django.contrib.contenttypes',
++        'django.contrib.auth',
++    ],
++)
++django.setup()
++
++# Now run the tests
++import unittest
++from tests.utils_tests import test_numberformat
++
++loader = unittest.TestLoader()
++suite = loader.loadTestsFromModule(test_numberformat)
++runner = unittest.TextTestRunner(verbosity=2)
++result = runner.run(suite)
++
++# Exit with appropriate code
++sys.exit(0 if result.wasSuccessful() else 1)
+diff --git a/verify_bug_fix.py b/verify_bug_fix.py
+new file mode 100644
+index 0000000000..ddecc67a1d
+--- /dev/null
++++ b/verify_bug_fix.py
+@@ -0,0 +1,31 @@
++import sys
++import django
++from django.conf import settings
++from decimal import Decimal
++
++settings.configure(
++    DEBUG=True,
++    SECRET_KEY='test',
++    USE_L10N=False,
++    USE_THOUSAND_SEPARATOR=False,
++)
++django.setup()
++
++from django.utils.numberformat import format as nformat
++
++print('=== Bug Fix Verification ===')
++print()
++print('Test cases from bug report:')
++print('nformat(Decimal("1e-199"), ".", decimal_pos=2):', nformat(Decimal('1e-199'), '.', decimal_pos=2))
++print('nformat(Decimal("1e-200"), ".", decimal_pos=2):', nformat(Decimal('1e-200'), '.', decimal_pos=2))
++print()
++print('Expected behavior: Both should return "0.00"')
++print()
++
++# Check the specific failing test case
++val = '0.' + '0' * 299 + '1234'
++print(f'Failing test case: Decimal("{val[:20]}...{val[-10:]}") with decimal_pos=3')
++result = nformat(Decimal(val), '.', decimal_pos=3)
++print(f'Result: {result}')
++print(f'Expected by test: "1.234e-300" (old buggy behavior)')
++print(f'According to bug report: should be "0.000" (fixed behavior)')

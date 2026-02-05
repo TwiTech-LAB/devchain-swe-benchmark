@@ -1,0 +1,30 @@
+{
+  "instance_id": "pydata__xarray-6992",
+  "status": "completed",
+  "patch": "diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py\nindex 620f32f8..b89792fb 100644\n--- a/xarray/core/dataset.py\n+++ b/xarray/core/dataset.py\n@@ -365,7 +365,7 @@ class DataVariables(Mapping[Any, \"DataArray\"]):\n         )\n \n     def __len__(self) -> int:\n-        return len(self._dataset._variables) - len(self._dataset._coord_names)\n+        return sum(1 for key in self._dataset._variables if key not in self._dataset._coord_names)\n \n     def __contains__(self, key: Hashable) -> bool:\n         return key in self._dataset._variables and key not in self._dataset._coord_names\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:43:19.045241",
+  "end_time": "2026-02-03T01:48:29.105162",
+  "duration_seconds": 310.059921,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "c3f5dfe2-a5ec-4763-b361-767af0708056",
+      "epic_title": "Fix: pydata__xarray-6992",
+      "comment_id": "5dab13de-b478-477a-8c63-f1ecd8159b94",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the `DataVariables.__len__()` method in `xarray/core/dataset.py` to correctly count data variables even when `_coord_names` contains entries not in `_variables`.\n\nThe bug occurred because after index refactor (specifically #5692), `reset_index()` with `drop=True` could create a state where `_coord_names` has more items than `_variables`. The original `__len__()` implementation used simple subtraction `len(_variables) - len(_coord_names)`, which could return negative values.\n\n**Root cause**: In `reset_index()`, when `drop=True`, the `variables` dict is filtered by `drop_variables` (only the index name like 'z'), but `coord_names` is set as the union of `new_variables` and all original `_coord_names`. This creates a mismatch.\n\n**The fix**: Changed `DataVariables.__len__()` from:\n```python\nreturn len(self._dataset._variables) - len(self._dataset._coord_names)\n```\nto:\n```python\nreturn sum(1 for key in self._dataset._variables if key not in self._dataset._coord_names)\n```\n\nThis makes `__len__()` consistent with `__iter__()`, which correctly filters by checking membership rather than subtracting lengths.\n\n## Files Modified\n- `xarray/core/dataset.py`: Fixed `DataVariables.__len__()` to count actual data variables\n\n## Test Results\n- **Test file**: `/testbed/xarray/tests/test_dataset.py`\n- **Baseline (before fix)**: 370 passed, 1 skipped, 1 xfailed, 1 xpassed\n- **After fix**: 370 passed, 1 skipped, 1 xfailed, 1 xpassed\n- **Regression check**: No new failures introduced\n- **Additional tests**: All 68 tests in `test_indexes.py` pass\n\n## Additional Verification\n- Tested the original MVCE: `ds.set_index(z=['a', 'b']).reset_index('z', drop=True)` now works correctly\n- Tested edge cases: empty datasets, datasets with only coordinates, datasets with data variables\n- Verified `len(data_vars)` is consistent with iteration count\n\n## Concerns\n- None. The fix is minimal, consistent with existing `__iter__()` logic, and handles all edge cases correctly.",
+      "created_at": "2026-02-03T00:47:21.568Z"
+    },
+    {
+      "epic_id": "c3f5dfe2-a5ec-4763-b361-767af0708056",
+      "epic_title": "Fix: pydata__xarray-6992",
+      "comment_id": "f3fb6cff-9880-480b-a020-e145d6e15256",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Diff is minimal and source-only (`xarray/core/dataset.py`).\n- Fix makes `DataVariables.__len__()` consistent with `__iter__()` by counting keys not in `_coord_names`, preventing negative lengths when `_coord_names` contains entries not present in `_variables` (index refactor/reset_index drop=True case).\n- No test files or build configs modified.",
+      "created_at": "2026-02-03T00:48:21.949Z"
+    }
+  ]
+}

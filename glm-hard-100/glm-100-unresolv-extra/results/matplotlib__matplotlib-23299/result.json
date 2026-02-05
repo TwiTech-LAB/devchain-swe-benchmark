@@ -1,0 +1,22 @@
+{
+  "instance_id": "matplotlib__matplotlib-23299",
+  "status": "completed",
+  "patch": "diff --git a/lib/matplotlib/pyplot.py b/lib/matplotlib/pyplot.py\nindex e3c66ea67c..87f610fd1a 100644\n--- a/lib/matplotlib/pyplot.py\n+++ b/lib/matplotlib/pyplot.py\n@@ -222,7 +222,6 @@ def switch_backend(newbackend):\n     global _backend_mod\n     # make sure the init is pulled up so we can assign to it later\n     import matplotlib.backends\n-    close(\"all\")\n \n     if newbackend is rcsetup._auto_backend_sentinel:\n         current_framework = cbook._get_running_interactive_framework()\n@@ -260,6 +259,9 @@ def switch_backend(newbackend):\n             rcParamsOrig[\"backend\"] = \"agg\"\n             return\n \n+    # Close all open figures before setting the new backend.\n+    close(\"all\")\n+\n     backend_mod = importlib.import_module(\n         cbook._backend_module_name(newbackend))\n     canvas_class = backend_mod.FigureCanvas\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T16:43:29.781146",
+  "end_time": "2026-01-31T16:53:02.782016",
+  "duration_seconds": 573.00087,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "417e0cb7-837d-428b-9429-3ebb94b1160f",
+      "epic_title": "Fix: matplotlib__matplotlib-23299",
+      "comment_id": "e6978fa7-7d90-47a4-b27f-d0ab5bd45204",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe bug was in `pyplot.switch_backend()` which unconditionally called `close(\"all\")` before checking if the backend was `_auto_backend_sentinel`. This caused all figures to be destroyed when `get_backend()` was called and the backend hadn't been resolved yet.\n\n## Root Cause\n\nWhen `get_backend()` is called, it accesses `rcParams['backend']`. If the backend is still `_auto_backend_sentinel`, the custom `__getitem__` method calls `plt.switch_backend(_auto_backend_sentinel)` to trigger auto-detection. The original code called `close(\"all\")` at the start of `switch_backend()`, which destroyed all figures including those created inside `rc_context()`.\n\n## Files Modified\n\n- **lib/matplotlib/pyplot.py**: Moved `close(\"all\")` call from before the `_auto_backend_sentinel` check to after it. This ensures that auto-backend detection doesn't destroy existing figures, while explicit backend switches still properly close all figures.\n\n## Test Results\n\n- **Test file**: lib/matplotlib/tests/test_pyplot.py\n- **All 23 pyplot tests**: PASSED\n- **Backend-related tests**: PASSED\n\n## Verification\n\nCreated a test script that reproduces the exact bug scenario:\n1. Set backend to `_auto_backend_sentinel`\n2. Create a figure inside `rc_context()`\n3. Call `get_backend()` \n4. Verify figures are preserved (PASS - figures preserved)\n5. Verify `switch_backend()` still closes figures for explicit switches (PASS)\n\n## Concerns\n\n- The 2 failing tests (`test_rcparams_update` and `test_rcparams_init`) are pre-existing issues unrelated to this fix - they're about validation warnings not being emitted, not about backend switching.",
+      "created_at": "2026-01-31T15:52:58.175Z"
+    }
+  ]
+}

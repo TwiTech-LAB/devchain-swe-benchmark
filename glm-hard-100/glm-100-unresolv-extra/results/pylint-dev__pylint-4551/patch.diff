@@ -1,0 +1,185 @@
+diff --git a/classes.dot b/classes.dot
+new file mode 100644
+index 000000000..6b2ccf84c
+--- /dev/null
++++ b/classes.dot
+@@ -0,0 +1,4 @@
++digraph "classes" {
++charset="utf-8"
++rankdir=BT
++}
+diff --git a/pylint/pyreverse/diagrams.py b/pylint/pyreverse/diagrams.py
+index bf9f67af6..b5ac42557 100644
+--- a/pylint/pyreverse/diagrams.py
++++ b/pylint/pyreverse/diagrams.py
+@@ -91,12 +91,47 @@ class ClassDiagram(Figure, FilterMixIn):
+         ):
+             if not self.show_attr(node_name):
+                 continue
+-            names = self.class_names(associated_nodes)
+-            if names:
+-                node_name = "{} : {}".format(node_name, ", ".join(names))
++            # Check if there's a type annotation for this attribute
++            if hasattr(node, "type_annotation_attrs") and node_name in node.type_annotation_attrs:
++                annotation = node.type_annotation_attrs[node_name]
++                type_name = self._annotation_to_string(annotation)
++                if type_name:
++                    node_name = "{} : {}".format(node_name, type_name)
++            else:
++                names = self.class_names(associated_nodes)
++                if names:
++                    node_name = "{} : {}".format(node_name, ", ".join(names))
+             attrs.append(node_name)
+         return sorted(attrs)
+ 
++    @staticmethod
++    def _annotation_to_string(annotation):
++        """Convert a type annotation node to its string representation."""
++        if isinstance(annotation, astroid.Name):
++            return annotation.name
++        if isinstance(annotation, astroid.node_classes.Subscript):
++            # Handle generic types like List[str], Dict[str, int]
++            slice_str = ""
++            if annotation.slice is not None:
++                if isinstance(annotation.slice, astroid.Tuple):
++                    slice_str = ", ".join(
++                        ClassDiagram._annotation_to_string(elt)
++                        for elt in annotation.slice.elts
++                    )
++                else:
++                    slice_str = ClassDiagram._annotation_to_string(annotation.slice)
++            value_name = ClassDiagram._annotation_to_string(annotation.value)
++            return "{}[{}]".format(value_name, slice_str)
++        if isinstance(annotation, astroid.node_classes.Attribute):
++            # Handle annotations like typing.List
++            return annotation.as_string()
++        if isinstance(annotation, astroid.node_classes.Const):
++            return str(annotation.value)
++        # For other complex types, try to get the string representation
++        if hasattr(annotation, "as_string"):
++            return annotation.as_string()
++        return None
++
+     def get_methods(self, node):
+         """return visible methods"""
+         methods = [
+diff --git a/pylint/pyreverse/inspector.py b/pylint/pyreverse/inspector.py
+index 8fa122022..d4ea3960b 100644
+--- a/pylint/pyreverse/inspector.py
++++ b/pylint/pyreverse/inspector.py
+@@ -166,12 +166,50 @@ class Linker(IdGeneratorMixIn, utils.LocalsVisitor):
+             for assignattr in assignattrs:
+                 if not isinstance(assignattr, astroid.Unknown):
+                     self.handle_assignattr_type(assignattr, node)
++        # handle type annotations from __init__ method
++        node.type_annotation_attrs = self._get_type_annotations(node)
+         # resolve implemented interface
+         try:
+             node.implements = list(interfaces(node, self.inherited_interfaces))
+         except astroid.InferenceError:
+             node.implements = ()
+ 
++    @staticmethod
++    def _get_type_annotations(node):
++        """Get type annotations from __init__ method parameters.
++
++        Returns a dict mapping instance attribute names to their type annotations.
++        For example, if __init__ has 'self.a: int = 5', returns {'a': <Name.int>}
++        """
++        type_annotations = {}
++        # Find the __init__ method
++        for method in node.methods():
++            if method.name == "__init__":
++                # Build a mapping from parameter names to their type annotations
++                annotations = {}
++                args = method.args
++                if args.args:
++                    for i, arg in enumerate(args.args):
++                        if i < len(args.annotations) and args.annotations[i] is not None:
++                            annotations[arg.name] = args.annotations[i]
++
++                # Check which instance attributes are assigned from parameters
++                # with type annotations
++                for attr_name in node.instance_attrs:
++                    for assign_attr in node.instance_attrs[attr_name]:
++                        if isinstance(assign_attr, astroid.AssignAttr):
++                            # Get the assignment expression
++                            assign_node = assign_attr.parent
++                            if isinstance(assign_node, astroid.Assign):
++                                assigned_value = assign_node.value
++                                # Check if it's a simple name reference (e.g., 'a' in 'self.a = a')
++                                if isinstance(assigned_value, astroid.Name):
++                                    param_name = assigned_value.name
++                                    if param_name in annotations:
++                                        type_annotations[attr_name] = annotations[param_name]
++                break
++        return type_annotations
++
+     def visit_functiondef(self, node):
+         """visit an astroid.Function node
+ 
+diff --git a/pylint/pyreverse/writer.py b/pylint/pyreverse/writer.py
+index 0d80bb9ca..3138ec6fd 100644
+--- a/pylint/pyreverse/writer.py
++++ b/pylint/pyreverse/writer.py
+@@ -134,16 +134,56 @@ class DotWriter(DiagramWriter):
+         if not self.config.only_classnames:
+             label = r"{}|{}\l|".format(label, r"\l".join(obj.attrs))
+             for func in obj.methods:
+-                if func.args.args:
+-                    args = [arg.name for arg in func.args.args if arg.name != "self"]
+-                else:
+-                    args = []
++                args = self._get_function_signature(func)
+                 label = r"{}{}({})\l".format(label, func.name, ", ".join(args))
+             label = "{%s}" % label
+         if is_exception(obj.node):
+             return dict(fontcolor="red", label=label, shape="record")
+         return dict(label=label, shape="record")
+ 
++    @staticmethod
++    def _get_function_signature(func):
++        """Return a list of argument strings with type annotations for a function."""
++        args = []
++        annotations = func.args.annotations or []
++        for i, arg in enumerate(func.args.args):
++            if arg.name == "self":
++                continue
++            arg_str = arg.name
++            if i < len(annotations) and annotations[i] is not None:
++                annotation_str = DotWriter._annotation_to_string(annotations[i])
++                if annotation_str:
++                    arg_str = "{} : {}".format(arg_str, annotation_str)
++            args.append(arg_str)
++        return args
++
++    @staticmethod
++    def _annotation_to_string(annotation):
++        """Convert a type annotation node to its string representation."""
++        import astroid
++
++        if isinstance(annotation, astroid.Name):
++            return annotation.name
++        if isinstance(annotation, astroid.node_classes.Subscript):
++            slice_str = ""
++            if annotation.slice is not None:
++                if isinstance(annotation.slice, astroid.Tuple):
++                    slice_str = ", ".join(
++                        DotWriter._annotation_to_string(elt)
++                        for elt in annotation.slice.elts
++                    )
++                else:
++                    slice_str = DotWriter._annotation_to_string(annotation.slice)
++            value_name = DotWriter._annotation_to_string(annotation.value)
++            return "{}[{}]".format(value_name, slice_str)
++        if isinstance(annotation, astroid.node_classes.Attribute):
++            return annotation.as_string()
++        if isinstance(annotation, astroid.node_classes.Const):
++            return str(annotation.value)
++        if hasattr(annotation, "as_string"):
++            return annotation.as_string()
++        return None
++
+     def close_graph(self):
+         """print the dot graph into <file_name>"""
+         self.printer.generate(self.file_name)

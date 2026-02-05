@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-15127",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/messages/storage/base.py b/django/contrib/messages/storage/base.py\nindex 01422066a6..a46c57cd53 100644\n--- a/django/contrib/messages/storage/base.py\n+++ b/django/contrib/messages/storage/base.py\n@@ -38,7 +38,7 @@ class Message:\n \n     @property\n     def level_tag(self):\n-        return LEVEL_TAGS.get(self.level, '')\n+        return utils.get_level_tags().get(self.level, '')\n \n \n class BaseStorage:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T10:38:27.036665",
+  "end_time": "2026-02-03T10:51:28.878845",
+  "duration_seconds": 781.84218,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "008e438d-3433-4173-856a-005ec01e002f",
+      "epic_title": "Fix: django__django-15127",
+      "comment_id": "c895d673-aca5-45d9-b6e3-f56a40d9961a",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nChanged the `Message.level_tag` property to call `utils.get_level_tags()` directly instead of using the module-level `LEVEL_TAGS` constant. This ensures that when `@override_settings(MESSAGE_TAGS={...})` is used in tests, the `level_tag` property will return the updated tag values.\n\nThe root cause was that `LEVEL_TAGS` was evaluated at module import time and cached as a constant. The `@override_settings` decorator changes `settings.MESSAGE_TAGS` but the cached `LEVEL_TAGS` was never updated.\n\n## Files Modified\n- `django/contrib/messages/storage/base.py`: Changed `level_tag` property from using cached `LEVEL_TAGS` constant to calling `utils.get_level_tags()` dynamically\n\n## Test Results\n- **Manual tests:** All passed\n  - Default level_tag: \u2713 PASS\n  - Override with custom tag: \u2713 PASS (level_tag correctly returns the overridden value)\n  - After override ends: \u2713 PASS (level_tag reverts to default)\n  - Edge cases: \u2713 PASS (unknown level returns empty string, empty override uses defaults, multiple overrides work, all default levels work)\n\n## Verification\nThe fix correctly addresses the issue described in the problem statement. When using `@override_settings(MESSAGE_TAGS={...})` in tests, the `Message.level_tag` property now correctly returns the overridden tag values instead of returning the stale cached value.\n\n## Notes\n- The `LEVEL_TAGS` module-level constant remains for backward compatibility (though it is now only used if imported directly by external code)\n- The custom `override_settings_tags` test helper will still work (though it's no longer necessary since standard `@override_settings` now works correctly)",
+      "created_at": "2026-02-03T09:50:19.752Z"
+    },
+    {
+      "epic_id": "008e438d-3433-4173-856a-005ec01e002f",
+      "epic_title": "Fix: django__django-15127",
+      "comment_id": "018f9421-73a9-4058-88c8-d12976fa4f38",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review: PASSED\n\n**Review Checklist:**\n- [x] No test files modified \u2014 only `django/contrib/messages/storage/base.py` changed\n- [x] No unrelated files modified \u2014 single file, directly related to the issue\n- [x] Fix logically addresses the problem\n- [x] No obvious crash bugs or logical errors introduced\n- [x] Changes are minimal and focused (1 line changed)\n\n**Analysis:**\n\nThe root cause is correct: `LEVEL_TAGS` at module level (line 4) is evaluated once at import time via `utils.get_level_tags()`. When `@override_settings(MESSAGE_TAGS={...})` is used in tests, `settings.MESSAGE_TAGS` changes but `LEVEL_TAGS` remains stale.\n\nThe fix changes `level_tag` property from:\n```python\nreturn LEVEL_TAGS.get(self.level, '')\n```\nto:\n```python\nreturn utils.get_level_tags().get(self.level, '')\n```\n\nThis is correct because:\n1. `utils.get_level_tags()` reads `settings.MESSAGE_TAGS` fresh each call, so `@override_settings` is properly respected\n2. The `utils` module is already imported (line 2), so no new import needed\n3. The fallback behavior (`''` for unknown levels) is preserved\n4. The function call overhead is negligible since `level_tag` is a property accessed per-message, not in a tight loop\n\nClean, minimal, correct fix.",
+      "created_at": "2026-02-03T09:51:21.630Z"
+    }
+  ]
+}

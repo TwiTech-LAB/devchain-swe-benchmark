@@ -1,0 +1,19 @@
+diff --git a/lib/matplotlib/colorbar.py b/lib/matplotlib/colorbar.py
+index c59b0ac815..a23f0f1f00 100644
+--- a/lib/matplotlib/colorbar.py
++++ b/lib/matplotlib/colorbar.py
+@@ -651,8 +651,13 @@ class Colorbar:
+             if not self.drawedges:
+                 if len(self._y) >= self.n_rasterize:
+                     self.solids.set_rasterized(True)
++        # Determine which divider segments to skip based on extend settings.
++        # When an extension is present, draw the edge at the boundary
++        # between the colorbar and the extension.
++        slice_start = 1 if not self._extend_lower() else 0
++        slice_end = -1 if not self._extend_upper() else None
+         self.dividers.set_segments(
+-            np.dstack([X, Y])[1:-1] if self.drawedges else [])
++            np.dstack([X, Y])[slice_start:slice_end] if self.drawedges else [])
+ 
+     def _add_solids_patches(self, X, Y, C, mappable):
+         hatches = mappable.hatches * len(C)  # Have enough hatches.

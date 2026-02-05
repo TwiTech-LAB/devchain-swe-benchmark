@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-20428",
+  "status": "completed",
+  "patch": "diff --git a/sympy/polys/densetools.py b/sympy/polys/densetools.py\nindex f057824642..d298c3c750 100644\n--- a/sympy/polys/densetools.py\n+++ b/sympy/polys/densetools.py\n@@ -1197,6 +1197,7 @@ def dup_clear_denoms(f, K0, K1=None, convert=False):\n \n     if not K1.is_one(common):\n         f = dup_mul_ground(f, common, K0)\n+        f = dup_strip(f)\n \n     if not convert:\n         return common, f\n@@ -1251,6 +1252,7 @@ def dmp_clear_denoms(f, u, K0, K1=None, convert=False):\n \n     if not K1.is_one(common):\n         f = dmp_mul_ground(f, common, u, K0)\n+        f = dmp_strip(f, u)\n \n     if not convert:\n         return common, f\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T17:05:32.107287",
+  "end_time": "2026-01-31T17:11:12.853042",
+  "duration_seconds": 340.745755,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "59e312b2-bcf5-486c-ac19-e419e4210284",
+      "epic_title": "Fix: sympy__sympy-20428",
+      "comment_id": "57b43832-270d-4600-8449-107d0bda0860",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe issue was that `clear_denoms()` returned a polynomial with unstripped leading zeros in its DMP representation. When a polynomial that simplifies to zero was processed by `clear_denoms()`, the result had `DMP([EX(0)], EX, None)` instead of the correct `DMP([], EX, None)`.\n\nThe fix strips the polynomial after multiplication by the common denominator in both `dup_clear_denoms()` and `dmp_clear_denoms()` functions.\n\n## Files Modified\n\n- `sympy/polys/densetools.py`: Added `dup_strip()` call after `dup_mul_ground()` in `dup_clear_denoms()` and `dmp_strip()` call after `dmp_mul_ground()` in `dmp_clear_denoms()`\n\n## Test Results\n\n- **Test files:** sympy/polys/tests/test_densetools.py, sympy/polys/tests/test_polytools.py\n- **Baseline (before fix):** All tests passed\n- **After fix:** All tests passed (no regressions)\n\n## Additional Verification\n\n- Verified the original bug is fixed: `clear_denoms()` now returns `DMP([], EX, None)` for zero polynomials\n- Verified `bad_poly.is_zero` now correctly returns `True`\n- Verified `terms_gcd()` no longer raises `IndexError`\n- Verified `primitive()` no longer raises `ZeroDivisionError`\n- Tested edge cases: zero polynomials with QQ and EX domains, multivariate zero polynomials, non-zero polynomials\n\n## Concerns\n\nNone. The fix is minimal and only adds the necessary stripping operation that should have been there after multiplication.",
+      "created_at": "2026-01-31T16:11:08.991Z"
+    }
+  ]
+}

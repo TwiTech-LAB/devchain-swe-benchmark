@@ -1,0 +1,231 @@
+diff --git a/pylint/config/utils.py b/pylint/config/utils.py
+index 91e4ff86f..4dfb28996 100644
+--- a/pylint/config/utils.py
++++ b/pylint/config/utils.py
+@@ -6,6 +6,8 @@
+ 
+ from __future__ import annotations
+ 
++import csv
++import io
+ import re
+ from collections.abc import Callable, Sequence
+ from pathlib import Path
+@@ -132,9 +134,18 @@ def _convert_option_to_argument(
+ 
+ 
+ def _parse_rich_type_value(value: Any) -> str:
+-    """Parse rich (toml) types into strings."""
++    """Parse rich (toml) types into strings.
++
++    For list/tuple types, we use csv formatting to properly escape/quote
++    elements that contain commas (e.g., regex patterns like "(foo{1,3})").
++    """
+     if isinstance(value, (list, tuple)):
+-        return ",".join(_parse_rich_type_value(i) for i in value)
++        # Use csv module to properly quote/escape values containing commas
++        output = io.StringIO()
++        writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
++        parsed_values = [_parse_rich_type_value(i) for i in value]
++        writer.writerow(parsed_values)
++        return output.getvalue().rstrip("\n\r")
+     if isinstance(value, re.Pattern):
+         return str(value.pattern)
+     if isinstance(value, dict):
+diff --git a/pylint/utils/utils.py b/pylint/utils/utils.py
+index fa7f7b92f..671f9474c 100644
+--- a/pylint/utils/utils.py
++++ b/pylint/utils/utils.py
+@@ -16,6 +16,7 @@ except ImportError:  # isort < 5
+ 
+ import argparse
+ import codecs
++import csv
+ import os
+ import re
+ import sys
+@@ -213,12 +214,23 @@ def _splitstrip(string: str, sep: str = ",") -> list[str]:
+     """Return a list of stripped string by splitting the string given as
+     argument on `sep` (',' by default), empty strings are discarded.
+ 
++    Handles quoted strings properly (commas inside quotes are not separators).
++    Also handles commas inside regex quantifiers like {1,3}.
++
+     >>> _splitstrip('a, b, c   ,  4,,')
+     ['a', 'b', 'c', '4']
+     >>> _splitstrip('a')
+     ['a']
+-    >>> _splitstrip('a,\nb,\nc,')
++    >>> _splitstrip('a,\\nb,\\nc,')
+     ['a', 'b', 'c']
++    >>> _splitstrip('"foo{1,3}"')
++    ['foo{1,3}']
++    >>> _splitstrip('"foo{1,3}",bar')
++    ['foo{1,3}', 'bar']
++    >>> _splitstrip('foo,"bar,baz",qux')
++    ['foo', 'bar,baz', 'qux']
++    >>> _splitstrip('(foo{1,3})')
++    ['(foo{1,3})']
+ 
+     :type string: str or unicode
+     :param string: a csv line
+@@ -229,7 +241,79 @@ def _splitstrip(string: str, sep: str = ",") -> list[str]:
+     :rtype: str or unicode
+     :return: the unquoted string (or the input string if it wasn't quoted)
+     """
+-    return [word.strip() for word in string.split(sep) if word.strip()]
++    # Skip empty strings
++    if not string or not string.strip():
++        return []
++
++    # First, try using csv module to handle quoted strings
++    try:
++        reader = csv.reader([string], skipinitialspace=True)
++        result = next(reader)
++    except csv.Error:
++        # CSV parsing failed (e.g., embedded newlines), fall through to manual handling
++        result = None
++
++    if result is not None:
++        # Check if any result looks like a broken regex (comma inside {})
++        # This handles cases like "(foo{1,3})" where TOML stripped the quotes
++        has_broken_regex = False
++        for item in result:
++            # Check if item has unclosed braces or brackets
++            # which would indicate we split inside a regex quantifier
++            if item.count('{') > item.count('}') or item.count('[') > item.count(']'):
++                has_broken_regex = True
++                break
++
++        if not has_broken_regex:
++            # CSV parsing worked and didn't break regex patterns
++            return [_unquote(item.strip()) for item in result if item.strip()]
++
++    # Fallback: Manual split that respects braces/brackets
++    # This handles commas inside regex quantifiers like {1,3}
++    result = []
++    current = []
++    brace_depth = 0
++    bracket_depth = 0
++    in_quotes = False
++    quote_char = None
++
++    for char in string:
++        if not in_quotes and char in "\"'":
++            in_quotes = True
++            quote_char = char
++            current.append(char)
++        elif in_quotes and char == quote_char:
++            in_quotes = False
++            quote_char = None
++            current.append(char)
++        elif not in_quotes:
++            if char == '{':
++                brace_depth += 1
++                current.append(char)
++            elif char == '}':
++                brace_depth = max(0, brace_depth - 1)
++                current.append(char)
++            elif char == '[':
++                bracket_depth += 1
++                current.append(char)
++            elif char == ']':
++                bracket_depth = max(0, bracket_depth - 1)
++                current.append(char)
++            elif char == sep and brace_depth == 0 and bracket_depth == 0:
++                # Split point found outside braces/brackets
++                result.append(''.join(current))
++                current = []
++            else:
++                current.append(char)
++        else:
++            current.append(char)
++
++    # Add the last segment
++    if current:
++        result.append(''.join(current))
++
++    # Strip whitespace, unquote, and filter empty strings
++    return [_unquote(item.strip()) for item in result if item.strip()]
+ 
+ 
+ def _unquote(string: str) -> str:
+diff --git a/test_verify_fix.py b/test_verify_fix.py
+new file mode 100644
+index 000000000..e93c22706
+--- /dev/null
++++ b/test_verify_fix.py
+@@ -0,0 +1,73 @@
++#!/usr/bin/env python3
++"""Verify the fix for bad-names-rgxs issue."""
++
++from pylint.utils.utils import _splitstrip
++from pylint.config.utils import _parse_rich_type_value
++
++print('=== Testing the fix for bad-names-rgxs ===')
++print()
++
++# Test 1: The original repro case - single regex with comma (unquoted, as from TOML)
++print('Test 1: Single regex with comma (unquoted, as from TOML parsing)')
++result = _splitstrip('(foo{1,3})')
++print(f'  Input: (foo{{1,3}})')
++print(f'  Result: {result}')
++print(f'  Expected: ["(foo{{1,3}})"]')
++print(f'  PASS' if result == ['(foo{1,3})'] else '  FAIL')
++print()
++
++# Test 2: TOML list format
++print('Test 2: TOML list format')
++value_list = ['(foo{1,3})']
++joined = _parse_rich_type_value(value_list)
++result = _splitstrip(joined)
++print(f'  Input list: {value_list}')
++print(f'  After _parse_rich_type_value: {repr(joined)}')
++print(f'  After _splitstrip: {result}')
++print(f'  Expected: ["(foo{1,3})"]')
++print(f'  PASS' if result == ['(foo{1,3})'] else '  FAIL')
++print()
++
++# Test 3: Quoted string
++print('Test 3: Quoted string')
++result = _splitstrip('"(foo{1,3})"')
++print(f'  Input: "(foo{{1,3}})"')
++print(f'  Result: {result}')
++print(f'  Expected: ["(foo{1,3})"]')
++print(f'  PASS' if result == ['(foo{1,3})'] else '  FAIL')
++print()
++
++# Test 4: Multiple values with comma inside one value
++print('Test 4: Multiple values with comma inside one value')
++result = _splitstrip('"(foo{1,3})",bar.*')
++print(f'  Input: "(foo{{1,3}})",bar.*')
++print(f'  Result: {result}')
++print(f'  Expected: ["(foo{1,3})", "bar.*"]')
++print(f'  PASS' if result == ['(foo{1,3})', 'bar.*'] else '  FAIL')
++print()
++
++# Test 5: Backward compatibility - normal CSV
++print('Test 5: Backward compatibility - normal CSV')
++result = _splitstrip('foo.*,bar.*,baz.*')
++print(f'  Input: foo.*,bar.*,baz.*')
++print(f'  Result: {result}')
++print(f'  Expected: ["foo.*", "bar.*", "baz.*"]')
++print(f'  PASS' if result == ['foo.*', 'bar.*', 'baz.*'] else '  FAIL')
++print()
++
++# Test 6: Complex case with multiple braces
++print('Test 6: Complex case with nested quantifiers')
++result = _splitstrip('foo{1,3},bar{2,5}')
++print(f'  Input: foo{{1,3}},bar{{2,5}}')
++print(f'  Result: {result}')
++print(f'  Expected: ["foo{{1,3}}", "bar{{2,5}}"]')
++print(f'  PASS' if result == ['foo{1,3}', 'bar{2,5}'] else '  FAIL')
++print()
++
++# Test 7: Invalid regex should still be caught
++print('Test 7: Invalid regex (unclosed bracket) should still error')
++result = _splitstrip('(foo[bar')
++print(f'  Input: (foo[bar')
++print(f'  Result: {result}')
++print(f'  Expected: ["(foo[bar"]')
++print(f'  PASS' if result == ['(foo[bar]'] else '  FAIL')

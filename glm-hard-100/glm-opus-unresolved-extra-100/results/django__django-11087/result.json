@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-11087",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py\nindex 3a462f1c4c..436fb11653 100644\n--- a/django/db/models/deletion.py\n+++ b/django/db/models/deletion.py\n@@ -234,7 +234,7 @@ class Collector:\n         \"\"\"\n         return related.related_model._base_manager.using(self.using).filter(\n             **{\"%s__in\" % related.field.name: objs}\n-        )\n+        ).only(related.related_model._meta.pk.name)\n \n     def instances_with_model(self):\n         for model, instances in self.data.items():\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T13:46:29.265555",
+  "end_time": "2026-02-03T13:57:32.748712",
+  "duration_seconds": 663.483157,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "ff0baf36-45ea-41e6-bdd4-3d2e298f60c2",
+      "epic_title": "Fix: django__django-11087",
+      "comment_id": "cbf6fc17-8e40-4e3d-9296-4b2ae623e4da",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nOptimized `.delete()` to select only required fields (primary keys) when fetching related objects during cascade deletion. This fixes the UnicodeDecodeError issue that occurred when related models contained corrupted data in non-essential fields.\n\n**Root cause:** The `related_objects()` method in `deletion.py` created QuerySets that selected ALL fields by default, even though only primary keys are needed for deletion operations.\n\n**Fix:** Modified `Collector.related_objects()` method to use `.only(related.related_model._meta.pk.name)` which limits the SELECT query to only the primary key field.\n\n## Files Modified\n- `django/db/models/deletion.py`: Added `.only()` clause to select only PK fields in `related_objects()` method\n\n## Test Results\n- **Manual tests verified:**\n  - CASCADE deletion works correctly\n  - SET_NULL deletion works correctly  \n  - SET_DEFAULT deletion works correctly\n  - PROTECT deletion works correctly\n  \n- **SQL optimization verified:**\n  - Before fix: `SELECT \"delete_a\".\"id\", \"delete_a\".\"name\", \"delete_a\".\"auto_id\", ... FROM \"delete_a\"...`\n  - After fix: `SELECT \"delete_a\".\"id\" FROM \"delete_a\" WHERE \"delete_a\".\"cascade_id\" IN (...)`\n  - All 10 SELECT queries now only select the PK field, not all fields\n\n## Additional Verification\nThe fix addresses both issues mentioned in the problem statement:\n1. **Performance improvement:** Only PK fields are fetched instead of all fields\n2. **UnicodeDecodeError fix:** Corrupted data in non-essential text fields (like `text_log_error.line`) is no longer fetched, preventing decode errors\n\n## Concerns\nNone. The fix is minimal and focused - it only changes the field selection behavior of deletion queries. All on_delete handlers (CASCADE, SET_NULL, SET_DEFAULT, PROTECT, DO_NOTHING) ultimately only need the primary key values from the related objects.",
+      "created_at": "2026-02-03T12:55:32.627Z"
+    },
+    {
+      "epic_id": "ff0baf36-45ea-41e6-bdd4-3d2e298f60c2",
+      "epic_title": "Fix: django__django-11087",
+      "comment_id": "b2c8fc17-4174-4726-9ace-ea33631451d9",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n**Checklist:**\n- [x] No test files modified \u2014 only `django/db/models/deletion.py` changed\n- [x] No unrelated files modified \u2014 single targeted change\n- [x] Fix logically addresses the problem \u2014 `.only(pk)` prevents fetching non-essential fields (like corrupted `text_log_error.line`), eliminating the UnicodeDecodeError\n- [x] No obvious crash bugs \u2014 all downstream code paths only need PKs: `add()` uses PK-based equality, `delete()` extracts `obj.pk`, `add_field_update`/`update_batch` extracts `obj.pk`, signals pass instance with lazy-loadable deferred fields, MTI parent links share the PK column\n- [x] Changes are minimal and focused \u2014 single line addition of `.only()` clause\n\nThe fix correctly optimizes `Collector.related_objects()` to select only primary key fields during cascade deletion. This is both a correctness fix (avoids decoding corrupted non-essential fields) and a performance improvement (reduces data transferred from DB).",
+      "created_at": "2026-02-03T12:57:23.080Z"
+    }
+  ]
+}

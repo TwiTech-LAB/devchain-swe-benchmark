@@ -1,0 +1,78 @@
+diff --git a/sphinx/builders/linkcheck.py b/sphinx/builders/linkcheck.py
+index dd5317087..bf90f73af 100644
+--- a/sphinx/builders/linkcheck.py
++++ b/sphinx/builders/linkcheck.py
+@@ -109,6 +109,49 @@ class CheckExternalLinksBuilder(Builder):
+             thread.start()
+             self.workers.append(thread)
+ 
++    def check_internal(self, uri: str, docname: str) -> Tuple[str, str, int]:
++        """Check if an internal/local reference target exists.
++
++        Returns the status tuple (status, info, code) for the internal link.
++        """
++        # Split off anchor if present
++        if '#' in uri:
++            base_uri, _anchor = uri.split('#', 1)
++        else:
++            base_uri = uri
++            _anchor = None
++
++        # Check if it's a valid document
++        if base_uri in self.env.all_docs:
++            # Valid document
++            return 'working', '', 0
++
++        # Check if it's a known reference target in the standard domain
++        std_domain = self.env.get_domain('std')
++        # Check labels (named reference targets)
++        if base_uri in std_domain.labels:
++            return 'working', '', 0
++        # Check anonlabels (anonymous reference targets)
++        if base_uri in std_domain.anonlabels:
++            return 'working', '', 0
++
++        # Check objects (glossary terms, tokens, etc.)
++        for objtype, name in std_domain.objects:
++            if name == base_uri:
++                return 'working', '', 0
++
++        # Check if it's a relative path to an existing document
++        # Handle cases like 'subdir/document' or 'document'
++        # Try to resolve relative to current document
++        if '/' in base_uri or '\\' in base_uri:
++            # Might be a relative path - check if file exists
++            docuri = path.join(path.dirname(self.env.doc2path(docname)), base_uri)
++            if path.exists(path.join(self.env.srcdir, docuri)):
++                return 'working', '', 0
++
++        # Not found - it's a broken internal link
++        return 'broken', __('undefined label: %s') % base_uri, 0
++
+     def check_thread(self) -> None:
+         kwargs = {
+             'allow_redirects': True,
+@@ -213,7 +256,9 @@ class CheckExternalLinksBuilder(Builder):
+             if len(uri) == 0 or uri.startswith(('#', 'mailto:', 'ftp:')):
+                 return 'unchecked', '', 0
+             elif not uri.startswith(('http:', 'https:')):
+-                return 'local', '', 0
++                # Check if the local/internal link exists
++                # Try to resolve the reference against known targets
++                return self.check_internal(uri, docname)
+             elif uri in self.good:
+                 return 'working', 'old', 0
+             elif uri in self.broken:
+diff --git a/tox.ini b/tox.ini
+index bddd822a6..34baee205 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

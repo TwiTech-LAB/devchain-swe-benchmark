@@ -1,0 +1,39 @@
+diff --git a/django/db/backends/postgresql/client.py b/django/db/backends/postgresql/client.py
+index 3effab65a8..eaeb792404 100644
+--- a/django/db/backends/postgresql/client.py
++++ b/django/db/backends/postgresql/client.py
+@@ -36,20 +36,32 @@ class DatabaseClient(BaseDatabaseClient):
+             args += [dbname]
+         args.extend(parameters)
+ 
+-        env = {}
++        env = None
+         if passwd:
+-            env['PGPASSWORD'] = str(passwd)
++            env = {'PGPASSWORD': str(passwd)}
+         if service:
++            if env is None:
++                env = {}
+             env['PGSERVICE'] = str(service)
+         if sslmode:
++            if env is None:
++                env = {}
+             env['PGSSLMODE'] = str(sslmode)
+         if sslrootcert:
++            if env is None:
++                env = {}
+             env['PGSSLROOTCERT'] = str(sslrootcert)
+         if sslcert:
++            if env is None:
++                env = {}
+             env['PGSSLCERT'] = str(sslcert)
+         if sslkey:
++            if env is None:
++                env = {}
+             env['PGSSLKEY'] = str(sslkey)
+         if passfile:
++            if env is None:
++                env = {}
+             env['PGPASSFILE'] = str(passfile)
+         return args, env
+ 

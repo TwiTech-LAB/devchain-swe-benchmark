@@ -1,0 +1,30 @@
+{
+  "instance_id": "astropy__astropy-13977",
+  "status": "completed",
+  "patch": "diff --git a/astropy/units/quantity.py b/astropy/units/quantity.py\nindex b98abfafb0..f78fba00d5 100644\n--- a/astropy/units/quantity.py\n+++ b/astropy/units/quantity.py\n@@ -667,7 +667,14 @@ class Quantity(np.ndarray):\n         arrays = []\n         for input_, converter in zip(inputs, converters):\n             input_ = getattr(input_, \"value\", input_)\n-            arrays.append(converter(input_) if converter else input_)\n+            if converter is not None:\n+                try:\n+                    input_ = converter(input_)\n+                except (UnitConversionError, TypeError, ValueError):\n+                    # Cannot convert this input (e.g., incompatible duck array).\n+                    # Return NotImplemented to allow the other operand to try.\n+                    return NotImplemented\n+            arrays.append(input_)\n \n         # Call our superclass's __array_ufunc__\n         result = super().__array_ufunc__(function, method, *arrays, **kwargs)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T06:43:50.206797",
+  "end_time": "2026-02-03T06:47:51.318982",
+  "duration_seconds": 241.112185,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "2dfa0149-2aa0-4dcf-94bd-bb645e837361",
+      "epic_title": "Fix: astropy__astropy-13977",
+      "comment_id": "4b5ef37f-10d7-4e76-9abe-05fb30996ed5",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `Quantity.__array_ufunc__()` to return `NotImplemented` instead of raising `ValueError` when inputs are incompatible (e.g., duck array types with different units). This allows Python to try reflected operations like `__radd__`, which is consistent with numpy's documentation for `__array_ufunc__`.\n\n## Root Cause\n\nWhen a duck array type with a `.unit` attribute but incompatible values was passed to `Quantity.__array_ufunc__()`, the converter function would raise a `ValueError` from `_condition_arg()` when trying to convert the duck array. This prevented Python from trying the reflected operation.\n\n## Solution\n\nWrapped the converter application in a try-except block that catches `UnitConversionError`, `TypeError`, and `ValueError` exceptions and returns `NotImplemented` instead. This allows Python to try the reflected operation on the other operand.\n\n## Files Modified\n- `astropy/units/quantity.py`: Lines 667-677, added try-except block to catch conversion errors and return `NotImplemented`\n\n## Test Results\n\n- **Test file:** astropy/units/tests/test_quantity.py\n- **Baseline (before fix):** 93 passed, 1 xfailed\n- **After fix:** 93 passed, 1 xfailed\n- **Regression check:** No new failures introduced\n\n- **Additional tests:** astropy/units/tests/test_quantity_ufuncs.py\n- **Result:** 201 passed, 4 skipped\n\n## Additional Verification\n\nCreated a duck array type `DuckArray` (as described in the issue) and verified:\n- `(1 * u.m) + DuckArray(1 * u.mm)` now works correctly (previously raised `ValueError`)\n- `(1 * u.mm) + DuckArray(1 * u.mm)` still works\n- `DuckArray(1 * u.m) + (1 * u.mm)` still works\n- Subtraction, multiplication, and division all work correctly\n- Incompatible units (m + s) still raise proper `UnitConversionError`\n- Empty arrays work correctly\n- Completely unrelated types still raise `TypeError`\n\n## Concerns\n\nNone. The fix is minimal, focused, and follows numpy conventions for `__array_ufunc__` implementation.",
+      "created_at": "2026-02-03T05:46:55.110Z"
+    },
+    {
+      "epic_id": "2dfa0149-2aa0-4dcf-94bd-bb645e837361",
+      "epic_title": "Fix: astropy__astropy-13977",
+      "comment_id": "112fdf74-d21d-43a2-a075-6e0b34e11989",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and in-scope (only `astropy/units/quantity.py`).\n- Returning `NotImplemented` on conversion errors in `Quantity.__array_ufunc__` matches the reported issue and allows reflected ops to run.\n\nNote: catching `ValueError` is broad, but seems appropriate here given the failure mode described and the unchanged unit-conversion behavior in existing tests.",
+      "created_at": "2026-02-03T05:47:45.485Z"
+    }
+  ]
+}

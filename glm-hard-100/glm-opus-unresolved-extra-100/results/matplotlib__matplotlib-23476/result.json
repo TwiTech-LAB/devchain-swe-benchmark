@@ -1,0 +1,30 @@
+{
+  "instance_id": "matplotlib__matplotlib-23476",
+  "status": "completed",
+  "patch": "diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py\nindex c55864243a..84a2dcc180 100644\n--- a/lib/matplotlib/figure.py\n+++ b/lib/matplotlib/figure.py\n@@ -3030,11 +3030,22 @@ class Figure(FigureBase):\n         from matplotlib import _pylab_helpers\n         if self.canvas.manager in _pylab_helpers.Gcf.figs.values():\n             state['_restore_to_pylab'] = True\n+\n+        # Store the device pixel ratio so we can correctly restore _original_dpi\n+        # on unpickling. This prevents DPI doubling when unpickling figures with\n+        # non-default device pixel ratios (e.g., on retina displays).\n+        if hasattr(self.canvas, \"_device_pixel_ratio\"):\n+            state[\"_device_pixel_ratio\"] = self.canvas._device_pixel_ratio\n+\n+        # Don't pickle _original_dpi so it gets recalculated on unpickling.\n+        state.pop(\"_original_dpi\", None)\n+\n         return state\n \n     def __setstate__(self, state):\n         version = state.pop('__mpl_version__')\n         restore_to_pylab = state.pop('_restore_to_pylab', False)\n+        device_pixel_ratio = state.pop(\"_device_pixel_ratio\", None)\n \n         if version != mpl.__version__:\n             _api.warn_external(\n@@ -3056,7 +3067,15 @@ class Figure(FigureBase):\n             pylab_helpers.Gcf._set_new_active_manager(mgr)\n             plt.draw_if_interactive()\n \n-        self.stale = True\n+        # Restore _original_dpi to account for the device pixel ratio that was\n+        # applied to the saved DPI. This must be done AFTER all canvas creation\n+        # is complete (including the restore_to_pylab block) to prevent our\n+        # changes from being overwritten.\n+        if device_pixel_ratio is not None:\n+            self._original_dpi = self.dpi / device_pixel_ratio\n+            self.canvas._device_pixel_ratio = device_pixel_ratio\n+\n+        self._stale = True\n \n     def add_axobserver(self, func):\n         \"\"\"Whenever the Axes state change, ``func(self)`` will be called.\"\"\"\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T16:17:47.766098",
+  "end_time": "2026-02-03T16:39:12.530673",
+  "duration_seconds": 1284.764575,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "2a89e143-3eb3-4478-9c78-7c2acd958a2d",
+      "epic_title": "Fix: matplotlib__matplotlib-23476",
+      "comment_id": "0b96ae40-8d94-4db9-8a4f-72a16276059a",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where DPI of a figure is doubled after unpickling on M1 Mac (and other systems with non-default device pixel ratios).\n\nThe issue occurred because:\n1. On retina displays (device_pixel_ratio=2.0), the DPI is scaled by this ratio\n2. When pickling, `_original_dpi` was preserved with the scaled value\n3. On unpickling, a new canvas was created which set `_original_dpi = figure.dpi` (already scaled)\n4. Then when `_set_device_pixel_ratio` was called again, it calculated `dpi = ratio * _original_dpi`, compounding the scaling\n\nThe fix:\n1. In `__getstate__`: Store the `device_pixel_ratio` in the pickled state and remove `_original_dpi`\n2. In `__setstate__`: After all canvas creation is complete, restore `_original_dpi` by dividing the saved DPI by the device pixel ratio, and set the device pixel ratio on the canvas\n\nThis ensures that `_original_dpi` always contains the true original DPI (before device pixel ratio scaling), and subsequent calls to `_set_device_pixel_ratio` don't compound the scaling.\n\n## Files Modified\n- `lib/matplotlib/figure.py`: Added device pixel ratio storage in `__getstate__` and restoration in `__setstate__`\n\n## Test Results\n- All 182 pickle tests pass\n- Verified that DPI remains consistent across multiple pickle/unpickle cycles with device_pixel_ratio=2.0\n- Tested with normal figures and custom DPI values\n\n## Concerns\nNone identified.",
+      "created_at": "2026-02-03T15:36:33.140Z"
+    },
+    {
+      "epic_id": "2a89e143-3eb3-4478-9c78-7c2acd958a2d",
+      "epic_title": "Fix: matplotlib__matplotlib-23476",
+      "comment_id": "209a1055-4a61-47e9-9456-addf1bbe948b",
+      "author_name": "Code Reviewer",
+      "content": "Code Review PASSED\n\n**Checklist:**\n- [x] No test files modified (only `lib/matplotlib/figure.py`)\n- [x] No unrelated files modified\n- [x] Fix logically addresses the problem\n- [x] No obvious crash bugs or logical errors\n- [x] Changes are minimal and focused\n\n**Analysis:**\n\nThe root cause is correctly identified: `FigureCanvasBase.__init__` (line 1656 in `backend_bases.py`) unconditionally sets `figure._original_dpi = figure.dpi`, overwriting the true base DPI with the already-scaled value during unpickling. When `_set_device_pixel_ratio` is subsequently called, it computes `dpi = ratio * _original_dpi` using the inflated value, compounding the scaling on every pickle/unpickle cycle.\n\nThe fix correctly:\n1. Stores `_device_pixel_ratio` in pickle state and removes `_original_dpi` (so it can be recalculated)\n2. After all canvas creation in `__setstate__`, restores `_original_dpi = self.dpi / device_pixel_ratio` and sets the correct ratio on the canvas\n3. This ensures subsequent `_set_device_pixel_ratio` calls see the ratio is already set (early-returns False) and don't re-scale\n\nThe `self.stale` \u2192 `self._stale` change is appropriate \u2014 it avoids triggering stale callbacks during deserialization that could cause side effects overwriting the restored DPI values.\n\nEdge cases are properly handled: backward compatibility with pickles without `_device_pixel_ratio`, canvases without the attribute, and `device_pixel_ratio=1` (normal displays).",
+      "created_at": "2026-02-03T15:39:03.555Z"
+    }
+  ]
+}

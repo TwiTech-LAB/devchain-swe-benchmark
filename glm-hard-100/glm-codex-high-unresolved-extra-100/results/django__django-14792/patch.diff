@@ -1,0 +1,18 @@
+diff --git a/django/db/backends/postgresql/operations.py b/django/db/backends/postgresql/operations.py
+index 8d19872bea..2a55e60977 100644
+--- a/django/db/backends/postgresql/operations.py
++++ b/django/db/backends/postgresql/operations.py
+@@ -44,6 +44,13 @@ class DatabaseOperations(BaseDatabaseOperations):
+         return "DATE_TRUNC('%s', %s)" % (lookup_type, field_name)
+ 
+     def _prepare_tzname_delta(self, tzname):
++        # PostgreSQL's AT TIME ZONE operator interprets:
++        # - '-10' as UTC+10 (east of UTC)
++        # - '+10' as UTC-10 (west of UTC)
++        # IANA names like 'Etc/GMT-10' use POSIX convention (sign reversed),
++        # so extract just the offset (e.g., '-10' from 'Etc/GMT-10').
++        if tzname.startswith('Etc/GMT') and len(tzname) > 7 and tzname[7] in '+-':
++            return tzname[7:]
+         if '+' in tzname:
+             return tzname.replace('+', '-')
+         elif '-' in tzname:

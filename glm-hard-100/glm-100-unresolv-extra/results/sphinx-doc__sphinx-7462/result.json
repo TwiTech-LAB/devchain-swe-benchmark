@@ -1,0 +1,22 @@
+{
+  "instance_id": "sphinx-doc__sphinx-7462",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/domains/python.py b/sphinx/domains/python.py\nindex 3ca730e30..5d645d92b 100644\n--- a/sphinx/domains/python.py\n+++ b/sphinx/domains/python.py\n@@ -100,7 +100,8 @@ def _parse_annotation(annotation: str) -> List[Node]:\n             for elem in node.elts:\n                 result.extend(unparse(elem))\n                 result.append(addnodes.desc_sig_punctuation('', ', '))\n-            result.pop()\n+            if node.elts:\n+                result.pop()\n             result.append(addnodes.desc_sig_punctuation('', ']'))\n             return result\n         elif isinstance(node, ast.Module):\n@@ -118,7 +119,8 @@ def _parse_annotation(annotation: str) -> List[Node]:\n             for elem in node.elts:\n                 result.extend(unparse(elem))\n                 result.append(addnodes.desc_sig_punctuation('', ', '))\n-            result.pop()\n+            if result:\n+                result.pop()\n             return result\n         else:\n             raise SyntaxError  # unsupported syntax\ndiff --git a/tox.ini b/tox.ini\nindex d9f040544..bf39854b6 100644\n--- a/tox.ini\n+++ b/tox.ini\n@@ -28,7 +28,7 @@ extras =\n setenv =\n     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils\n commands=\n-    pytest --durations 25 {posargs}\n+    pytest -rA --durations 25 {posargs}\n \n [testenv:flake8]\n basepython = python3\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T15:30:54.615006",
+  "end_time": "2026-01-31T15:37:25.181841",
+  "duration_seconds": 390.566835,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "4d79dd7c-2313-4111-98c1-3169d06726ce",
+      "epic_title": "Fix: sphinx-doc__sphinx-7462",
+      "comment_id": "0ef63a3a-64b1-4916-887c-aa2a0ad5b825",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `IndexError: pop from empty list` that occurred when using empty tuple type annotation `Tuple[()]` (or empty list `List[]`).\n\nThe issue was in the `unparse` function within `_parse_annotation` in `sphinx/domains/python.py`. The function unconditionally called `result.pop()` after iterating through elements, but when the tuple/list was empty, the loop never ran and `result` was empty.\n\n## Files Modified\n- `sphinx/domains/python.py`: Added conditional check before `result.pop()` in both `ast.Tuple` and `ast.List` cases to only pop when elements exist\n\n## Test Results\n- **Test file:** tests/test_domain_py.py\n- **Baseline (before fix):** 28 passed\n- **After fix:** 28 passed\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested edge cases:\n- `Tuple[()]` - Empty tuple \u2713\n- `Tuple[int]` - Single element tuple \u2713\n- `Tuple[int, str]` - Two element tuple \u2713\n- `List[]` - Empty list \u2713\n- `List[int]` - Single element list \u2713\n- `Optional[Tuple[()]]` - Nested empty tuple \u2713\n\n## Concerns\nNone - the fix is minimal and handles all edge cases correctly.",
+      "created_at": "2026-01-31T14:37:17.126Z"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+diff --git a/lib/matplotlib/contour.py b/lib/matplotlib/contour.py
+index 144eadeae2..a64486d7aa 100644
+--- a/lib/matplotlib/contour.py
++++ b/lib/matplotlib/contour.py
+@@ -1446,15 +1446,39 @@ class QuadContourSet(ContourSet):
+         else:
+             fn = 'contour'
+         nargs = len(args)
++        # Auto-detect boolean arrays and set default levels
++        # Check if input is boolean and no explicit levels provided
++        levels_provided = (self.levels is not None)
+         if nargs <= 2:
++            # Check if the input array is boolean before conversion
++            z_input = np.asarray(args[0])
++            z_is_bool = (z_input.dtype == bool)
+             z = ma.asarray(args[0], dtype=np.float64)
+             x, y = self._initialize_x_y(z)
+             args = args[1:]
++            if not levels_provided:
++                levels_provided = (len(args) > 0 and args[0] is not None)
+         elif nargs <= 4:
++            # Check if Z is boolean before conversion
++            z_input = np.asarray(args[2])
++            z_is_bool = (z_input.dtype == bool)
+             x, y, z = self._check_xyz(args[:3], kwargs)
+             args = args[3:]
++            if not levels_provided:
++                levels_provided = (len(args) > 0 and args[0] is not None)
+         else:
+             raise _api.nargs_error(fn, takes="from 1 to 4", given=nargs)
++
++        # For boolean arrays with no explicit levels, set appropriate defaults
++        if z_is_bool and not levels_provided:
++            if self.filled:
++                # Filled contours need at least 2 levels. Use [0.0, 1.0] to define
++                # the boundary between False and True regions.
++                self.levels = [0.0, 1.0]
++            else:
++                # Line contours: single level at 0.5 to show the boundary.
++                self.levels = [0.5]
++
+         z = ma.masked_invalid(z, copy=False)
+         self.zmax = float(z.max())
+         self.zmin = float(z.min())

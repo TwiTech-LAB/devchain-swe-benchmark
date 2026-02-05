@@ -1,0 +1,54 @@
+diff --git a/django/db/models/base.py b/django/db/models/base.py
+index 844c01e95e..310f61a785 100644
+--- a/django/db/models/base.py
++++ b/django/db/models/base.py
+@@ -569,7 +569,17 @@ class Model(metaclass=ModelBase):
+         return getattr(self, meta.pk.attname)
+ 
+     def _set_pk_val(self, value):
+-        return setattr(self, self._meta.pk.attname, value)
++        setattr(self, self._meta.pk.attname, value)
++        # If the primary key is a link to a parent model (multi-table
++        # inheritance), also update the value of the parent's primary key.
++        # This is the reverse of the sync that happens in
++        # ForwardOneToOneDescriptor.__set__ when setting the parent link.
++        opts = self._meta
++        for parent in opts.parents:
++            link_field = opts.parents[parent]
++            if link_field and link_field == opts.pk and link_field.remote_field.parent_link:
++                # The primary key is a parent link, so sync the parent's PK.
++                setattr(self, parent._meta.pk.attname, value)
+ 
+     pk = property(_get_pk_val, _set_pk_val)
+ 
+diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py
+index 96409cc67c..3bc752685b 100644
+--- a/django/db/models/query_utils.py
++++ b/django/db/models/query_utils.py
+@@ -151,6 +151,26 @@ class DeferredAttribute:
+             data[field_name] = val
+         return data[field_name]
+ 
++    def __set__(self, instance, value):
++        """
++        Set the value on the instance. If the field is a primary key from an
++        ancestor model and the instance's class uses multi-table inheritance,
++        also update the instance's primary key field.
++        """
++        instance.__dict__[self.field.attname] = value
++        # If this field is a primary key from an ancestor model, also set the
++        # value on the descendant model's primary key field. This is required
++        # for multi-table inheritance where the descendant's primary key is a
++        # OneToOneField pointing to the ancestor.
++        if self.field.primary_key:
++            opts = instance._meta
++            link_field = opts.get_ancestor_link(self.field.model)
++            # link_field is the OneToOneField on the descendant that points to
++            # this ancestor. If this field's model is different from the
++            # instance's model, we're in a multi-table inheritance scenario.
++            if link_field and self.field != link_field:
++                setattr(instance, link_field.attname, value)
++
+     def _check_parent_chain(self, instance):
+         """
+         Check if the field value can be fetched from a parent field already

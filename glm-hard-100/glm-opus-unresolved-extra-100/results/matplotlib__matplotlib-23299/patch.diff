@@ -1,0 +1,33 @@
+diff --git a/lib/matplotlib/__init__.py b/lib/matplotlib/__init__.py
+index c268a56724..d4c696b2ab 100644
+--- a/lib/matplotlib/__init__.py
++++ b/lib/matplotlib/__init__.py
+@@ -674,7 +674,11 @@ class RcParams(MutableMapping, dict):
+             val = dict.__getitem__(self, key)
+             if val is rcsetup._auto_backend_sentinel:
+                 from matplotlib import pyplot as plt
+-                plt.switch_backend(rcsetup._auto_backend_sentinel)
++                # Only trigger backend resolution if the backend hasn't been
++                # loaded yet. If the backend is already loaded, calling
++                # switch_backend() would close all existing figures.
++                if plt._backend_mod is None:
++                    plt.switch_backend(rcsetup._auto_backend_sentinel)
+ 
+         return dict.__getitem__(self, key)
+ 
+diff --git a/lib/matplotlib/pyplot.py b/lib/matplotlib/pyplot.py
+index e3c66ea67c..2f46a3a3ee 100644
+--- a/lib/matplotlib/pyplot.py
++++ b/lib/matplotlib/pyplot.py
+@@ -222,7 +222,10 @@ def switch_backend(newbackend):
+     global _backend_mod
+     # make sure the init is pulled up so we can assign to it later
+     import matplotlib.backends
+-    close("all")
++    # Only close figures when actually switching backends, not during initial
++    # backend load.
++    if _backend_mod is not None:
++        close("all")
+ 
+     if newbackend is rcsetup._auto_backend_sentinel:
+         current_framework = cbook._get_running_interactive_framework()

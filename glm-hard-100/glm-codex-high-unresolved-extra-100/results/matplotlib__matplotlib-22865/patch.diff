@@ -1,0 +1,37 @@
+diff --git a/lib/matplotlib/colorbar.py b/lib/matplotlib/colorbar.py
+index c59b0ac815..6e52a98310 100644
+--- a/lib/matplotlib/colorbar.py
++++ b/lib/matplotlib/colorbar.py
+@@ -651,8 +651,22 @@ class Colorbar:
+             if not self.drawedges:
+                 if len(self._y) >= self.n_rasterize:
+                     self.solids.set_rasterized(True)
+-        self.dividers.set_segments(
+-            np.dstack([X, Y])[1:-1] if self.drawedges else [])
++        # Select divider segments based on extend setting:
++        # - 'neither': skip both outer edges (outline draws them)
++        # - 'both': draw all edges (need edges at extend boundaries)
++        # - 'min': skip left edge only
++        # - 'max': skip right edge only
++        if self.drawedges:
++            segments = np.dstack([X, Y])
++            slice_idx = {
++                'neither': slice(1, -1),
++                'both': slice(0, None),
++                'min': slice(1, None),
++                'max': slice(0, -1),
++            }[self.extend]
++            self.dividers.set_segments(segments[slice_idx])
++        else:
++            self.dividers.set_segments([])
+ 
+     def _add_solids_patches(self, X, Y, C, mappable):
+         hatches = mappable.hatches * len(C)  # Have enough hatches.
+diff --git a/test_output.png b/test_output.png
+new file mode 100644
+index 0000000000..9b28d7e742
+Binary files /dev/null and b/test_output.png differ
+diff --git a/test_output_fixed.png b/test_output_fixed.png
+new file mode 100644
+index 0000000000..d08cc95ca3
+Binary files /dev/null and b/test_output_fixed.png differ

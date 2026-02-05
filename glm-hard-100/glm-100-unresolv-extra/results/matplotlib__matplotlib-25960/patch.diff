@@ -1,0 +1,57 @@
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index dab2bc4a5a..14e37ad1a9 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -2274,17 +2274,43 @@ class SubFigure(FigureBase):
+             return
+         # need to figure out *where* this subplotspec is.
+         gs = self._subplotspec.get_gridspec()
+-        wr = np.asarray(gs.get_width_ratios())
+-        hr = np.asarray(gs.get_height_ratios())
+-        dx = wr[self._subplotspec.colspan].sum() / wr.sum()
+-        dy = hr[self._subplotspec.rowspan].sum() / hr.sum()
+-        x0 = wr[:self._subplotspec.colspan.start].sum() / wr.sum()
+-        y0 = 1 - hr[:self._subplotspec.rowspan.stop].sum() / hr.sum()
++
++        # Use raw positioning for constrained_layout (no margins/spacing).
++        # For normal layout, use full positioning including wspace/hspace.
++        if self.get_constrained_layout():
++            # Raw positioning: calculate directly from ratios
++            wr = np.asarray(gs.get_width_ratios())
++            hr = np.asarray(gs.get_height_ratios())
++            x0 = wr[:self._subplotspec.colspan.start].sum() / wr.sum()
++            x1 = wr[:self._subplotspec.colspan.stop].sum() / wr.sum()
++            y0 = 1 - hr[:self._subplotspec.rowspan.stop].sum() / hr.sum()
++            y1 = 1 - hr[:self._subplotspec.rowspan.start].sum() / hr.sum()
++            # These are already in parent's normalized [0,1] space
++            x0_rel, y0_rel = x0, y0
++            x1_rel, y1_rel = x1, y1
++        else:
++            # Use GridSpec positioning which applies wspace and hspace
++            bottoms, tops, lefts, rights = gs.get_grid_positions(self.figure)
++            i = self._subplotspec.colspan.start
++            j = self._subplotspec.rowspan.start
++            i2 = self._subplotspec.colspan.stop - 1
++            j2 = self._subplotspec.rowspan.stop - 1
++            x0 = lefts[i]
++            x1 = rights[i2]
++            y0 = bottoms[j2]
++            y1 = tops[j]
++            # Transform from figure coordinates to parent's relative coords
++            inv = self._parent.transSubfigure.inverted()
++            bbox_rel = inv.transform([[x0, y0], [x1, y1]])
++            x0_rel, y0_rel = bbox_rel[0]
++            x1_rel, y1_rel = bbox_rel[1]
++
+         if self.bbox_relative is None:
+-            self.bbox_relative = Bbox.from_bounds(x0, y0, dx, dy)
++            self.bbox_relative = Bbox.from_bounds(x0_rel, y0_rel,
++                                                   x1_rel - x0_rel, y1_rel - y0_rel)
+         else:
+-            self.bbox_relative.p0 = (x0, y0)
+-            self.bbox_relative.p1 = (x0 + dx, y0 + dy)
++            self.bbox_relative.p0 = (x0_rel, y0_rel)
++            self.bbox_relative.p1 = (x1_rel, y1_rel)
+ 
+     def get_constrained_layout(self):
+         """

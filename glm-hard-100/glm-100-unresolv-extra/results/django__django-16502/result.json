@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-16502",
+  "status": "completed",
+  "patch": "diff --git a/django/core/servers/basehttp.py b/django/core/servers/basehttp.py\nindex fef5532e58..9147203561 100644\n--- a/django/core/servers/basehttp.py\n+++ b/django/core/servers/basehttp.py\n@@ -143,6 +143,21 @@ class ServerHandler(simple_server.ServerHandler):\n         if self.headers.get(\"Connection\") == \"close\":\n             self.request_handler.close_connection = True\n \n+    def write(self, data):\n+        \"\"\"Override write() to skip writing the body for HEAD requests.\"\"\"\n+        if self.environ.get(\"REQUEST_METHOD\") == \"HEAD\":\n+            # For HEAD requests, don't write the body, but we still need to\n+            # track bytes_sent for Content-Length calculation.\n+            if not self.status:\n+                raise AssertionError(\"write() before start_response()\")\n+            elif not self.headers_sent:\n+                self.bytes_sent = len(data)\n+                self.send_headers()\n+            else:\n+                self.bytes_sent += len(data)\n+        else:\n+            super().write(data)\n+\n     def close(self):\n         self.get_stdin().read()\n         super().close()\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T17:50:55.128105",
+  "end_time": "2026-01-31T18:07:20.818768",
+  "duration_seconds": 985.690663,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "b57287a8-98b4-4e87-8630-786a91b61d34",
+      "epic_title": "Fix: django__django-16502",
+      "comment_id": "0d49a1b3-db84-4b1a-8d75-9d6e5a7e14be",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where Django's runserver was returning response body for HTTP HEAD requests, violating RFC 2616 section 4.3.\n\n## Root Cause\nAfter PR #26052, body stripping was removed from Django in favor of letting servers (gunicorn, mod_wsgi, etc.) handle it. However, runserver's `ServerHandler` class didn't strip response bodies for HEAD requests.\n\n## Solution\nAdded a `write()` method override to the `ServerHandler` class in `django/core/servers/basehttp.py` that:\n- Skips writing the response body to the output stream for HEAD requests\n- Still tracks `bytes_sent` for Content-Length header calculation\n- Still sends headers (including Content-Length) as required by RFC 2616\n\n## Files Modified\n- `django/core/servers/basehttp.py`: Added `write()` method to `ServerHandler` class (lines 147-159)\n\n## Test Results\n- **Test file:** `tests/servers/test_basehttp.py`\n- **All existing tests pass:** 4/4 tests passed\n- **Verification:**\n  - HEAD requests now return headers only (no body content)\n  - GET requests still return body content\n  - Content-Length header is correctly set for HEAD requests\n\n## Additional Verification\nCreated and ran custom tests confirming:\n- HEAD requests do not include body content (HTML, text, etc.)\n- GET requests still include body content\n- Content-Length headers are properly set for both HEAD and GET requests",
+      "created_at": "2026-01-31T17:07:12.454Z"
+    }
+  ]
+}

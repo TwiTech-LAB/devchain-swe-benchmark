@@ -1,0 +1,9 @@
+{
+  "instance_id": "scikit-learn__scikit-learn-26194",
+  "extraction_time": "2026-01-31T22:26:02+01:00",
+  "files_changed": 1,
+  "lines_added": 10,
+  "lines_removed": 3,
+  "patch_file": "<redacted>",
+  "has_changes": true
+}

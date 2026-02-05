@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-10999",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/dateparse.py b/django/utils/dateparse.py\nindex 8d08b7d1d3..a037758784 100644\n--- a/django/utils/dateparse.py\n+++ b/django/utils/dateparse.py\n@@ -29,7 +29,7 @@ datetime_re = re.compile(\n standard_duration_re = re.compile(\n     r'^'\n     r'(?:(?P<days>-?\\d+) (days?, )?)?'\n-    r'((?:(?P<hours>-?\\d+):)(?=\\d+:\\d+))?'\n+    r'((?:(?P<hours>-?\\d+):)(?=-?\\d+:-?\\d+))?'\n     r'(?:(?P<minutes>-?\\d+):)?'\n     r'(?P<seconds>-?\\d+)'\n     r'(?:\\.(?P<microseconds>\\d{1,6})\\d{0,6})?'\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T10:06:25.311148",
+  "end_time": "2026-02-03T10:17:40.901190",
+  "duration_seconds": 675.590042,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "06f7f2ab-5ac2-4729-99b4-85e7586cc942",
+      "epic_title": "Fix: django__django-10999",
+      "comment_id": "3ed9b96d-469a-4e92-b5ad-1eb79f9dd792",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the `standard_duration_re` regex pattern in `django/utils/dateparse.py` to properly parse negative durations with mixed signs.\n\n## Root Cause\n\nThe regex lookahead for the hours group `(?=\\d+:\\d+)` only matched positive digits, causing durations with mixed signs (e.g., `1:-15:30`, `-1:-15:30`) to fail parsing.\n\n## Files Modified\n\n- **django/utils/dateparse.py** (line 32): Changed the lookahead from `(?=\\d+:\\d+)` to `(?=-?\\d+:-?\\d+)` to allow optional negative signs in minutes and seconds when hours are present.\n\n## Test Results\n\n**Unit tests run:** DurationParseTests from tests/utils_tests/test_dateparse.py\n- **Result:** All 9 tests passed\n- **Test cases verified:**\n  - `-1:15:30` (negative hours only)\n  - `-4 15:30` (negative days)\n  - `-15:30` (negative minutes)\n  - Edge cases with mixed signs like `1:-15:30`, `-1:-15:30`, etc. now parse correctly\n\n## Additional Verification\n\nTested edge cases that were previously failing:\n- `1:-15:30` \u2192 now parses to `0:45:30`\n- `1:-15:-30` \u2192 now parses to `0:44:30`\n- `-1:-15:30` \u2192 now parses to `-1 day, 22:45:30`\n- `-1:15:-30` \u2192 now parses to `-1 day, 23:14:30`\n- `10:-15:30` \u2192 now parses to `9:45:30`\n\n## Concerns\n\nNone - the fix is minimal and targeted to the specific issue. The change only affects the lookahead assertion in the regex and maintains backward compatibility with all existing tests.",
+      "created_at": "2026-02-03T09:16:36.507Z"
+    },
+    {
+      "epic_id": "06f7f2ab-5ac2-4729-99b4-85e7586cc942",
+      "epic_title": "Fix: django__django-10999",
+      "comment_id": "4d145374-99ac-44fa-b54e-a59f79592cec",
+      "author_name": "Code Reviewer",
+      "content": "Code Review PASSED\n\n**Checklist:**\n- [x] No test files modified \u2014 only `django/utils/dateparse.py` changed\n- [x] No unrelated files modified \u2014 single file, single line\n- [x] Fix logically addresses the problem \u2014 the lookahead changed from `(?=\\d+:\\d+)` to `(?=-?\\d+:-?\\d+)`, exactly as prescribed in the problem statement\n- [x] No obvious crash bugs \u2014 only adds optional `-?` to a lookahead assertion\n- [x] Changes are minimal and focused \u2014 one line, surgical fix\n\nThe fix is the exact solution recommended by the issue reporter. All 9 existing unit tests pass. Edge cases with mixed-sign durations (e.g., `1:-15:30`, `-1:-15:30`) now parse correctly. No concerns.",
+      "created_at": "2026-02-03T09:17:27.678Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "instance_id": "sphinx-doc__sphinx-10614",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/ext/inheritance_diagram.py b/sphinx/ext/inheritance_diagram.py\nindex 6e3985512..48ac55d5e 100644\n--- a/sphinx/ext/inheritance_diagram.py\n+++ b/sphinx/ext/inheritance_diagram.py\n@@ -412,15 +412,9 @@ def html_visit_inheritance_diagram(self: HTML5Translator, node: inheritance_diag\n     pending_xrefs = cast(Iterable[addnodes.pending_xref], node)\n     for child in pending_xrefs:\n         if child.get('refuri') is not None:\n-            if graphviz_output_format == 'SVG':\n-                urls[child['reftitle']] = \"../\" + child.get('refuri')\n-            else:\n-                urls[child['reftitle']] = child.get('refuri')\n+            urls[child['reftitle']] = child.get('refuri')\n         elif child.get('refid') is not None:\n-            if graphviz_output_format == 'SVG':\n-                urls[child['reftitle']] = '../' + current_filename + '#' + child.get('refid')\n-            else:\n-                urls[child['reftitle']] = '#' + child.get('refid')\n+            urls[child['reftitle']] = current_filename + '#' + child.get('refid')\n \n     dotcode = graph.generate_dot(name, urls, env=self.builder.env)\n     render_dot_html(self, node, dotcode, {}, 'inheritance', 'inheritance',\ndiff --git a/tox.ini b/tox.ini\nindex a3dc56211..c76147de3 100644\n--- a/tox.ini\n+++ b/tox.ini\n@@ -24,7 +24,7 @@ setenv =\n     PYTHONWARNINGS = error\n     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes\n commands=\n-    python -X dev -X warn_default_encoding -m pytest --durations 25 {posargs}\n+    python -X dev -X warn_default_encoding -m pytest -rA --durations 25 {posargs}\n \n [testenv:docs]\n basepython = python3\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T19:44:28.040590",
+  "end_time": "2026-01-31T19:50:12.745410",
+  "duration_seconds": 344.70482,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "5a0e1bb6-05fd-4f98-a35a-0943b989361d",
+      "epic_title": "Fix: sphinx-doc__sphinx-10614",
+      "comment_id": "6922c0e8-a4e3-4c94-be39-cbfae8952182",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe bug was caused by hardcoded `\"../\"` prefix being added to SVG links in the `html_visit_inheritance_diagram()` function. This incorrect path assumption caused links to be broken when inheritance diagrams were in nested directories.\n\nThe fix removes the special SVG handling (hardcoded `\"../\"` prefix) and lets the graphviz extension's `fix_svg_relative_paths()` function handle the proper relative path calculation using `path.relpath()`.\n\n## Files Modified\n\n- `sphinx/ext/inheritance_diagram.py`: Removed hardcoded `\"../\"` prefix for SVG format (lines 413-417)\n\n**Before:**\n```python\nif child.get('refuri') is not None:\n    if graphviz_output_format == 'SVG':\n        urls[child['reftitle']] = \"../\" + child.get('refuri')\n    else:\n        urls[child['reftitle']] = child.get('refuri')\nelif child.get('refid') is not None:\n    if graphviz_output_format == 'SVG':\n        urls[child['reftitle']] = '../' + current_filename + '#' + child.get('refid')\n    else:\n        urls[child['reftitle']] = '#' + child.get('refid')\n```\n\n**After:**\n```python\nif child.get('refuri') is not None:\n    urls[child['reftitle']] = child.get('refuri')\nelif child.get('refid') is not None:\n    urls[child['reftitle']] = current_filename + '#' + child.get('refid')\n```\n\n## Test Results\n\n- **Test file:** tests/test_ext_inheritance_diagram.py, tests/test_ext_graphviz.py\n- **Baseline (before fix):** 11 passed\n- **After fix:** 11 passed\n- **Regression check:** No new failures introduced\n\n## How It Works\n\n1. `html_visit_inheritance_diagram()` generates URLs relative to the HTML document\n2. `render_dot_html()` calls `render_dot()` which generates the SVG\n3. `fix_svg_relative_paths()` (in graphviz extension) converts URLs to be relative to the `_images/` directory where SVG files are stored\n4. This ensures links work correctly regardless of the directory depth of the embedding HTML file",
+      "created_at": "2026-01-31T18:50:06.095Z"
+    }
+  ]
+}

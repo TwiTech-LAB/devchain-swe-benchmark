@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-16642",
+  "status": "completed",
+  "patch": "diff --git a/django/http/response.py b/django/http/response.py\nindex f62dec8ce9..17e630be37 100644\n--- a/django/http/response.py\n+++ b/django/http/response.py\n@@ -612,6 +612,8 @@ class FileResponse(StreamingHttpResponse):\n                     \"bzip2\": \"application/x-bzip\",\n                     \"gzip\": \"application/gzip\",\n                     \"xz\": \"application/x-xz\",\n+                    \"compress\": \"application/x-compress\",\n+                    \"br\": \"application/x-brotli\",\n                 }.get(encoding, content_type)\n                 self.headers[\"Content-Type\"] = (\n                     content_type or \"application/octet-stream\"\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T23:15:23.483538",
+  "end_time": "2026-01-31T23:20:26.655670",
+  "duration_seconds": 303.172132,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "5e334a11-26bc-429c-bf57-9b3a22e4e44b",
+      "epic_title": "Fix: django__django-16642",
+      "comment_id": "c11fe625-157f-4e78-9c93-425325e63fe6",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed improper MIME type guessing for \"br\" and \"Z\" compressed file types. The issue was in `FileResponse.set_headers()` method which only handled `bzip2`, `gzip`, and `xz` encodings, but not `compress` (.Z) and `br` (Brotli) encodings.\n\n## Root Cause\n\nThe `mimetypes.guess_type()` function returns:\n- For `.Z` files: `('text/html', 'compress')` \n- For `.br` files: `('text/html', 'br')`\n\nThe encoding mapping only had `{bzip2, gzip, xz}` so files with these extensions incorrectly fell back to the base content type (e.g., `text/html` for `test.html.Z`) instead of being recognized as compressed files.\n\n## Files Modified\n\n- `django/http/response.py`: Added `compress` and `br` to the encoding type mapping:\n  - `compress` \u2192 `application/x-compress`\n  - `br` \u2192 `application/x-brotli`\n\n## Test Results\n\n- **Test file:** `tests/responses/test_fileresponse.py`\n- **All 22 tests PASSED** (0 failures, 0 errors)\n\n## Verification\n\nThe fix was verified with:\n- `test.html.Z` \u2192 `application/x-compress` \u2705\n- `test.html.br` \u2192 `application/x-brotli` \u2705\n- `file.tar.Z` \u2192 `application/x-compress` \u2705\n- `file.tar.br` \u2192 `application/x-brotli` \u2705\n\nExisting functionality verified (no regressions):\n- `.gz` \u2192 `application/gzip` \u2705\n- `.bz2` \u2192 `application/x-bzip` \u2705\n- `.xz` \u2192 `application/x-xz` \u2705\n- Regular `.html` \u2192 `text/html` \u2705\n\n## Edge Cases Considered\n\n- Files with multiple extensions (e.g., `test.html.Z`, `test.tar.br`)\n- Files with just compression extension (e.g., `archive.Z`, `data.br`)\n- Backward compatibility with all existing compressed file types",
+      "created_at": "2026-01-31T22:18:13.465Z"
+    },
+    {
+      "epic_id": "5e334a11-26bc-429c-bf57-9b3a22e4e44b",
+      "epic_title": "Fix: django__django-16642",
+      "comment_id": "b392d1c1-dbd0-4d77-8915-dd0490c77b65",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED \u2705\n\n**Summary:**\nThe fix correctly addresses the problem statement by adding support for `compress` (.Z) and `br` (Brotli) file encodings to the MIME type mapping.\n\n**Code Quality:**\n- Clean implementation following existing code patterns\n- Appropriate MIME types: `application/x-compress` and `application/x-brotli`\n- Minimal changes (2 lines added to django/http/response.py:615-616)\n- No test files modified \u2705\n- Only source code changed \u2705\n\n**Testing:**\n- All 22 tests in tests/responses/test_fileresponse.py passed\n- No regressions detected\n- Edge cases verified (multiple extensions like test.html.Z)\n\n**Approval:**\nThe fix is ready for submission. It correctly handles the root cause and maintains backward compatibility with all existing compression types.",
+      "created_at": "2026-01-31T22:20:11.730Z"
+    }
+  ]
+}

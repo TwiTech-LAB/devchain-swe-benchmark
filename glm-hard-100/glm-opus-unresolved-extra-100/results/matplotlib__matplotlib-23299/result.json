@@ -1,0 +1,30 @@
+{
+  "instance_id": "matplotlib__matplotlib-23299",
+  "status": "completed",
+  "patch": "diff --git a/lib/matplotlib/__init__.py b/lib/matplotlib/__init__.py\nindex c268a56724..d4c696b2ab 100644\n--- a/lib/matplotlib/__init__.py\n+++ b/lib/matplotlib/__init__.py\n@@ -674,7 +674,11 @@ class RcParams(MutableMapping, dict):\n             val = dict.__getitem__(self, key)\n             if val is rcsetup._auto_backend_sentinel:\n                 from matplotlib import pyplot as plt\n-                plt.switch_backend(rcsetup._auto_backend_sentinel)\n+                # Only trigger backend resolution if the backend hasn't been\n+                # loaded yet. If the backend is already loaded, calling\n+                # switch_backend() would close all existing figures.\n+                if plt._backend_mod is None:\n+                    plt.switch_backend(rcsetup._auto_backend_sentinel)\n \n         return dict.__getitem__(self, key)\n \ndiff --git a/lib/matplotlib/pyplot.py b/lib/matplotlib/pyplot.py\nindex e3c66ea67c..2f46a3a3ee 100644\n--- a/lib/matplotlib/pyplot.py\n+++ b/lib/matplotlib/pyplot.py\n@@ -222,7 +222,10 @@ def switch_backend(newbackend):\n     global _backend_mod\n     # make sure the init is pulled up so we can assign to it later\n     import matplotlib.backends\n-    close(\"all\")\n+    # Only close figures when actually switching backends, not during initial\n+    # backend load.\n+    if _backend_mod is not None:\n+        close(\"all\")\n \n     if newbackend is rcsetup._auto_backend_sentinel:\n         current_framework = cbook._get_running_interactive_framework()\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:20:39.159476",
+  "end_time": "2026-02-03T11:40:03.534454",
+  "duration_seconds": 1164.374978,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "40a8d702-7d9b-4c98-b554-0518ced17145",
+      "epic_title": "Fix: matplotlib__matplotlib-23299",
+      "comment_id": "ac06ad19-8898-460b-9ec8-9efb99e2dbee",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where `get_backend()` clears figures from `Gcf.figs` if they were created under `rc_context`. The issue was that `switch_backend()` was being called unconditionally when the auto backend sentinel was encountered, which would close all figures.\n\n## Root Cause\n\nThe bug had two parts:\n\n1. In `pyplot.py`: `switch_backend()` unconditionally called `close(\"all\")` at the start, even during initial backend load.\n\n2. In `__init__.py`: `RcParams.__getitem__` for the \"backend\" key would call `plt.switch_backend(sentinel)` even when the backend was already loaded, triggering figure destruction.\n\n## Files Modified\n\n- `lib/matplotlib/pyplot.py`: Added check to only call `close(\"all\")` when `_backend_mod is not None` (i.e., when actually switching backends, not during initial load)\n\n- `lib/matplotlib/__init__.py`: Added check to only trigger backend resolution when `_backend_mod is None` (i.e., when the backend hasn't been loaded yet)\n\n## Test Results\n\n- **Original bug case**: PASSED - Figures are now preserved after `get_backend()` is called\n- **Multiple figures**: PASSED - All figures preserved\n- **close(fig)**: PASSED - `plt.close(fig)` works correctly  \n- **Nested rc_context**: PASSED - Works correctly\n- **Workarounds still work**: PASSED - Creating a figure before rc_context or calling plt.ion() still works\n\n- **Existing tests**: \n  - All 23 pyplot tests pass\n  - All 11 backend tools tests pass\n  \n## Concerns\n\nNone. The fix is minimal and targeted. The workarounds mentioned in the bug report still work correctly.",
+      "created_at": "2026-02-03T10:38:48.652Z"
+    },
+    {
+      "epic_id": "40a8d702-7d9b-4c98-b554-0518ced17145",
+      "epic_title": "Fix: matplotlib__matplotlib-23299",
+      "comment_id": "1d0309fe-9012-41ce-abbd-baa1a0e31985",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review: PASSED\n\n**Changes reviewed:**\n- `lib/matplotlib/__init__.py`: Guard in `RcParams.__getitem__` to skip `switch_backend()` when backend is already loaded (`plt._backend_mod is not None`)\n- `lib/matplotlib/pyplot.py`: Guard in `switch_backend()` to skip `close(\"all\")` during initial backend load (`_backend_mod is None`)\n\n**Checklist:**\n- [x] No test files modified\n- [x] No unrelated files modified\n- [x] Fix logically addresses the problem\n- [x] No obvious crash bugs or logical errors\n- [x] Changes are minimal and focused\n\n**Analysis:** The root cause was that exiting `rc_context()` restored the backend rcParam to the auto sentinel value. When `get_backend()` was subsequently called, `RcParams.__getitem__` found the sentinel and unconditionally called `switch_backend(sentinel)`, which called `close(\"all\")` \u2014 destroying all figures even though the backend was already loaded and didn't need switching.\n\nThe two-part fix correctly addresses this:\n1. In `__init__.py`: If backend is already loaded, don't call `switch_backend()` at all \u2014 no resolution needed.\n2. In `pyplot.py`: Even if `switch_backend()` is called during initial load, don't close figures since there's no previous backend to clean up from.\n\nBoth changes are defensive and complementary. Test results confirm no regressions.",
+      "created_at": "2026-02-03T10:39:58.557Z"
+    }
+  ]
+}

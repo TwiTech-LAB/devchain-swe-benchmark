@@ -1,0 +1,30 @@
+{
+  "instance_id": "matplotlib__matplotlib-22865",
+  "status": "completed",
+  "patch": "diff --git a/lib/matplotlib/colorbar.py b/lib/matplotlib/colorbar.py\nindex c59b0ac815..a23f0f1f00 100644\n--- a/lib/matplotlib/colorbar.py\n+++ b/lib/matplotlib/colorbar.py\n@@ -651,8 +651,13 @@ class Colorbar:\n             if not self.drawedges:\n                 if len(self._y) >= self.n_rasterize:\n                     self.solids.set_rasterized(True)\n+        # Determine which divider segments to skip based on extend settings.\n+        # When an extension is present, draw the edge at the boundary\n+        # between the colorbar and the extension.\n+        slice_start = 1 if not self._extend_lower() else 0\n+        slice_end = -1 if not self._extend_upper() else None\n         self.dividers.set_segments(\n-            np.dstack([X, Y])[1:-1] if self.drawedges else [])\n+            np.dstack([X, Y])[slice_start:slice_end] if self.drawedges else [])\n \n     def _add_solids_patches(self, X, Y, C, mappable):\n         hatches = mappable.hatches * len(C)  # Have enough hatches.\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T15:05:14.462859",
+  "end_time": "2026-02-03T15:11:47.507276",
+  "duration_seconds": 393.044417,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "bbddb293-c2dc-4b6a-91ca-91b416d9476d",
+      "epic_title": "Fix: matplotlib__matplotlib-22865",
+      "comment_id": "04f271b0-e2d9-4280-ad9e-54c39a8064ed",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where colorbar edges (dividers) were not drawn at the extremities when `drawedges=True` and `extend='both'` (or `extend='min'`/`extend='max'`).\n\n**Root Cause:** The `_add_solids()` method in `colorbar.py` was using a hardcoded `[1:-1]` slice that always removed the first and last divider segments, regardless of the `extend` setting. This was incorrect because when extensions are present, the edges at the boundaries between the main colorbar and the extension triangles should be drawn.\n\n**Fix:** Changed the divider slicing logic to be conditional based on the `extend` setting:\n- When `extend='neither'` (no extensions): skip both first and last dividers (original behavior preserved)\n- When `extend='min'`: include first divider, skip last divider\n- When `extend='max'`: skip first divider, include last divider  \n- When `extend='both'`: include both first and last dividers (bug fix)\n\n## Files Modified\n- `lib/matplotlib/colorbar.py`: Modified `_add_solids()` method (lines 654-660)\n\n## Test Results\n- **Test file:** `/testbed/lib/matplotlib/tests/test_colorbar.py`\n- **Baseline (before fix):** 56 passed, 1 skipped\n- **After fix:** 56 passed, 1 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nCreated test scripts that verify all 4 `extend` variants work correctly:\n- `extend='neither'`: 8 segments (first/last skipped)\n- `extend='both'`: 10 segments (first/last included - bug fix)\n- `extend='min'`: 9 segments (first included, last skipped)\n- `extend='max'`: 9 segments (first skipped, last included)\n\n## Concerns\nNone - the fix is minimal and focused on the specific issue.",
+      "created_at": "2026-02-03T14:10:28.048Z"
+    },
+    {
+      "epic_id": "bbddb293-c2dc-4b6a-91ca-91b416d9476d",
+      "epic_title": "Fix: matplotlib__matplotlib-22865",
+      "comment_id": "d7b3d3a1-479c-43f2-9550-4f6608f257de",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review: PASSED\n\n**Changes reviewed:** `lib/matplotlib/colorbar.py` \u2014 `_add_solids()` method (lines 654-660)\n\n**Checklist:**\n- [x] No test files modified (source code only)\n- [x] No unrelated files modified\n- [x] Fix logically addresses the problem described in the problem statement\n- [x] No obvious crash bugs or logical errors introduced\n- [x] Changes are minimal and focused on the stated problem\n\n**Assessment:**\nThe fix correctly replaces the hardcoded `[1:-1]` divider slice with conditional logic using the existing `_extend_lower()` and `_extend_upper()` methods. This ensures edge dividers are drawn at extension boundaries when present, while preserving the original behavior for `extend='neither'`. The `_extend_lower/upper` methods also correctly handle inverted axis cases. Test results show no regressions (56 passed, 1 skipped \u2014 same as baseline).",
+      "created_at": "2026-02-03T14:11:35.538Z"
+    }
+  ]
+}

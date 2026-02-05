@@ -1,0 +1,105 @@
+diff --git a/django/forms/formsets.py b/django/forms/formsets.py
+index 75b0646512..e002b070db 100644
+--- a/django/forms/formsets.py
++++ b/django/forms/formsets.py
+@@ -478,7 +478,7 @@ class BaseFormSet(RenderableFormMixin):
+ def formset_factory(form, formset=BaseFormSet, extra=1, can_order=False,
+                     can_delete=False, max_num=None, validate_max=False,
+                     min_num=None, validate_min=False, absolute_max=None,
+-                    can_delete_extra=True, renderer=None):
++                    can_delete_extra=True, can_create=True, renderer=None):
+     """Return a FormSet for the given form class."""
+     if min_num is None:
+         min_num = DEFAULT_MIN_NUM
+@@ -499,6 +499,7 @@ def formset_factory(form, formset=BaseFormSet, extra=1, can_order=False,
+         'can_order': can_order,
+         'can_delete': can_delete,
+         'can_delete_extra': can_delete_extra,
++        'can_create': can_create,
+         'min_num': min_num,
+         'max_num': max_num,
+         'absolute_max': absolute_max,
+diff --git a/django/forms/models.py b/django/forms/models.py
+index 7effb202e3..2476d73c13 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -572,6 +572,11 @@ class BaseModelFormSet(BaseFormSet):
+     # Set of fields that must be unique among forms of this set.
+     unique_fields = set()
+ 
++    default_error_messages = {
++        'too_many_forms': 'Please submit at most %(num)d form.',
++        'too_many_forms_plural': 'Please submit at most %(num)d forms.',
++    }
++
+     def __init__(self, data=None, files=None, auto_id='id_%s', prefix=None,
+                  queryset=None, *, initial=None, **kwargs):
+         self.queryset = queryset
+@@ -682,6 +687,21 @@ class BaseModelFormSet(BaseFormSet):
+ 
+     def clean(self):
+         self.validate_unique()
++        if not self.can_create:
++            # Validate that no extra forms were submitted.
++            extra_forms = self.extra_forms
++            if extra_forms:
++                # Check if any of the extra forms contain data.
++                for form in extra_forms:
++                    if form.has_changed():
++                        # At least one extra form has changed data.
++                        num_forms = self.initial_form_count()
++                        params = {'num': num_forms}
++                        if num_forms == 1:
++                            message = self.error_messages['too_many_forms'] % params
++                        else:
++                            message = self.error_messages['too_many_forms_plural'] % params
++                        raise ValidationError(message, code='too_many_forms')
+ 
+     def validate_unique(self):
+         # Collect unique_checks and date_checks to run from all the forms.
+@@ -813,6 +833,8 @@ class BaseModelFormSet(BaseFormSet):
+ 
+     def save_new_objects(self, commit=True):
+         self.new_objects = []
++        if not self.can_create:
++            return self.new_objects
+         for form in self.extra_forms:
+             if not form.has_changed():
+                 continue
+@@ -875,7 +897,8 @@ def modelformset_factory(model, form=ModelForm, formfield_callback=None,
+                          widgets=None, validate_max=False, localized_fields=None,
+                          labels=None, help_texts=None, error_messages=None,
+                          min_num=None, validate_min=False, field_classes=None,
+-                         absolute_max=None, can_delete_extra=True, renderer=None):
++                         absolute_max=None, can_delete_extra=True, can_create=True,
++                         renderer=None):
+     """Return a FormSet class for the given Django model class."""
+     meta = getattr(form, 'Meta', None)
+     if (getattr(meta, 'fields', fields) is None and
+@@ -894,7 +917,7 @@ def modelformset_factory(model, form=ModelForm, formfield_callback=None,
+                               can_order=can_order, can_delete=can_delete,
+                               validate_min=validate_min, validate_max=validate_max,
+                               absolute_max=absolute_max, can_delete_extra=can_delete_extra,
+-                              renderer=renderer)
++                              can_create=can_create, renderer=renderer)
+     FormSet.model = model
+     return FormSet
+ 
+@@ -1076,7 +1099,8 @@ def inlineformset_factory(parent_model, model, form=ModelForm,
+                           widgets=None, validate_max=False, localized_fields=None,
+                           labels=None, help_texts=None, error_messages=None,
+                           min_num=None, validate_min=False, field_classes=None,
+-                          absolute_max=None, can_delete_extra=True, renderer=None):
++                          absolute_max=None, can_delete_extra=True, can_create=True,
++                          renderer=None):
+     """
+     Return an ``InlineFormSet`` for the given kwargs.
+ 
+@@ -1108,6 +1132,7 @@ def inlineformset_factory(parent_model, model, form=ModelForm,
+         'field_classes': field_classes,
+         'absolute_max': absolute_max,
+         'can_delete_extra': can_delete_extra,
++        'can_create': can_create,
+         'renderer': renderer,
+     }
+     FormSet = modelformset_factory(model, **kwargs)

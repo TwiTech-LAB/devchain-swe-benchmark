@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14034",
+  "status": "completed",
+  "patch": "diff --git a/django/forms/fields.py b/django/forms/fields.py\nindex 65d6a9ec82..193cfe7df2 100644\n--- a/django/forms/fields.py\n+++ b/django/forms/fields.py\n@@ -1025,6 +1025,11 @@ class MultiValueField(Field):\n             if not value or not [v for v in value if v not in self.empty_values]:\n                 if self.required:\n                     raise ValidationError(self.error_messages['required'], code='required')\n+                # If not all fields are required, check if any individual field is required.\n+                # If so, don't return early - let the per-field validation handle it.\n+                elif not self.require_all_fields and any(f.required for f in self.fields):\n+                    # Continue to validate individual fields\n+                    pass\n                 else:\n                     return self.compress([])\n         else:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T12:04:08.698125",
+  "end_time": "2026-02-03T12:11:41.474173",
+  "duration_seconds": 452.776048,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "aa7e96cb-34a3-4d53-9066-618e7e89b56e",
+      "epic_title": "Fix: django__django-14034",
+      "comment_id": "a7f9b011-ece4-446a-ab07-fa7d8bd313ea",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `MultiValueField` ignoring a required value of a sub-field when `require_all_fields=False` and `required=False`.\n\n**Root Cause:** In the `clean()` method of `MultiValueField`, when all sub-field values were empty and the MultiValueField's `required=False`, the method would return early via `self.compress([])` without checking individual sub-fields' `required` attributes.\n\n**Solution:** Added a condition to check if any individual sub-field has `required=True` when `require_all_fields=False`. If so, the method continues to per-field validation instead of returning early.\n\n## Files Modified\n\n- `django/forms/fields.py`: Modified `MultiValueField.clean()` method (lines 1028-1033) to check individual field requirements before early return when all values are empty and `self.required=False`.\n\n## Test Results\n\n- **Test file:** `forms_tests.field_tests.test_multivaluefield`\n- **Before fix:** 12 tests passed\n- **After fix:** 12 tests passed\n- **Regression check:** All 208 forms field tests passed, 696 forms tests passed (with pre-existing unrelated failures in validator tests)\n\n## Additional Verification\n\nCreated and tested the following scenarios:\n1. Both fields empty with one sub-field required: Now correctly returns `is_valid()=False` (was `True`)\n2. First has value, second empty (required): Correctly returns `is_valid()=False`\n3. Both have values: Correctly returns `is_valid()=True`\n4. Second has value only: Correctly returns `is_valid()=True`\n\nEdge cases tested:\n- All fields optional with all empty: Correctly passes\n- MultiValueField required=True with all empty: Correctly fails\n- require_all_fields=True with all empty: Correctly passes (individual field.required is ignored)\n- Three fields with only middle required, all empty: Correctly fails\n\n## Concerns\n\nNone. The fix is minimal and focused on the specific issue. The change follows the existing code patterns and only affects the scenario described in the problem statement.",
+      "created_at": "2026-02-03T11:09:07.440Z"
+    },
+    {
+      "epic_id": "aa7e96cb-34a3-4d53-9066-618e7e89b56e",
+      "epic_title": "Fix: django__django-14034",
+      "comment_id": "c32fd02b-a805-412a-8084-58a2c91fb7f0",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n**Review Checklist:**\n- [x] No test files modified \u2014 only `django/forms/fields.py`\n- [x] No unrelated files modified \u2014 single file, single method changed\n- [x] Fix logically addresses the problem described in the problem statement\n- [x] No obvious crash bugs or logical errors introduced\n- [x] Changes are minimal and focused (5 lines, 3 of which are comments)\n\n**Logic Verification:**\n\nThe fix correctly prevents the early `return self.compress([])` when `self.required=False` but individual sub-fields have `required=True` with `require_all_fields=False`. Instead of returning early, it falls through via `pass` to the existing per-field validation loop (lines 1037-1054), which already handles individual field requirements by collecting 'incomplete' errors. This is the correct delegation \u2014 no new validation logic was needed, just preventing the premature exit.\n\n**Scenario trace** (both empty, second sub-field required, `required=False`, `require_all_fields=False`):\n1. Line 1025: all values empty \u2192 enters block\n2. Line 1026: `self.required=False` \u2192 skip\n3. Line 1030 (NEW): `not require_all_fields` and `any(f.required)` \u2192 `pass` (fall through)\n4. Lines 1037-1054: per-field loop finds required sub-field with empty value \u2192 collects 'incomplete' error\n5. Line 1062-1063: errors exist \u2192 raises ValidationError \u2705\n\nAll 12 existing MultiValueField tests and 208 forms field tests pass. Fix is clean and correct.",
+      "created_at": "2026-02-03T11:11:30.356Z"
+    }
+  ]
+}

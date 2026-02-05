@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14140",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py\nindex ae0f886107..482e23d00b 100644\n--- a/django/db/models/query_utils.py\n+++ b/django/db/models/query_utils.py\n@@ -87,7 +87,12 @@ class Q(tree.Node):\n         args, kwargs = (), {}\n         if len(self.children) == 1 and not isinstance(self.children[0], Q):\n             child = self.children[0]\n-            kwargs = {child[0]: child[1]}\n+            # Only use kwargs if child is a tuple with exactly 2 elements (key, value).\n+            # For non-tuple children (like Exists), use args instead.\n+            if isinstance(child, tuple) and len(child) == 2:\n+                kwargs = {child[0]: child[1]}\n+            else:\n+                args = (child,)\n         else:\n             args = tuple(self.children)\n             if self.connector != self.default:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:46:06.545605",
+  "end_time": "2026-02-03T11:51:49.041106",
+  "duration_seconds": 342.495501,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "0318870d-95e7-443e-a9fe-93751ac0b643",
+      "epic_title": "Fix: django__django-14140",
+      "comment_id": "6e0678a1-6656-4bfd-81f9-47867f7f2239",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where `Q().deconstruct()` crashes when a single child is not subscriptable (e.g., `Exists` object).\n\n### Root Cause\nThe `deconstruct` method had a special case for single-child Q objects that assumed the child is always a tuple `(key, value)`. When creating `Q(price__gt=F(...))`, the child becomes `('price__gt', F(...))` which is subscriptable. However, when creating `Q(Exists(...))` directly, the child is the `Exists` object itself, which is not subscriptable.\n\n### Fix\nAdded a check to verify the single child is a tuple with exactly 2 elements before trying to subscript it. If not, the child is placed in `args` instead of `kwargs`.\n\n## Files Modified\n- `django/db/models/query_utils.py`: Added `isinstance(child, tuple) and len(child) == 2` check before trying to subscript the child\n\n## Test Results\n- **Test file:** `tests/queries/test_q.py`\n- **All 15 tests PASSED**\n- **Backward compatibility verified:** \n  - `Q(x=1).deconstruct()` still returns `('django.db.models.Q', (), {'x': 1})` \n  - `Q(price__gt=F(...)).deconstruct()` still returns `('django.db.models.Q', (), {'price__gt': F(...)})`\n  - `Q(x=1, y=2).deconstruct()` still returns `('django.db.models.Q', (('x', 1), ('y', 2)), {})`\n  - `Q(Q(x=1)).deconstruct()` still returns `('django.db.models.Q', (<Q...>,), {})`\n- **Bug case fixed:**\n  - `Q(Exists(User.objects.filter(username=\"jim\"))).deconstruct()` now returns `('django.db.models.Q', (<Exists...>,), {})` instead of crashing\n\n## Additional Verification\n- Tested all deconstruct test cases from the test file\n- Verified round-trip reconstruction works correctly\n- Confirmed no regressions in existing behavior\n\n## Concerns\n- None. The fix is minimal and maintains full backward compatibility.",
+      "created_at": "2026-02-03T10:50:45.078Z"
+    },
+    {
+      "epic_id": "0318870d-95e7-443e-a9fe-93751ac0b643",
+      "epic_title": "Fix: django__django-14140",
+      "comment_id": "d7fefc96-5f48-44a9-bd24-c7bef7344211",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n**Review Checklist:**\n- \u2705 No test files modified \u2014 only `django/db/models/query_utils.py` changed\n- \u2705 No unrelated files modified \u2014 single file, directly relevant\n- \u2705 Fix logically addresses the problem \u2014 adds `isinstance(child, tuple) and len(child) == 2` guard before subscripting, falling back to `args` for non-tuple children like `Exists`\n- \u2705 No obvious crash bugs \u2014 logic is clean and correct\n- \u2705 Changes are minimal and focused \u2014 5 lines added at the right location\n\nThe fix implements the \"more backward-compatible approach\" suggested in the problem statement itself: keep the single-child special case but explicitly check that the child is a length-2 tuple. Backward compatibility is fully preserved for normal kwargs like `Q(x=1)` since `('x', 1)` passes the tuple check. All 15 existing tests pass.",
+      "created_at": "2026-02-03T10:51:37.202Z"
+    }
+  ]
+}

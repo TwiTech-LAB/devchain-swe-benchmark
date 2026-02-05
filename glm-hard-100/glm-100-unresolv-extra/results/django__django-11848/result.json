@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-11848",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/http.py b/django/utils/http.py\nindex 572cfb4347..10e2c13011 100644\n--- a/django/utils/http.py\n+++ b/django/utils/http.py\n@@ -175,16 +175,21 @@ def parse_http_date(date):\n         raise ValueError(\"%r is not in a valid HTTP date format\" % date)\n     try:\n         year = int(m.group('year'))\n-        if year < 100:\n-            if year < 70:\n-                year += 2000\n-            else:\n-                year += 1900\n         month = MONTHS.index(m.group('mon').lower()) + 1\n         day = int(m.group('day'))\n         hour = int(m.group('hour'))\n         min = int(m.group('min'))\n         sec = int(m.group('sec'))\n+        if year < 100:\n+            current_year = datetime.datetime.utcnow().year\n+            current_century = current_year - (current_year % 100)\n+            year += current_century\n+            # According to RFC 7231 section 7.1.1.1, interpret a timestamp\n+            # that appears to be more than 50 years in the future as\n+            # representing the most recent year in the past.\n+            result = datetime.datetime(year, month, day, hour, min, sec)\n+            if result - datetime.datetime.utcnow() > datetime.timedelta(days=365 * 50):\n+                year -= 100\n         result = datetime.datetime(year, month, day, hour, min, sec)\n         return calendar.timegm(result.utctimetuple())\n     except Exception as exc:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T16:03:30.272814",
+  "end_time": "2026-01-31T16:09:12.759580",
+  "duration_seconds": 342.486766,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "9ce9f6af-182b-41c5-ba5e-7a2dea2a003f",
+      "epic_title": "Fix: django__django-11848",
+      "comment_id": "f094e8c7-6e12-42f7-9b6f-4a1de9ed8d37",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `django.utils.http.parse_http_date` to correctly interpret two-digit years according to RFC 7231 section 7.1.1.1. Previously, the code used hardcoded logic (0-69 \u2192 2000-2069, 70-99 \u2192 1970-1999). Now it compares against the current year and interprets any date appearing more than 50 years in the future as being in the past century.\n\n## Files Modified\n- `django/utils/http.py` (lines 176-195): Modified the year interpretation logic for two-digit years to be RFC 7231 compliant\n\n## Test Results\n- **Test file:** tests/utils_tests/test_http.py (HttpDateProcessingTests)\n- **Baseline (before fix):** 5/5 passed\n- **After fix:** 5/5 passed\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nVerified that all two-digit years (00-99) are now interpreted correctly:\n- Years that would be more than 50 years in the future are mapped to the previous century\n- Years within 50 years are kept in the current century\n- Example in 2026: year 94 \u2192 1994 (not 2094, which would be 68 years in the future)\n\n## Concerns\nNone. The fix is minimal and follows the RFC 7231 specification exactly.",
+      "created_at": "2026-01-31T15:08:58.527Z"
+    }
+  ]
+}

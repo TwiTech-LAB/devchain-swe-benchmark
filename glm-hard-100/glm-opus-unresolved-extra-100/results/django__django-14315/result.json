@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14315",
+  "status": "completed",
+  "patch": "diff --git a/django/db/backends/base/client.py b/django/db/backends/base/client.py\nindex 339f1e863c..7ceff9e981 100644\n--- a/django/db/backends/base/client.py\n+++ b/django/db/backends/base/client.py\n@@ -23,4 +23,4 @@ class BaseDatabaseClient:\n         args, env = self.settings_to_cmd_args_env(self.connection.settings_dict, parameters)\n         if env:\n             env = {**os.environ, **env}\n-        subprocess.run(args, env=env, check=True)\n+        subprocess.run(args, env=env or None, check=True)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:39:58.757223",
+  "end_time": "2026-02-03T11:45:41.776607",
+  "duration_seconds": 343.019384,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "452acbcf-1386-4f2b-b0e3-b126c02108aa",
+      "epic_title": "Fix: django__django-14315",
+      "comment_id": "69656580-9ef5-408a-876d-6401e0095054",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where database client runshell doesn't respect os.environ values when no environment variables need to be set.\n\n**Root cause:** In `base/client.py`, the PostgreSQL client's `settings_to_cmd_args_env` always returns an empty dict `{}` when no env vars are needed. The base class's `runshell` method checked `if env:` which is False for an empty dict, but then passed `env={}` to `subprocess.run()`. When subprocess receives `env={}`, it runs with an EMPTY environment instead of inheriting the parent environment.\n\n**Fix:** Changed `subprocess.run(args, env=env, check=True)` to `subprocess.run(args, env=env or None, check=True)` in `base/client.py`. Now:\n- Empty dict `{}` becomes `None` \u2192 inherits parent environment (os.environ)\n- None stays `None` \u2192 inherits parent environment (os.environ)  \n- Non-empty dict stays as-is \u2192 merges with os.environ via the existing `if env:` block\n\n## Files Modified\n- `django/db/backends/base/client.py`: Changed `subprocess.run(args, env=env, check=True)` to `subprocess.run(args, env=env or None, check=True)`\n\n## Test Results\n- Manual verification confirmed the fix handles all three cases correctly:\n  - Empty dict `{}` \u2192 `None` (PostgreSQL with no env vars)\n  - `None` \u2192 `None` (MySQL/Oracle clients)\n  - Non-empty dict \u2192 preserved (when password/other env vars set)\n\n## Concerns\n- None. The fix is minimal, backward compatible with all database clients (PostgreSQL, MySQL, Oracle), and handles the edge case correctly.",
+      "created_at": "2026-02-03T10:44:04.842Z"
+    },
+    {
+      "epic_id": "452acbcf-1386-4f2b-b0e3-b126c02108aa",
+      "epic_title": "Fix: django__django-14315",
+      "comment_id": "a5a241ed-ed13-4e08-b501-fd3a5a4abb21",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED\n\n**Verdict:** PASS\n\nThe fix correctly addresses the reported bug where PostgreSQL's `settings_to_cmd_args_env` returns an empty dict `{}` instead of `None`, causing `subprocess.run(args, env={}, ...)` to launch the shell with an empty environment instead of inheriting `os.environ`.\n\n**Review Summary:**\n- **Change:** `subprocess.run(args, env=env, check=True)` \u2192 `subprocess.run(args, env=env or None, check=True)` in `base/client.py`\n- **Logic verified:** `env or None` correctly converts falsy values (`{}`, `None`) to `None` (inherit parent env), while truthy non-empty dicts (already merged with `os.environ`) pass through unchanged\n- **All backends compatible:** PostgreSQL (`{}`\u2192`None`), MySQL (`None`/dict), Oracle (`None`), SQLite3 (`None`)\n- **Checklist:** No test files modified \u2705 | No unrelated files \u2705 | Fix addresses problem \u2705 | No crash bugs \u2705 | Minimal change \u2705",
+      "created_at": "2026-02-03T10:45:31.738Z"
+    }
+  ]
+}

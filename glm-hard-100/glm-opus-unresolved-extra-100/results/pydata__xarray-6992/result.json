@@ -1,0 +1,30 @@
+{
+  "instance_id": "pydata__xarray-6992",
+  "status": "completed",
+  "patch": "diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py\nindex 620f32f8..441c1698 100644\n--- a/xarray/core/dataset.py\n+++ b/xarray/core/dataset.py\n@@ -4177,7 +4177,7 @@ class Dataset(\n         }\n         variables.update(new_variables)\n \n-        coord_names = set(new_variables) | self._coord_names\n+        coord_names = (set(new_variables) | self._coord_names) - set(drop_variables)\n \n         return self._replace(variables, coord_names=coord_names, indexes=indexes)\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:44:34.254973",
+  "end_time": "2026-02-03T11:53:24.282535",
+  "duration_seconds": 530.027562,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "d927901c-ddf3-4a56-8825-cb504bac039f",
+      "epic_title": "Fix: pydata__xarray-6992",
+      "comment_id": "1fb09210-3557-4344-a3b6-2bad8f530bb5",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where `reset_index(drop=True)` left stale coordinate names in `_coord_names`, causing `DataVariables.__len__()` to return negative values.\n\n**Root Cause:** In `Dataset.reset_index()`, the `coord_names` set was being updated as:\n```python\ncoord_names = set(new_variables) | self._coord_names\n```\n\nThis added new variables to coord_names but didn't remove the names of dropped indexes. When `drop=True`, the index variable was removed from `_variables` but its name remained in `_coord_names`, causing `_coord_names` to have more items than `_variables`.\n\n**Fix:** Changed line 4180 in `xarray/core/dataset.py`:\n```python\ncoord_names = (set(new_variables) | self._coord_names) - set(drop_variables)\n```\n\nThe `drop_variables` list only contains the names being explicitly dropped (when `drop=True`), so:\n- When `drop=False`: `drop_variables=[]`, nothing is removed from coord_names (index becomes a coordinate without an index)\n- When `drop=True`: `drop_variables=['z']`, 'z' is removed from coord_names\n\n## Files Modified\n- `xarray/core/dataset.py`: Fixed coord_names calculation in `reset_index()` method (line 4180)\n\n## Test Results\n- **Test file:** `/testbed/xarray/tests/test_dataset.py`\n- **Baseline (before fix):** 370 passed, 1 skipped, 1 xfailed, 1 xpassed\n- **After fix:** 370 passed, 1 skipped, 1 xfailed, 1 xpassed\n- **Regression check:** No new failures introduced\n- **Related tests verified:** \n  - `test_dataarray.py::TestDataArray::test_reset_index` - PASSED\n\n## Additional Verification\n- Original MVCE now works without `ValueError: __len__() should return >= 0`\n- `len(_variables) - len(_coord_names)` returns 0 (was -1 before fix)\n\n## Concerns\nNone. The fix is minimal and directly addresses the root cause.",
+      "created_at": "2026-02-03T10:51:35.422Z"
+    },
+    {
+      "epic_id": "d927901c-ddf3-4a56-8825-cb504bac039f",
+      "epic_title": "Fix: pydata__xarray-6992",
+      "comment_id": "57ffb4d7-923d-40f0-ac55-11928d1404d8",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n**Review Checklist:**\n- [x] No test files modified \u2014 only `xarray/core/dataset.py` changed\n- [x] No unrelated files modified \u2014 single file, single line\n- [x] Fix logically addresses the problem\n- [x] No obvious crash bugs introduced\n- [x] Changes are minimal and focused\n\n**Analysis:**\n\nThe fix correctly addresses the root cause. In `reset_index()`, when `drop=True`, variables are removed from `_variables` (line 4175-4176) but their names were not removed from `coord_names`, causing `_coord_names` to contain entries not present in `_variables`. This made `DataVariables.__len__()` return a negative value (`len(_variables) - len(_coord_names)`).\n\nThe one-line fix:\n```python\ncoord_names = (set(new_variables) | self._coord_names) - set(drop_variables)\n```\n\ncorrectly subtracts `drop_variables` from `coord_names`, keeping `_coord_names` and `_variables` in sync. When `drop=False`, `drop_variables` is empty so the behavior is unchanged. When `drop=True`, only the explicitly dropped names are removed \u2014 level variables like 'a' and 'b' correctly remain as non-indexed coordinates.\n\nTest results show no regressions (370 passed before and after). MVCE confirmed working.",
+      "created_at": "2026-02-03T10:53:15.235Z"
+    }
+  ]
+}

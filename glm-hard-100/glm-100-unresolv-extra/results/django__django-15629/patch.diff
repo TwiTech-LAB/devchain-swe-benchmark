@@ -1,0 +1,28 @@
+diff --git a/django/db/models/fields/related.py b/django/db/models/fields/related.py
+index fad5560486..bfa98951da 100644
+--- a/django/db/models/fields/related.py
++++ b/django/db/models/fields/related.py
+@@ -1180,7 +1180,11 @@ class ForeignKey(ForeignObject):
+         return self.target_field.rel_db_type(connection=connection)
+ 
+     def db_parameters(self, connection):
+-        return {"type": self.db_type(connection), "check": self.db_check(connection)}
++        db_params = {"type": self.db_type(connection), "check": self.db_check(connection)}
++        # Propagate collation from the target field so that foreign key columns
++        # have the same collation as the column they reference.
++        db_params["collation"] = getattr(self.target_field, "db_collation", None)
++        return db_params
+ 
+     def convert_empty_strings(self, value, expression, connection):
+         if (not value) and isinstance(value, str):
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..a6a47964ea
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,5 @@
++
++SECRET_KEY = 'test-secret-key'
++DATABASES = {}
++INSTALLED_APPS = []
++DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

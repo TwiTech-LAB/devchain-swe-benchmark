@@ -1,0 +1,31 @@
+diff --git a/django/db/models/base.py b/django/db/models/base.py
+index 8ea6c05ef9..41d7245e1b 100644
+--- a/django/db/models/base.py
++++ b/django/db/models/base.py
+@@ -202,7 +202,7 @@ class ModelBase(type):
+                 continue
+             # Locate OneToOneField instances.
+             for field in base._meta.local_fields:
+-                if isinstance(field, OneToOneField):
++                if isinstance(field, OneToOneField) and field.remote_field.parent_link:
+                     related = resolve_relation(new_class, field.remote_field.model)
+                     parent_links[make_model_tuple(related)] = field
+ 
+@@ -239,6 +239,17 @@ class ModelBase(type):
+                 if base_key in parent_links:
+                     field = parent_links[base_key]
+                 elif not is_proxy:
++                    # Check for user-declared OneToOneFields to this base without
++                    # parent_link=True before auto-generating a parent link.
++                    for field in new_class._meta.local_fields:
++                        if isinstance(field, OneToOneField):
++                            related = resolve_relation(new_class, field.remote_field.model)
++                            if (make_model_tuple(related) == base_key and
++                                    not field.remote_field.parent_link and
++                                    not field.auto_created):
++                                raise FieldError(
++                                    "Add parent_link=True to %s." % field
++                                )
+                     attr_name = '%s_ptr' % base._meta.model_name
+                     field = OneToOneField(
+                         base,

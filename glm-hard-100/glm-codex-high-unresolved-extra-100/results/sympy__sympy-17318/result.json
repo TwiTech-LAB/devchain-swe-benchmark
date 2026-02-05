@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-17318",
+  "status": "completed",
+  "patch": "diff --git a/sympy/simplify/radsimp.py b/sympy/simplify/radsimp.py\nindex 216ae26204..de59422669 100644\n--- a/sympy/simplify/radsimp.py\n+++ b/sympy/simplify/radsimp.py\n@@ -1113,6 +1113,8 @@ def _split_gcd(*a):\n     >>> _split_gcd(55, 35, 22, 14, 77, 10)\n     (5, [55, 35, 10], [22, 14, 77])\n     \"\"\"\n+    if not a:\n+        return 1, [], []\n     g = a[0]\n     b1 = [g]\n     b2 = []\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:27:11.857370",
+  "end_time": "2026-02-03T01:33:46.543601",
+  "duration_seconds": 394.686231,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "240df57d-a597-4e0f-876c-f1c1e46793e0",
+      "epic_title": "Fix: sympy__sympy-17318",
+      "comment_id": "41071e73-a9f6-4807-a21a-30459af1a46f",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe bug was in `_split_gcd()` function in `sympy/simplify/radsimp.py`. When called with no arguments (empty tuple), it attempted to access `a[0]` which raised an `IndexError`.\n\nThe issue occurred when `sqrtdenest()` processed expressions with no surds (like complex square roots), causing `split_surds()` to call `_split_gcd(*surds)` with an empty `surds` list.\n\n**Fix**: Added a check at the beginning of `_split_gcd()` to handle the empty case, returning `(1, [], [])` - the identity for gcd with empty lists.\n\n## Files Modified\n- `sympy/simplify/radsimp.py`: Added empty input check in `_split_gcd` function (lines 1116-1117)\n\n## Test Results\n- **Test file:** `sympy/simplify/tests/test_sqrtdenest.py`\n- **Baseline/After fix:** All 12 tests PASSED\n- **Additional test file:** `sympy/simplify/tests/test_radsimp.py` - All 21 tests PASSED\n- **Additional test file:** `sympy/polys/tests/test_numberfields.py` - All 18 tests PASSED\n\n## Additional Verification\n- Confirmed `_split_gcd()` now returns `(1, [], [])` when called with no arguments\n- Confirmed `sqrtdenest((3 - sqrt(2)*sqrt(4 + 3*I) + 3*I)/2)` no longer raises IndexError\n\n## Concerns\n- None. The fix is minimal and correctly handles the edge case.",
+      "created_at": "2026-02-03T00:31:56.620Z"
+    },
+    {
+      "epic_id": "240df57d-a597-4e0f-876c-f1c1e46793e0",
+      "epic_title": "Fix: sympy__sympy-17318",
+      "comment_id": "8a5ea9ff-3862-49e8-99ae-439a04efbfae",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- `git diff` shows only a minimal change in `sympy/simplify/radsimp.py`: `_split_gcd(*a)` now handles the empty-input case and avoids `IndexError`.\n- No test files (or unrelated files) were modified.\n- The change directly addresses the reported `sqrtdenest` crash by ensuring `split_surds()` can safely call `_split_gcd(*surds)` even when `surds` is empty, resulting in the expression being left unchanged when it cannot be denested.",
+      "created_at": "2026-02-03T00:33:36.528Z"
+    }
+  ]
+}

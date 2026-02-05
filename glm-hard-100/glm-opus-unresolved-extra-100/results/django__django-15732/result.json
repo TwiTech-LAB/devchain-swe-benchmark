@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-15732",
+  "status": "completed",
+  "patch": "diff --git a/django/db/backends/base/schema.py b/django/db/backends/base/schema.py\nindex f2ca8c8df9..b3f9e7659a 100644\n--- a/django/db/backends/base/schema.py\n+++ b/django/db/backends/base/schema.py\n@@ -528,7 +528,7 @@ class BaseDatabaseSchemaEditor:\n         # Deleted uniques\n         for fields in olds.difference(news):\n             self._delete_composed_index(\n-                model, fields, {\"unique\": True}, self.sql_delete_unique\n+                model, fields, {\"unique\": True, \"primary_key\": False}, self.sql_delete_unique\n             )\n         # Created uniques\n         for field_names in news.difference(olds):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T10:55:44.444640",
+  "end_time": "2026-02-03T11:06:56.887835",
+  "duration_seconds": 672.443195,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "809969b7-78fa-4a41-90ba-df5b0e05fd6b",
+      "epic_title": "Fix: django__django-15732",
+      "comment_id": "077c166c-bf8e-4484-890d-1a58f8fbb7f5",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe issue was that when dropping a `unique_together` constraint on a single field that also has its own `unique=True` constraint (e.g., a primary key), Django's `_delete_composed_index` method would find TWO unique constraints on the same column:\n1. The primary key constraint\n2. The unique_together constraint\n\nThe code expected exactly one constraint and would raise: `ValueError: Found wrong number (2) of constraints...`\n\n**The Fix:** Modified `alter_unique_together` in `django/db/backends/base/schema.py` to pass `primary_key=False` in the `constraint_kwargs` when calling `_delete_composed_index`. This excludes the primary key constraint from the search, allowing only the unique_together constraint to be found and dropped.\n\nThis follows the same pattern already used in `alter_field` (line 826) where field-level unique constraints are removed with `primary_key=False` to exclude the primary key.\n\n## Files Modified\n\n- `django/db/backends/base/schema.py` (line 531): Added `primary_key=False` to the constraint_kwargs when deleting unique_together constraints\n\n## Test Results\n\n- **Verification:** Standalone test confirms the fix correctly filters out primary key constraints when searching for unique_together constraints to drop\n- **Pattern consistency:** The fix follows the existing pattern used in `alter_field` for handling field-level unique constraints\n\n## Concerns\n\n- None identified. The fix is minimal and follows existing patterns in the codebase.",
+      "created_at": "2026-02-03T10:05:39.948Z"
+    },
+    {
+      "epic_id": "809969b7-78fa-4a41-90ba-df5b0e05fd6b",
+      "epic_title": "Fix: django__django-15732",
+      "comment_id": "e4d8824a-da96-4303-8024-0a9d6736ccff",
+      "author_name": "Code Reviewer",
+      "content": "Code Review PASSED.\n\nThe fix correctly adds `primary_key=False` to the `constraint_kwargs` dict in `alter_unique_together` when calling `_delete_composed_index`. This excludes primary key constraints from the search, resolving the `ValueError` when a unique_together constraint targets a column that is also the primary key.\n\nVerified:\n- Single file changed (`django/db/backends/base/schema.py`), single line modified\n- No test files touched\n- `_constraint_names` (line 1674) properly supports the `primary_key` filter parameter\n- The fix follows the identical pattern already established at line 826 in `alter_field`, where `primary_key=False` is used to exclude PK constraints when dropping field-level unique constraints\n- The change is minimal and directly addresses the reported problem",
+      "created_at": "2026-02-03T10:06:49.704Z"
+    }
+  ]
+}

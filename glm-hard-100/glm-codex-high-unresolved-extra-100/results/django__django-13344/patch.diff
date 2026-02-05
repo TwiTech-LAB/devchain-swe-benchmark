@@ -1,0 +1,127 @@
+diff --git a/django/core/handlers/base.py b/django/core/handlers/base.py
+index 169df6b3cf..e3b8f9d025 100644
+--- a/django/core/handlers/base.py
++++ b/django/core/handlers/base.py
+@@ -1,22 +1,69 @@
+ import asyncio
+ import logging
+-import types
+ 
+ from asgiref.sync import async_to_sync, sync_to_async
+ 
+ from django.conf import settings
+ from django.core.exceptions import ImproperlyConfigured, MiddlewareNotUsed
++from django.core.handlers.exception import convert_exception_to_response, is_coroutine_callable
+ from django.core.signals import request_finished
+ from django.db import connections, transaction
+ from django.urls import get_resolver, set_urlconf
+ from django.utils.log import log_response
+ from django.utils.module_loading import import_string
+ 
+-from .exception import convert_exception_to_response
+-
+ logger = logging.getLogger('django.request')
+ 
+ 
++class _MiddlewareAsyncAdapter:
++    """
++    Adapter to make a middleware instance async-capable when its get_response
++    is async but the middleware's __call__ is not a coroutine function.
++
++    This is needed for middlewares that don't inherit from MiddlewareMixin
++    (which handles async mode automatically via __acall__) but are used in
++    an async middleware chain.
++    """
++    __slots__ = ('mw_instance', '_is_coroutine')
++
++    def __init__(self, mw_instance):
++        self.mw_instance = mw_instance
++        # Mark this adapter as a coroutine function so it's recognized as async
++        self._is_coroutine = asyncio.coroutines._is_coroutine
++
++    def __getattr__(self, name):
++        # Delegate all attribute access to the wrapped middleware instance
++        return getattr(self.mw_instance, name)
++
++    async def __call__(self, request):
++        """
++        Async __call__ that always returns an awaitable.
++        Routes to async mode when get_response is async, otherwise wraps
++        the sync middleware call in sync_to_async.
++        """
++        if asyncio.iscoroutinefunction(self.mw_instance.get_response):
++            # get_response is async - use the async path
++            response = None
++            if hasattr(self.mw_instance, 'process_request'):
++                response = await sync_to_async(
++                    self.mw_instance.process_request,
++                    thread_sensitive=True,
++                )(request)
++            response = response or await self.mw_instance.get_response(request)
++            if hasattr(self.mw_instance, 'process_response'):
++                response = await sync_to_async(
++                    self.mw_instance.process_response,
++                    thread_sensitive=True,
++                )(request, response)
++            return response
++        else:
++            # get_response is sync - wrap the entire middleware call in sync_to_async
++            return await sync_to_async(
++                self.mw_instance,
++                thread_sensitive=True,
++            )(request)
++
++
+ class BaseHandler:
+     _view_middleware = None
+     _template_response_middleware = None
+@@ -69,6 +116,17 @@ class BaseHandler:
+                     'Middleware factory %s returned None.' % middleware_path
+                 )
+ 
++            # After adapt_method_mode, check if the handler that the middleware receives
++            # is async. If so, the middleware needs to be async-capable. Wrap it with
++            # an adapter if its __call__ is not already a coroutine function.
++            # This is needed for middlewares that don't use MiddlewareMixin but are
++            # used in an async chain.
++            handler_is_async_after_adapt = asyncio.iscoroutinefunction(handler) or is_coroutine_callable(handler)
++            if (handler_is_async_after_adapt and
++                    not asyncio.iscoroutinefunction(mw_instance) and
++                    not is_coroutine_callable(mw_instance)):
++                mw_instance = _MiddlewareAsyncAdapter(mw_instance)
++
+             if hasattr(mw_instance, 'process_view'):
+                 self._view_middleware.insert(
+                     0,
+@@ -86,7 +144,10 @@ class BaseHandler:
+                 )
+ 
+             handler = convert_exception_to_response(mw_instance)
+-            handler_is_async = middleware_is_async
++            # After wrapping the middleware instance, check if the handler is async.
++            # Use is_coroutine_callable to properly detect MiddlewareMixin instances
++            # with async get_response.
++            handler_is_async = is_coroutine_callable(handler)
+ 
+         # Adapt the top of the stack, if needed.
+         handler = self.adapt_method_mode(is_async, handler, handler_is_async)
+diff --git a/django/core/handlers/exception.py b/django/core/handlers/exception.py
+index 98fb46083a..bd1b748d2d 100644
+--- a/django/core/handlers/exception.py
++++ b/django/core/handlers/exception.py
+@@ -51,6 +51,15 @@ def convert_exception_to_response(get_response):
+         return inner
+ 
+ 
++def is_coroutine_callable(callable):
++    """
++    Check if the callable will return a coroutine when called.
++    This is needed for middleware instances (like MiddlewareMixin) that have
++    an async get_response but __call__ is not a coroutine function.
++    """
++    return asyncio.iscoroutinefunction(callable) or getattr(callable, '_is_coroutine', None) is asyncio.coroutines._is_coroutine
++
++
+ def response_for_exception(request, exc):
+     if isinstance(exc, Http404):
+         if settings.DEBUG:

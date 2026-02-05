@@ -1,0 +1,44 @@
+diff --git a/pylint/lint/pylinter.py b/pylint/lint/pylinter.py
+index e2bbf061e..3786e7533 100644
+--- a/pylint/lint/pylinter.py
++++ b/pylint/lint/pylinter.py
+@@ -34,7 +34,7 @@ from pylint.constants import (
+ from pylint.interfaces import HIGH
+ from pylint.lint.base_options import _make_linter_options
+ from pylint.lint.caching import load_results, save_results
+-from pylint.lint.expand_modules import _is_ignored_file, expand_modules
++from pylint.lint.expand_modules import _is_ignored_file, _is_in_ignore_list_re, expand_modules
+ from pylint.lint.message_state_handler import _MessageStateHandler
+ from pylint.lint.parallel import check_parallel
+ from pylint.lint.report_functions import (
+@@ -602,6 +602,8 @@ class PyLinter(
+                         self.config.ignore,
+                         self.config.ignore_patterns,
+                         self.config.ignore_paths,
++                    ) or _is_in_ignore_list_re(
++                        root + os.sep, self.config.ignore_paths
+                     ):
+                         skip_subtrees.append(root)
+                         continue
+diff --git a/test_debug/.pylintrc b/test_debug/.pylintrc
+new file mode 100644
+index 000000000..0b77043d0
+--- /dev/null
++++ b/test_debug/.pylintrc
+@@ -0,0 +1,2 @@
++[MASTER]
++ignore-paths=^src/gen/.*$
+diff --git a/test_debug/src/a.py b/test_debug/src/a.py
+new file mode 100644
+index 000000000..2ae28399f
+--- /dev/null
++++ b/test_debug/src/a.py
+@@ -0,0 +1 @@
++pass
+diff --git a/test_debug/src/gen/b.py b/test_debug/src/gen/b.py
+new file mode 100644
+index 000000000..2ae28399f
+--- /dev/null
++++ b/test_debug/src/gen/b.py
+@@ -0,0 +1 @@
++pass

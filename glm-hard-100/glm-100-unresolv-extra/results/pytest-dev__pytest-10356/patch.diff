@@ -1,0 +1,43 @@
+diff --git a/src/_pytest/mark/structures.py b/src/_pytest/mark/structures.py
+index 800a25c92..d6e530109 100644
+--- a/src/_pytest/mark/structures.py
++++ b/src/_pytest/mark/structures.py
+@@ -356,11 +356,33 @@ class MarkDecorator:
+ 
+ 
+ def get_unpacked_marks(obj: object) -> Iterable[Mark]:
+-    """Obtain the unpacked marks that are stored on an object."""
+-    mark_list = getattr(obj, "pytestmark", [])
+-    if not isinstance(mark_list, list):
+-        mark_list = [mark_list]
+-    return normalize_mark_list(mark_list)
++    """Obtain the unpacked marks that are stored on an object.
++
++    For classes, this includes marks from all base classes in the
++    Method Resolution Order (MRO). Marks from base classes come first,
++    followed by marks from more derived classes.
++    """
++    if inspect.isclass(obj):
++        # For classes, collect marks from the entire MRO
++        # Use __dict__ to get marks defined directly on each class,
++        # not inherited through Python's attribute lookup
++        mark_list = []
++        for base_class in obj.__mro__:
++            # Skip object and type base classes
++            if base_class in (object, type):
++                continue
++            # Check if pytestmark is defined directly on this class
++            if "pytestmark" in base_class.__dict__:
++                marks = base_class.__dict__["pytestmark"]
++                if not isinstance(marks, list):
++                    marks = [marks]
++                mark_list.extend(marks)
++        return normalize_mark_list(mark_list)
++    else:
++        mark_list = getattr(obj, "pytestmark", [])
++        if not isinstance(mark_list, list):
++            mark_list = [mark_list]
++        return normalize_mark_list(mark_list)
+ 
+ 
+ def normalize_mark_list(

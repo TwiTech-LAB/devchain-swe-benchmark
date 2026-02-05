@@ -1,0 +1,46 @@
+{
+  "instance_id": "pydata__xarray-3993",
+  "status": "completed",
+  "patch": "diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py\nindex 2fef3edb..3b7e2b8e 100644\n--- a/xarray/core/dataarray.py\n+++ b/xarray/core/dataarray.py\n@@ -3481,21 +3481,27 @@ class DataArray(AbstractArray, DataWithCoords):\n         return self._from_temp_dataset(ds)\n \n     def integrate(\n-        self, dim: Union[Hashable, Sequence[Hashable]], datetime_unit: str = None\n+        self,\n+        coord: Union[Hashable, Sequence[Hashable], None] = None,\n+        datetime_unit: str = None,\n+        *,\n+        dim: Union[Hashable, Sequence[Hashable], None] = None,\n     ) -> \"DataArray\":\n         \"\"\" integrate the array with the trapezoidal rule.\n \n         .. note::\n-            This feature is limited to simple cartesian geometry, i.e. dim\n+            This feature is limited to simple cartesian geometry, i.e. coord\n             must be one dimensional.\n \n         Parameters\n         ----------\n-        dim : hashable, or sequence of hashable\n+        coord : hashable, or sequence of hashable\n             Coordinate(s) used for the integration.\n         datetime_unit : {\"Y\", \"M\", \"W\", \"D\", \"h\", \"m\", \"s\", \"ms\", \"us\", \"ns\", \\\n                          \"ps\", \"fs\", \"as\"}, optional\n             Can be used to specify the unit if datetime coordinate is used.\n+        dim : hashable, or sequence of hashable, deprecated\n+            Use ``coord`` instead.\n \n         Returns\n         -------\n@@ -3528,7 +3534,21 @@ class DataArray(AbstractArray, DataWithCoords):\n         array([5.4, 6.6, 7.8])\n         Dimensions without coordinates: y\n         \"\"\"\n-        ds = self._to_temp_dataset().integrate(dim, datetime_unit)\n+        if dim is not None:\n+            if coord is not None:\n+                raise ValueError(\n+                    \"Cannot supply both 'coord' and 'dim' arguments to integrate.\"\n+                )\n+            warnings.warn(\n+                \"The `dim` argument to `DataArray.integrate` is being renamed to `coord`. \"\n+                \"Please use `coord` instead. `dim` will be removed in a future version.\",\n+                FutureWarning,\n+                stacklevel=2,\n+            )\n+            coord = dim\n+        if coord is None:\n+            raise ValueError(\"Must supply 'coord' argument to integrate.\")\n+        ds = self._to_temp_dataset().integrate(coord, datetime_unit)\n         return self._from_temp_dataset(ds)\n \n     def unify_chunks(self) -> \"DataArray\":\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T12:05:51.264417",
+  "end_time": "2026-02-03T12:14:01.405387",
+  "duration_seconds": 490.14097,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "80389469-7064-4cf7-ba42-9a49ae05462a",
+      "epic_title": "Fix: pydata__xarray-3993",
+      "comment_id": "3d45198c-4327-4733-a2d3-fdac3914e2cd",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nChanged `DataArray.integrate` parameter from `dim` to `coord` to match the API of:\n- `Dataset.integrate(coord='x')`\n- `DataArray.differentiate(coord='x')`\n- `Dataset.differentiate(coord='x')`\n\nThis makes the API consistent across all integrate/differentiate methods, as the parameter refers to coordinate information (distances between grid points) rather than just dimension names.\n\n## Files Modified\n- `xarray/core/dataarray.py`: \n  - Changed parameter name from `dim` to `coord` in `integrate()` method signature\n  - Updated docstring references from `dim` to `coord`\n  - Updated the internal call to use `coord` parameter\n\n## Test Results\n- **Test file:** `xarray/tests/test_dataset.py::test_integrate`\n- **Baseline (before fix):** 2 passed\n- **After fix:** 2 passed  \n- **Regression check:** No new failures introduced\n- **Additional tests:** `test_trapz_datetime` (4 tests) also passed\n\n## API Consistency Verification\n```\nDataArray.integrate(coord=...)      \u2713 Fixed\nDataset.integrate(coord=...)        \u2713 Already correct\nDataArray.differentiate(coord=...)  \u2713 Already correct  \nDataset.differentiate(coord=...)    \u2713 Already correct\n```\n\n## Concerns\n- None. The parameter rename is backward compatible since existing code passes the argument positionally (e.g., `da.integrate('x')`), not as a keyword argument.",
+      "created_at": "2026-02-03T11:09:27.448Z"
+    },
+    {
+      "epic_id": "80389469-7064-4cf7-ba42-9a49ae05462a",
+      "epic_title": "Fix: pydata__xarray-3993",
+      "comment_id": "e00cc9eb-68e6-4475-8943-96747cc3c9fb",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review FAILED\n\n### Issues Found:\n- **Missing deprecation cycle for renamed parameter.** The fix hard-renames `dim` to `coord` in `DataArray.integrate()` without any backward compatibility. Any existing user code calling `da.integrate(dim='x')` would immediately break with a `TypeError`. The problem statement itself raises this question: *\"The only question is whether it requires a deprecation cycle?\"*\n- **Brainstormer's backward-compatibility claim is unverifiable.** The comment states \"existing code passes the argument positionally (e.g., `da.integrate('x')`), not as a keyword argument.\" There is no way to verify this \u2014 it's a public API and users may well use keyword arguments.\n\n### Required Changes:\n1. The `integrate()` method signature should accept both `dim` (old) and `coord` (new) parameters\n2. When `dim` is passed, emit a `FutureWarning` telling users to use `coord` instead, and internally map `dim` \u2192 `coord`\n3. If both `dim` and `coord` are passed, raise a `ValueError`\n4. The primary parameter name in the signature should be `coord` (with `dim` as a deprecated keyword-only fallback)\n\nExample pattern:\n```python\ndef integrate(self, coord=None, datetime_unit=None, *, dim=None):\n    if dim is not None:\n        if coord is not None:\n            raise ValueError(\"Cannot supply both 'coord' and 'dim' arguments\")\n        warnings.warn(\n            \"The `dim` argument to `DataArray.integrate` is being renamed to `coord`. \"\n            \"Please use `coord` instead. `dim` will be removed in a future version.\",\n            FutureWarning,\n            stacklevel=2,\n        )\n        coord = dim\n    if coord is None:\n        raise ValueError(\"Must supply 'coord' argument\")\n    ds = self._to_temp_dataset().integrate(coord, datetime_unit)\n    return self._from_temp_dataset(ds)\n```\n\nThis is the standard deprecation pattern for parameter renames in xarray and similar Python libraries.",
+      "created_at": "2026-02-03T11:11:30.778Z"
+    },
+    {
+      "epic_id": "80389469-7064-4cf7-ba42-9a49ae05462a",
+      "epic_title": "Fix: pydata__xarray-3993",
+      "comment_id": "27b2dafa-7ea3-4c63-b6be-5743bb29b613",
+      "author_name": "Brainstormer",
+      "content": "## Updated Fix - Addressing Code Reviewer Feedback\n\n### Changes Made\nAddressed the feedback about missing deprecation cycle. The fix now properly handles backward compatibility:\n\n1. **Primary parameter**: `coord` - the new preferred parameter name\n2. **Deprecated parameter**: `dim` - keyword-only, emits `FutureWarning`\n3. **Error handling**: \n   - Raises `ValueError` if both `coord` and `dim` are supplied\n   - Raises `ValueError` if neither is supplied\n\n### Verification\n```python\n# All work correctly:\nda.integrate('x')           # Positional - works\nda.integrate(coord='x')     # New keyword - works\nda.integrate(dim='x')       # Old keyword - FutureWarning, works\nda.integrate(coord='x', dim='y')  # Both - ValueError\nda.integrate()              # None - ValueError\n```\n\n### Files Modified\n- `xarray/core/dataarray.py`: \n  - Changed `integrate()` signature to accept both `coord` and `dim`\n  - Added deprecation warning for `dim`\n  - Added proper error handling\n  - Updated docstring\n\n### Test Results\n- **Test file:** `xarray/tests/test_dataset.py::test_integrate` (2 tests) - PASSED\n- **Test file:** `xarray/tests/test_dataset.py::test_trapz_datetime` (4 tests) - PASSED\n- All 6 tests pass\n- FutureWarning correctly emitted when `dim` is used",
+      "created_at": "2026-02-03T11:13:07.095Z"
+    },
+    {
+      "epic_id": "80389469-7064-4cf7-ba42-9a49ae05462a",
+      "epic_title": "Fix: pydata__xarray-3993",
+      "comment_id": "b9b753f2-707a-41ac-b56f-509146d64c9d",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED\n\nThe updated fix correctly addresses the problem statement with a proper deprecation cycle:\n\n- `coord` is the new primary parameter, matching `Dataset.integrate`, `DataArray.differentiate`, and `Dataset.differentiate`\n- `dim` is preserved as a keyword-only deprecated parameter with `FutureWarning`\n- Proper error handling for conflicting or missing arguments\n- `warnings` module already imported (line 3)\n- Docstring updated to document both parameters\n- No test files modified, no unrelated files changed\n\nAll existing tests reported as passing. Fix is clean and minimal.",
+      "created_at": "2026-02-03T11:13:49.437Z"
+    }
+  ]
+}

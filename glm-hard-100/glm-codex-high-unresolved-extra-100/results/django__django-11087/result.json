@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-11087",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py\nindex 3a462f1c4c..436fb11653 100644\n--- a/django/db/models/deletion.py\n+++ b/django/db/models/deletion.py\n@@ -234,7 +234,7 @@ class Collector:\n         \"\"\"\n         return related.related_model._base_manager.using(self.using).filter(\n             **{\"%s__in\" % related.field.name: objs}\n-        )\n+        ).only(related.related_model._meta.pk.name)\n \n     def instances_with_model(self):\n         for model, instances in self.data.items():\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T02:46:51.875424",
+  "end_time": "2026-02-03T02:57:33.920911",
+  "duration_seconds": 642.045487,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "d2d80619-f1bf-4271-827f-0f107515954d",
+      "epic_title": "Fix: django__django-11087",
+      "comment_id": "45c19d53-58e8-4ad7-b400-0b0c15deb966",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where `.delete()` was fetching ALL fields from related models during CASCADE deletion, even though only the primary key is needed. This caused:\n1. Performance issues (unnecessary data transfer)\n2. Unicode decode errors when fetching fields with invalid data that aren't needed\n\n## Root Cause\n\nThe `related_objects()` method in `Collector` class was returning a QuerySet that selected all fields. When this QuerySet was evaluated during cascade deletion (to check if related objects exist), it fetched all columns unnecessarily.\n\n## Files Modified\n\n- `django/db/models/deletion.py` (line 237): Added `.only(related.related_model._meta.pk.name)` to limit the SELECT to only the primary key field\n\n## Verification\n\nCreated and ran comprehensive tests verifying:\n- CASCADE deletion now only selects PK fields (confirmed via SQL inspection)\n- Fast delete still works correctly\n- SET_NULL, DO_NOTHING, and other on_delete handlers work correctly\n- Multi-level CASCADE works correctly\n\nExample query BEFORE fix:\n```sql\nSELECT \"table\".\"id\", \"table\".\"field1\", \"table\".\"field2\", ... FROM \"table\" WHERE ...\n```\n\nExample query AFTER fix:\n```sql\nSELECT \"table\".\"id\" FROM \"table\" WHERE ...\n```\n\n## Edge Cases Considered\n\n- Empty related object sets: QuerySet with `.only()` still handles empty results correctly\n- Model inheritance: Works correctly with proxy and concrete models\n- Custom PK fields: Uses `_meta.pk.name` to get the actual PK field name\n- Fast delete path: The QuerySet still has the `_raw_delete` method needed for fast deletion",
+      "created_at": "2026-02-03T01:54:45.439Z"
+    },
+    {
+      "epic_id": "d2d80619-f1bf-4271-827f-0f107515954d",
+      "epic_title": "Fix: django__django-11087",
+      "comment_id": "9d98fa0f-1707-41d5-96c3-712caf8054da",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and focused: only `django/db/models/deletion.py` updated.\n- No test files or build/config files modified.\n- `Collector.related_objects()` now limits the CASCADE queryset to PK-only via `.only(related.related_model._meta.pk.name)`, which addresses the reported issue (unnecessary full-row fetch during `.delete()` leading to UnicodeDecodeError/perf hit).\n\nNon-blocking note: this will produce deferred model instances for related objects; any signal/on_delete code that accesses non-PK fields may trigger follow-up queries (expected/acceptable).",
+      "created_at": "2026-02-03T01:57:24.671Z"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-16667",
+  "status": "completed",
+  "patch": "diff --git a/django/forms/widgets.py b/django/forms/widgets.py\nindex 842b73e95c..f4bc74b7cd 100644\n--- a/django/forms/widgets.py\n+++ b/django/forms/widgets.py\n@@ -1157,7 +1157,7 @@ class SelectDateWidget(Widget):\n             input_format = formats.sanitize_strftime_format(input_format)\n             try:\n                 date_value = datetime.date(int(y), int(m), int(d))\n-            except ValueError:\n+            except (ValueError, OverflowError):\n                 # Return pseudo-ISO dates with zeros for any unselected values,\n                 # e.g. '2017-0-23'.\n                 return \"%s-%s-%s\" % (y or 0, m or 0, d or 0)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T10:34:25.500335",
+  "end_time": "2026-02-03T10:41:47.637277",
+  "duration_seconds": 442.136942,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "2fa2de82-c954-4e08-bf75-ae5ce5b5dce4",
+      "epic_title": "Fix: django__django-16667",
+      "comment_id": "4cb6958a-83b9-4139-bc30-2af6fc1ff45a",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed OverflowError crash in SelectDateWidget when users submit extremely large year values (e.g., 1234567821345678). The code only caught `ValueError` but `datetime.date()` raises `OverflowError` when integers are too large to convert to C long.\n\n## Files Modified\n- `django/forms/widgets.py` (line 1160): Changed `except ValueError:` to `except (ValueError, OverflowError):` to catch both types of exceptions when creating a date from user input.\n\n## Test Results\n- **Test file:** tests/forms_tests/widget_tests/test_selectdatewidget.py\n- **Baseline:** Not available (environment limitations)\n- **After fix:** 14 passed, 1 error (pre-existing - missing template file `forms_tests/use_fieldset.html`, unrelated to this fix)\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nManual testing confirmed the fix handles:\n1. Overflow scenario (year=1234567821345678): Returns \"1234567821345678-1-1\" (pseudo-ISO format)\n2. Invalid month (month=13): Returns \"2024-13-1\" (pseudo-ISO format)  \n3. Valid date (2024-01-01): Returns \"2024-01-01\" (properly formatted)\n4. Empty values: Returns None (as expected)\n\n## Concerns\nNone. The fix is minimal and follows the existing error handling pattern - invalid dates are returned as pseudo-ISO dates with zeros for empty values. The OverflowError is now caught and handled the same way as ValueError.",
+      "created_at": "2026-02-03T09:40:44.067Z"
+    },
+    {
+      "epic_id": "2fa2de82-c954-4e08-bf75-ae5ce5b5dce4",
+      "epic_title": "Fix: django__django-16667",
+      "comment_id": "9f8f2862-acf9-4221-9590-137138686411",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n**Checklist:**\n- [x] No test files modified \u2014 only `django/forms/widgets.py` changed\n- [x] No unrelated files modified \u2014 single targeted file\n- [x] Fix logically addresses the problem \u2014 `OverflowError` from large integers in `datetime.date()` is now caught alongside the existing `ValueError`\n- [x] No obvious crash bugs or logical errors \u2014 fallback to pseudo-ISO date string is the same proven path already used for `ValueError`\n- [x] Changes are minimal and focused \u2014 single line change at `widgets.py:1160`\n\nThe fix is correct and minimal. Adding `OverflowError` to the existing `except ValueError:` clause directly prevents the server crash described in the problem statement (e.g., year=1234567821345678) while maintaining the same graceful fallback behavior for invalid dates.",
+      "created_at": "2026-02-03T09:41:43.370Z"
+    }
+  ]
+}

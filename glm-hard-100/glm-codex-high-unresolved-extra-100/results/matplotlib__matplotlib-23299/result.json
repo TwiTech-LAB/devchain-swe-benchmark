@@ -1,0 +1,30 @@
+{
+  "instance_id": "matplotlib__matplotlib-23299",
+  "status": "completed",
+  "patch": "diff --git a/lib/matplotlib/pyplot.py b/lib/matplotlib/pyplot.py\nindex e3c66ea67c..3ca5a48242 100644\n--- a/lib/matplotlib/pyplot.py\n+++ b/lib/matplotlib/pyplot.py\n@@ -206,7 +206,7 @@ def _get_backend_mod():\n     return _backend_mod\n \n \n-def switch_backend(newbackend):\n+def switch_backend(newbackend, *, _from_auto_resolution=False):\n     \"\"\"\n     Close all open figures and set the Matplotlib backend.\n \n@@ -222,7 +222,6 @@ def switch_backend(newbackend):\n     global _backend_mod\n     # make sure the init is pulled up so we can assign to it later\n     import matplotlib.backends\n-    close(\"all\")\n \n     if newbackend is rcsetup._auto_backend_sentinel:\n         current_framework = cbook._get_running_interactive_framework()\n@@ -247,7 +246,7 @@ def switch_backend(newbackend):\n         # are of worse quality.\n         for candidate in candidates:\n             try:\n-                switch_backend(candidate)\n+                switch_backend(candidate, _from_auto_resolution=True)\n             except ImportError:\n                 continue\n             else:\n@@ -256,10 +255,14 @@ def switch_backend(newbackend):\n         else:\n             # Switching to Agg should always succeed; if it doesn't, let the\n             # exception propagate out.\n-            switch_backend(\"agg\")\n+            switch_backend(\"agg\", _from_auto_resolution=True)\n             rcParamsOrig[\"backend\"] = \"agg\"\n             return\n \n+    # If we get here, we're actually switching backends (not auto-resolving).\n+    # Only close figures if this is not the result of auto-resolution.\n+    if not _from_auto_resolution:\n+        close(\"all\")\n     backend_mod = importlib.import_module(\n         cbook._backend_module_name(newbackend))\n     canvas_class = backend_mod.FigureCanvas\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:24:14.107973",
+  "end_time": "2026-02-03T01:34:06.009953",
+  "duration_seconds": 591.90198,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "49460f91-cbcb-4f6c-b13d-2efcd8a472e9",
+      "epic_title": "Fix: matplotlib__matplotlib-23299",
+      "comment_id": "95e034d1-7e7e-43f6-bd79-fe40b60a0612",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where `get_backend()` clears figures from `Gcf.figs` when the first figure was created under `rc_context`.\n\n**Root Cause:** When `get_backend()` was called and the backend was still `_auto_backend_sentinel`, it triggered `switch_backend()` which unconditionally called `close(\"all\")`, destroying all figures. This happened even though no actual backend switch was occurring - just initial backend resolution.\n\n**Solution:** Added a `_from_auto_resolution` parameter to `switch_backend()` to distinguish between:\n1. Auto-resolution (initial backend setup) - should NOT close figures\n2. Actual backend switch - should still close figures as expected\n\n## Files Modified\n- `lib/matplotlib/pyplot.py`:\n  - Added `_from_auto_resolution` keyword-only parameter to `switch_backend()`\n  - Moved `close(\"all\")` to only execute when NOT in auto-resolution mode\n  - Updated recursive calls during auto-resolution to pass `_from_auto_resolution=True`\n\n## Test Results\n- **Test file:** lib/matplotlib/tests/test_pyplot.py\n- **Result:** 23 passed, 0 failed, 0 errors\n\n## Additional Verification\nAll verification tests passed:\n- Test 1: Original bug case - figures preserved after `get_backend()` \u2713\n- Test 2: Multiple figures in rc_context - all preserved \u2713\n- Test 3: Explicit backend switch - still closes figures as expected \u2713\n- Test 4: `plt.close(fig)` works correctly after `get_backend()` \u2713\n\n## Concerns\n- The `_from_auto_resolution` parameter is a private API (underscore prefix) to signal it's internal-only\n- All existing behavior for explicit `switch_backend()` calls is preserved",
+      "created_at": "2026-02-03T00:32:23.347Z"
+    },
+    {
+      "epic_id": "49460f91-cbcb-4f6c-b13d-2efcd8a472e9",
+      "epic_title": "Fix: matplotlib__matplotlib-23299",
+      "comment_id": "60e43ec8-0384-4937-8d04-0983554bdb83",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\nChecklist:\n- Only source file changed (`lib/matplotlib/pyplot.py`); no tests or build configs modified.\n- Fix is minimal and directly targets root cause: `switch_backend()` no longer calls `close(\"all\")` during initial backend auto-resolution triggered by `get_backend()`, preventing `Gcf.figs` from being cleared for figures created under `rc_context`.\n- Explicit backend switches still close figures as before (guarded by `_from_auto_resolution`).",
+      "created_at": "2026-02-03T00:34:00.133Z"
+    }
+  ]
+}

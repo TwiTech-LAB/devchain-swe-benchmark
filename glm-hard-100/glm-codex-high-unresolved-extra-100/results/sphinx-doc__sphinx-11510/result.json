@@ -1,0 +1,30 @@
+{
+  "instance_id": "sphinx-doc__sphinx-11510",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/directives/other.py b/sphinx/directives/other.py\nindex 19f7c0a8d..3a6dc546a 100644\n--- a/sphinx/directives/other.py\n+++ b/sphinx/directives/other.py\n@@ -376,7 +376,42 @@ class Include(BaseInclude, SphinxDirective):\n         rel_filename, filename = self.env.relfn2path(self.arguments[0])\n         self.arguments[0] = filename\n         self.env.note_included(filename)\n-        return super().run()\n+\n+        # Patch io.FileInput to emit the source-read event for included files\n+        # This allows extensions to modify the content of included files via the\n+        # source-read event, just like they can for regular documents.\n+        from docutils import io as docutils_io\n+        from os.path import realpath\n+\n+        original_file_input = docutils_io.FileInput\n+        env = self.env\n+        # Normalize the filename for comparison\n+        target_path = realpath(filename)\n+\n+        class PatchedFileInput(original_file_input):\n+            def read(self):\n+                content = super().read()\n+                # Check if this is the included file we're looking for\n+                if hasattr(self, 'source_path'):\n+                    # Normalize both paths for comparison\n+                    try:\n+                        current_path = realpath(str(self.source_path))\n+                        if current_path == target_path:\n+                            docname = env.path2doc(target_path)\n+                            if docname:\n+                                # Emit the source-read event for the included file\n+                                arg = [content]\n+                                env.events.emit('source-read', docname, arg)\n+                                content = arg[0]\n+                    except Exception:\n+                        pass\n+                return content\n+\n+        docutils_io.FileInput = PatchedFileInput\n+        try:\n+            return super().run()\n+        finally:\n+            docutils_io.FileInput = original_file_input\n \n \n def setup(app: Sphinx) -> dict[str, Any]:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:17:09.146014",
+  "end_time": "2026-02-03T01:32:00.294683",
+  "duration_seconds": 891.148669,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "77eef246-9b95-49e7-be30-7bbb5e4ca3b0",
+      "epic_title": "Fix: sphinx-doc__sphinx-11510",
+      "comment_id": "9ca0b50a-1553-4702-8316-4a1b0e3e4816",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where the `source-read` event did not modify included files' source content. The problem was that when a file is included via the `.. include::` directive, the content is read directly from disk by docutils' `Include` class, bypassing Sphinx's `source-read` event emission.\n\n## Files Modified\n- `sphinx/directives/other.py`: Modified the `Include.run()` method to temporarily patch `io.FileInput` and emit the `source-read` event for included files. The patch intercepts the file reading process, allows extensions to modify the content via the event, and then passes the modified content back to the parent class for processing.\n\n## Test Results\n- **Test file:** `tests/test_directive_other.py`, `tests/test_environment.py`, `tests/test_build_html.py`\n- **Tests run:** 7 (directive) + 4 (environment) + 539 (html build) = 550 tests\n- **All passed:** No failures or errors\n\n## Verification\nCreated a test case with:\n1. Main file (index.rst) with `&REPLACE_ME;` and `.. include:: something-to-include.rst`\n2. Included file (something-to-include.rst) with `&REPLACE_ME;`\n3. Custom extension that connects to `source-read` event to replace `&REPLACE_ME;` with `REPLACED`\n\n**Before fix:** Only the main file's `&REPLACE_ME;` was replaced\n**After fix:** Both the main file's and the included file's `&REPLACE_ME;` are replaced correctly\n\n## Technical Details\nThe fix temporarily patches `docutils.io.FileInput` with a custom class that:\n1. Reads the file content normally\n2. Checks if the file being read matches the included file we're targeting\n3. If so, emits the `source-read` event for that docname\n4. Returns the (possibly modified) content\n\nThe patch is applied before calling `super().run()` and removed in a `finally` block to ensure it's always cleaned up.",
+      "created_at": "2026-02-03T00:29:34.974Z"
+    },
+    {
+      "epic_id": "77eef246-9b95-49e7-be30-7bbb5e4ca3b0",
+      "epic_title": "Fix: sphinx-doc__sphinx-11510",
+      "comment_id": "62e2dd64-7c99-41ad-ac94-cc6848bd0ef5",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Diff is limited to `sphinx/directives/other.py` (no test/config changes).\n- The `Include` directive now emits the `source-read` event for the included file\u2019s content (via a temporary `docutils.io.FileInput` patch), which directly addresses the reported behavior for `.. include::`.\n- Cleanup is handled with a `finally` block to restore `FileInput`.",
+      "created_at": "2026-02-03T00:31:54.745Z"
+    }
+  ]
+}

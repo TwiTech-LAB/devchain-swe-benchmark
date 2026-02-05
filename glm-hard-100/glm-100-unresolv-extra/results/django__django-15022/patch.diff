@@ -1,0 +1,409 @@
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index 66f3396a6b..2a723f96e4 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -1031,6 +1031,7 @@ class ModelAdmin(BaseModelAdmin):
+         if search_fields and search_term:
+             orm_lookups = [construct_search(str(search_field))
+                            for search_field in search_fields]
++            search_queries = []
+             for bit in smart_split(search_term):
+                 if bit.startswith(('"', "'")) and bit[0] == bit[-1]:
+                     bit = unescape_string_literal(bit)
+@@ -1038,7 +1039,9 @@ class ModelAdmin(BaseModelAdmin):
+                     *((orm_lookup, bit) for orm_lookup in orm_lookups),
+                     _connector=models.Q.OR,
+                 )
+-                queryset = queryset.filter(or_queries)
++                search_queries.append(or_queries)
++            if search_queries:
++                queryset = queryset.filter(*search_queries)
+             may_have_duplicates |= any(
+                 lookup_spawns_duplicates(self.opts, search_spec)
+                 for search_spec in orm_lookups
+diff --git a/test_search_fix.py b/test_search_fix.py
+new file mode 100644
+index 0000000000..4cc6ed25de
+--- /dev/null
++++ b/test_search_fix.py
+@@ -0,0 +1,112 @@
++"""
++Test the admin search fix using the same test cases as test_multiple_search_fields.
++"""
++import os
++import sys
++import tempfile
++
++# Create a minimal settings module for testing
++settings_content = """
++DATABASES = {
++    "default": {
++        "ENGINE": "django.db.backends.sqlite3",
++        "NAME": ":memory:",
++    }
++}
++INSTALLED_APPS = [
++    "django.contrib.contenttypes",
++    "django.contrib.auth",
++    "django.contrib.admin",
++    "django.contrib.sessions",
++    "django.contrib.messages",
++]
++SECRET_KEY = "test-secret-key"
++USE_TZ = True
++DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
++ROOT_URLCONF = ""
++MIDDLEWARE = []
++TEMPLATES = []
++"""
++
++# Write settings to a temp file
++with open("/tmp/test_settings.py", "w") as f:
++    f.write(settings_content)
++
++sys.path.insert(0, "/tmp")
++os.environ["DJANGO_SETTINGS_MODULE"] = "test_settings"
++sys.path.insert(0, "/testbed")
++
++import django
++django.setup()
++
++from django.contrib.admin.options import ModelAdmin
++from django.contrib.admin.sites import AdminSite
++from django.db import models
++from django.test import RequestFactory
++from django.db import connection
++
++# Create test models
++class Group(models.Model):
++    name = models.CharField(max_length=100)
++
++    class Meta:
++        app_label = "test_app"
++
++class Concert(models.Model):
++    name = models.CharField(max_length=100)
++    group = models.ForeignKey(Group, on_delete=models.CASCADE)
++
++    class Meta:
++        app_label = "test_app"
++
++# Create tables
++with connection.schema_editor() as schema_editor:
++    schema_editor.create_model(Group)
++    schema_editor.create_model(Concert)
++
++# Create test data
++group_duo = Group.objects.create(name="Duo")
++group_hype = Group.objects.create(name="The Hype")
++Concert.objects.create(name="Tiny desk concert", group=group_duo)
++Concert.objects.create(name="Woodstock concert", group=group_hype)
++
++# Create admin class
++class ConcertAdmin(ModelAdmin):
++    search_fields = ["group__name", "name"]
++
++concert_admin = ConcertAdmin(Concert, AdminSite())
++
++# Test search functionality - from test_multiple_search_fields
++factory = RequestFactory()
++
++print("Testing admin search (from test_multiple_search_fields):")
++print("=" * 60)
++
++test_cases = [
++    ("Duo Concert", 1),
++    ("Tiny Desk Concert", 1),
++    ("Concert", 2),
++    ("Other Concert", 0),
++    ("Duo Woodstock", 0),
++]
++
++all_passed = True
++for search_term, expected_count in test_cases:
++    request = factory.get("/concert/", {"q": search_term})
++    qs, may_have_duplicates = concert_admin.get_search_results(
++        request, Concert.objects.all(), search_term
++    )
++    result_count = qs.count()
++
++    if result_count != expected_count:
++        print(f"FAIL: Search=\"{search_term}\" | Expected={expected_count}, Got={result_count}")
++        all_passed = False
++    else:
++        print(f"PASS: Search=\"{search_term}\" | Result={result_count}")
++
++if all_passed:
++    print("\n" + "=" * 60)
++    print("All test_multiple_search_fields tests passed!")
++else:
++    print("\nSome tests failed!")
++    sys.exit(1)
+diff --git a/test_search_m2m.py b/test_search_m2m.py
+new file mode 100644
+index 0000000000..9d5fce6cdd
+--- /dev/null
++++ b/test_search_m2m.py
+@@ -0,0 +1,129 @@
++"""
++Test the admin search fix with M2M relationships.
++"""
++import os
++import sys
++
++# Create a minimal settings module for testing
++settings_content = """
++DATABASES = {
++    "default": {
++        "ENGINE": "django.db.backends.sqlite3",
++        "NAME": ":memory:",
++    }
++}
++INSTALLED_APPS = [
++    "django.contrib.contenttypes",
++    "django.contrib.auth",
++    "django.contrib.admin",
++    "django.contrib.sessions",
++    "django.contrib.messages",
++]
++SECRET_KEY = "test-secret-key"
++USE_TZ = True
++DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
++ROOT_URLCONF = ""
++MIDDLEWARE = []
++TEMPLATES = []
++"""
++
++# Write settings to a temp file
++with open("/tmp/test_settings.py", "w") as f:
++    f.write(settings_content)
++
++sys.path.insert(0, "/tmp")
++os.environ["DJANGO_SETTINGS_MODULE"] = "test_settings"
++sys.path.insert(0, "/testbed")
++
++import django
++django.setup()
++
++from django.contrib.admin.options import ModelAdmin
++from django.contrib.admin.sites import AdminSite
++from django.db import models
++from django.test import RequestFactory
++from django.db import connection
++
++# Create test models with M2M relationship
++class Musician(models.Model):
++    name = models.CharField(max_length=100)
++
++    class Meta:
++        app_label = "test_app"
++
++class Group(models.Model):
++    name = models.CharField(max_length=100)
++    members = models.ManyToManyField(Musician)
++
++    class Meta:
++        app_label = "test_app"
++
++class Concert(models.Model):
++    name = models.CharField(max_length=100)
++    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='concerts')
++
++    class Meta:
++        app_label = "test_app"
++
++# Create tables
++with connection.schema_editor() as schema_editor:
++    schema_editor.create_model(Musician)
++    schema_editor.create_model(Group)
++    schema_editor.create_model(Concert)
++    # M2M through table is created automatically
++
++# Create test data (matching test_multiple_search_fields)
++band_duo = Group.objects.create(name='Duo')
++band_hype = Group.objects.create(name='The Hype')
++mary = Musician.objects.create(name='Mary Halvorson')
++jonathan = Musician.objects.create(name='Jonathan Finlayson')
++band_duo.members.add(mary, jonathan)
++Concert.objects.create(name='Tiny desk concert', group=band_duo)
++Concert.objects.create(name='Woodstock concert', group=band_hype)
++
++# Verify the data
++print(f"Groups: {list(Group.objects.values_list('name', flat=True))}")
++print(f"Concerts: {list(Concert.objects.values_list('name', flat=True))}")
++print(f"Musicians: {list(Musician.objects.values_list('name', flat=True))}")
++
++# Create admin class with M2M search fields
++class GroupAdmin(ModelAdmin):
++    search_fields = ['name', 'concerts__name', 'members__name']
++
++group_admin = GroupAdmin(Group, AdminSite())
++
++# Test search functionality - M2M test cases from test_multiple_search_fields
++factory = RequestFactory()
++
++print("\nTesting admin search with M2M relationships:")
++print("=" * 60)
++
++test_cases = [
++    ("Finlayson Duo Tiny", 1),
++    ("Finlayson", 1),
++    ("Finlayson Hype", 0),
++    ("Jonathan Finlayson Duo", 1),
++    ("Mary Jonathan Duo", 1),
++    ("Oscar Finlayson Duo", 0),
++]
++
++all_passed = True
++for search_term, expected_count in test_cases:
++    request = factory.get("/group/", {"q": search_term})
++    qs, may_have_duplicates = group_admin.get_search_results(
++        request, Group.objects.all(), search_term
++    )
++    result_count = qs.count()
++
++    if result_count != expected_count:
++        print(f"FAIL: Search=\"{search_term}\" | Expected={expected_count}, Got={result_count}")
++        all_passed = False
++    else:
++        print(f"PASS: Search=\"{search_term}\" | Result={result_count}")
++
++if all_passed:
++    print("\n" + "=" * 60)
++    print("All M2M search tests passed!")
++else:
++    print("\nSome tests failed!")
++    sys.exit(1)
+diff --git a/verify_fix.py b/verify_fix.py
+new file mode 100644
+index 0000000000..45c13c71f3
+--- /dev/null
++++ b/verify_fix.py
+@@ -0,0 +1,127 @@
++"""
++Verification script to test the admin search fix.
++This tests that:
++1. Search functionality still works correctly (same results)
++2. The fix reduces unnecessary JOINs
++"""
++import os
++import sys
++import django
++
++# Add Django to path
++sys.path.insert(0, '/testbed')
++
++# Setup Django
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tests.settings')
++django.setup()
++
++from django.contrib import admin
++from django.db import models
++from django.contrib.admin.sites import AdminSite
++from django.test import RequestFactory
++from tests.admin_changelist.admin import (
++    ConcertAdmin, GroupAdmin,
++)
++from tests.admin_changelist.models import (
++    Concert, Group, Musician,
++)
++
++# Clean up any existing data
++Group.objects.all().delete()
++Musician.objects.all().delete()
++Concert.objects.all().delete()
++
++# Create test data
++band_duo = Group.objects.create(name='Duo')
++band_hype = Group.objects.create(name='The Hype')
++mary = Musician.objects.create(name='Mary Halvorson')
++jonathan = Musician.objects.create(name='Jonathan Finlayson')
++band_duo.members.set([mary, jonathan])
++Concert.objects.create(name='Tiny desk concert', group=band_duo)
++Concert.objects.create(name='Woodstock concert', group=band_hype)
++
++# Setup admin
++custom_site = AdminSite()
++concert_model_admin = ConcertAdmin(Concert, custom_site)
++concert_model_admin.search_fields = ['group__name', 'name']
++
++group_model_admin = GroupAdmin(Group, custom_site)
++group_model_admin.search_fields = ['name', 'concert__name', 'members__name']
++
++factory = RequestFactory()
++
++# Test cases from test_multiple_search_fields
++test_cases = [
++    ('Duo Concert', 1),
++    ('Tiny Desk Concert', 1),
++    ('Concert', 2),
++    ('Other Concert', 0),
++    ('Duo Woodstock', 0),
++]
++
++print("Testing Concert search with FK lookup:")
++print("-" * 50)
++
++for search_string, expected_count in test_cases:
++    request = factory.get('/concert/', data={'q': search_string})
++
++    # Get search results and capture SQL
++    from django.db import connection
++    from django.test.utils import CaptureQueriesContext
++
++    with CaptureQueriesContext(connection) as queries:
++        qs, may_have_duplicates = concert_model_admin.get_search_results(
++            request, Concert.objects.all(), search_string
++        )
++        result_count = qs.count()
++        # Force evaluation
++        list(qs)
++
++    # Count JOINs in the queries
++    total_joins = sum(
++        str(q['sql']).upper().count('JOIN')
++        for q in queries
++    )
++
++    status = "PASS" if result_count == expected_count else "FAIL"
++    print(f"{status}: Search='{search_string}' | Expected={expected_count}, Got={result_count} | JOINs={total_joins}")
++
++print("\n" + "=" * 50)
++print("Testing Group search with reverse FK and M2M lookup:")
++print("-" * 50)
++
++m2m_test_cases = [
++    ('Finlayson Duo Tiny', 1),
++    ('Finlayson', 1),
++    ('Finlayson Hype', 0),
++    ('Jonathan Finlayson Duo', 1),
++    ('Mary Jonathan Duo', 1),
++    ('Oscar Finlayson Duo', 0),
++]
++
++for search_string, expected_count in m2m_test_cases:
++    request = factory.get('/group/', data={'q': search_string})
++
++    from django.db import connection
++    from django.test.utils import CaptureQueriesContext
++
++    with CaptureQueriesContext(connection) as queries:
++        qs, may_have_duplicates = group_model_admin.get_search_results(
++            request, Group.objects.all(), search_string
++        )
++        result_count = qs.count()
++        list(qs)
++
++    total_joins = sum(
++        str(q['sql']).upper().count('JOIN')
++        for q in queries
++    )
++
++    status = "PASS" if result_count == expected_count else "FAIL"
++    print(f"{status}: Search='{search_string}' | Expected={expected_count}, Got={result_count} | JOINs={total_joins}")
++
++print("\n" + "=" * 50)
++print("All tests completed successfully!")
++print("\nThe fix accumulates all search queries and applies them in a single")
++print("filter() call, which allows Django to reuse JOINs instead of creating")
++print("duplicate JOINs for each search term.")

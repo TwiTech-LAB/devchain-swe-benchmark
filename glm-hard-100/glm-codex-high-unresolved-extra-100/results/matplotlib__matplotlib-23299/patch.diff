@@ -1,0 +1,46 @@
+diff --git a/lib/matplotlib/pyplot.py b/lib/matplotlib/pyplot.py
+index e3c66ea67c..3ca5a48242 100644
+--- a/lib/matplotlib/pyplot.py
++++ b/lib/matplotlib/pyplot.py
+@@ -206,7 +206,7 @@ def _get_backend_mod():
+     return _backend_mod
+ 
+ 
+-def switch_backend(newbackend):
++def switch_backend(newbackend, *, _from_auto_resolution=False):
+     """
+     Close all open figures and set the Matplotlib backend.
+ 
+@@ -222,7 +222,6 @@ def switch_backend(newbackend):
+     global _backend_mod
+     # make sure the init is pulled up so we can assign to it later
+     import matplotlib.backends
+-    close("all")
+ 
+     if newbackend is rcsetup._auto_backend_sentinel:
+         current_framework = cbook._get_running_interactive_framework()
+@@ -247,7 +246,7 @@ def switch_backend(newbackend):
+         # are of worse quality.
+         for candidate in candidates:
+             try:
+-                switch_backend(candidate)
++                switch_backend(candidate, _from_auto_resolution=True)
+             except ImportError:
+                 continue
+             else:
+@@ -256,10 +255,14 @@ def switch_backend(newbackend):
+         else:
+             # Switching to Agg should always succeed; if it doesn't, let the
+             # exception propagate out.
+-            switch_backend("agg")
++            switch_backend("agg", _from_auto_resolution=True)
+             rcParamsOrig["backend"] = "agg"
+             return
+ 
++    # If we get here, we're actually switching backends (not auto-resolving).
++    # Only close figures if this is not the result of auto-resolution.
++    if not _from_auto_resolution:
++        close("all")
+     backend_mod = importlib.import_module(
+         cbook._backend_module_name(newbackend))
+     canvas_class = backend_mod.FigureCanvas

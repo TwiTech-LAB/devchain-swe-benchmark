@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-14011",
+  "status": "completed",
+  "patch": "diff --git a/django/core/servers/basehttp.py b/django/core/servers/basehttp.py\nindex 14dab517c9..9b7a4b7926 100644\n--- a/django/core/servers/basehttp.py\n+++ b/django/core/servers/basehttp.py\n@@ -81,6 +81,14 @@ class ThreadedWSGIServer(socketserver.ThreadingMixIn, WSGIServer):\n     \"\"\"A threaded version of the WSGIServer\"\"\"\n     daemon_threads = True\n \n+    def process_request_thread(self, request, client_address):\n+        \"\"\"Close database connections after each request.\"\"\"\n+        try:\n+            super().process_request_thread(request, client_address)\n+        finally:\n+            from django.db import connections\n+            connections.close_all()\n+\n \n class ServerHandler(simple_server.ServerHandler):\n     http_version = '1.1'\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T17:10:18.785761",
+  "end_time": "2026-01-31T17:16:42.225864",
+  "duration_seconds": 383.440103,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "4c17976c-943c-415e-839f-4922d8430f23",
+      "epic_title": "Fix: django__django-14011",
+      "comment_id": "8bcbe00a-7ff8-43d4-939a-4027ee0a9cea",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where `ThreadedWSGIServer` in LiveServerTestCase doesn't close database connections after each request thread completes, which caused `OperationalError: database \"test_myapp\" is being accessed by other users` error.\n\n**Root Cause:**\n- `ThreadedWSGIServer` uses `ThreadingMixIn` which creates daemon threads to handle HTTP requests\n- Each request thread can create its own database connections\n- When the server shuts down, only the main `LiveServerThread`'s `connections.close_all()` runs in its finally block\n- The request handler daemon threads are terminated abruptly without closing their connections\n- This leaves database connections open, causing the \"database is being accessed by other users\" error\n\n**Solution:**\nOverride `process_request_thread()` in `ThreadedWSGIServer` to call `connections.close_all()` in a finally block after each request is processed. This ensures database connections are closed in the request-handling thread before it exits.\n\n**Why this is safe:**\n- `connections._connections` is a `Local` object (from `asgiref.local`), similar to `threading.local()`\n- Each thread has its own isolated connections\n- `connections.close_all()` only closes connections for the calling thread, not globally\n- The `finally` block ensures connections are closed even if an exception occurs during request processing\n\n## Files Modified\n- `django/core/servers/basehttp.py`: Added `process_request_thread()` method to `ThreadedWSGIServer` class\n\n## Test Results\n- Created verification script that confirms:\n  1. `connections.close_all()` is called in the finally block\n  2. Connections are thread-local (Local object with thread_critical=True)\n  3. Method signature matches the base `ThreadingMixIn.process_request_thread()`\n  4. Connections are closed even when exceptions occur during request processing\n\n## Concerns\nNone - the fix is minimal, focused, and follows Django's existing patterns for connection management.",
+      "created_at": "2026-01-31T16:16:23.388Z"
+    }
+  ]
+}

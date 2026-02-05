@@ -1,0 +1,30 @@
+{
+  "instance_id": "astropy__astropy-13977",
+  "status": "completed",
+  "patch": "diff --git a/astropy/units/quantity.py b/astropy/units/quantity.py\nindex b98abfafb0..67fb18ab3a 100644\n--- a/astropy/units/quantity.py\n+++ b/astropy/units/quantity.py\n@@ -667,7 +667,15 @@ class Quantity(np.ndarray):\n         arrays = []\n         for input_, converter in zip(inputs, converters):\n             input_ = getattr(input_, \"value\", input_)\n-            arrays.append(converter(input_) if converter else input_)\n+            if converter:\n+                try:\n+                    arrays.append(converter(input_))\n+                except (TypeError, ValueError):\n+                    # Incompatible type; return NotImplemented so the other\n+                    # operand can try its reflected operation (e.g., __radd__).\n+                    return NotImplemented\n+            else:\n+                arrays.append(input_)\n \n         # Call our superclass's __array_ufunc__\n         result = super().__array_ufunc__(function, method, *arrays, **kwargs)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T16:27:28.698607",
+  "end_time": "2026-02-03T16:32:19.901224",
+  "duration_seconds": 291.202617,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "fd9fd5e7-1be8-425b-903a-db4e23faf0c5",
+      "epic_title": "Fix: astropy__astropy-13977",
+      "comment_id": "f2a1084f-8084-4029-a935-90d7e3f05f5c",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nModified `Quantity.__array_ufunc__()` in `astropy/units/quantity.py` to catch `TypeError` and `ValueError` when converting inputs, and return `NotImplemented` instead of raising the exception. This allows Python's operator dispatch to fall back to reflected operations (e.g., `__radd__`) on the right-hand operand when the left-hand `Quantity` cannot handle the operation.\n\n## Files Modified\n- `astropy/units/quantity.py`: Lines 667-676 - Added try-except block around converter call to catch `TypeError` and `ValueError` and return `NotImplemented`\n\n## Test Results\n- **Test file:** `/testbed/astropy/units/tests/test_quantity.py`\n- **Baseline (before fix):** 93 passed, 1 xfailed, 0 errors\n- **After fix:** 93 passed, 1 xfailed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nTested the duck-typed array example from the issue:\n- `DuckArray(1*u.mm) + (1*u.mm)` - Works (same units)\n- `DuckArray(1*u.mm) + (1*u.m)` - Works (duck type left)\n- `(1*u.m) + DuckArray(1*u.mm)` - **Now works** (previously raised ValueError)\n- Subtraction, multiplication, division - All work correctly\n\nAlso verified legitimate error cases are still handled:\n- Incompatible units still raise `UnitConversionError`\n- Quantity + plain array still raises `UnitConversionError`\n- Other ufuncs (np.sqrt, np.sin, np.power) work correctly\n\n## Concerns\nNone. The fix is minimal, focused, and follows the numpy protocol for `__array_ufunc__` which specifies that `NotImplemented` should be returned if the requested operation is not handled.",
+      "created_at": "2026-02-03T15:30:18.188Z"
+    },
+    {
+      "epic_id": "fd9fd5e7-1be8-425b-903a-db4e23faf0c5",
+      "epic_title": "Fix: astropy__astropy-13977",
+      "comment_id": "02623a78-89a8-40ff-b930-6801d3b40a5f",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED\n\n### Review Summary\n\n**Change:** Added try-except around `converter(input_)` in `Quantity.__array_ufunc__()` (quantity.py:670-676) to catch `TypeError` and `ValueError`, returning `NotImplemented` instead of raising.\n\n### Checklist\n- [x] No test files modified \u2014 only `astropy/units/quantity.py` changed\n- [x] No unrelated files modified\n- [x] Fix logically addresses the problem\n- [x] No obvious crash bugs or logical errors introduced\n- [x] Changes are minimal and focused\n\n### Analysis\n\nThe fix correctly targets the right layer of the conversion pipeline:\n\n1. **Unit compatibility** (meters vs seconds) is checked earlier in `converters_and_unit()` at line 643, which raises `UnitConversionError` \u2014 this is unaffected by the fix.\n2. **Value conversion** happens at the converter stage (line 672), where the converter lambda calls `_condition_arg(val)` which validates the value is numeric-compatible. For duck types like the reporter's `DuckArray`, this raises `ValueError` because the object can't be converted to a numeric array.\n3. Catching `TypeError` and `ValueError` at this stage is appropriately scoped \u2014 it only catches value-type incompatibility, not unit incompatibility, and returning `NotImplemented` follows the numpy `__array_ufunc__` protocol correctly, allowing Python to fall back to the other operand's reflected operation.\n\nThe test results show no regressions (93 passed, 1 xfailed before and after), and the duck-type scenario from the issue is now handled correctly.",
+      "created_at": "2026-02-03T15:32:10.247Z"
+    }
+  ]
+}

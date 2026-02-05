@@ -1,0 +1,63 @@
+diff --git a/src/_pytest/mark/structures.py b/src/_pytest/mark/structures.py
+index 800a25c92..8393be27a 100644
+--- a/src/_pytest/mark/structures.py
++++ b/src/_pytest/mark/structures.py
+@@ -356,10 +356,31 @@ class MarkDecorator:
+ 
+ 
+ def get_unpacked_marks(obj: object) -> Iterable[Mark]:
+-    """Obtain the unpacked marks that are stored on an object."""
+-    mark_list = getattr(obj, "pytestmark", [])
+-    if not isinstance(mark_list, list):
+-        mark_list = [mark_list]
++    """Obtain the unpacked marks that are stored on an object.
++
++    For classes, this also considers marks from base classes according to
++    the MRO (Method Resolution Order), enabling marks from all base classes
++    to be inherited (e.g., when using multiple inheritance).
++    """
++    if isinstance(obj, type):
++        # For classes, collect marks from the class's own __dict__ and all
++        # base classes' __dict__ (not via getattr, to avoid MRO issues)
++        mark_list = []
++        # Iterate in reverse MRO order so derived class marks come last
++        for basecls in reversed(obj.__mro__):
++            # Look directly in __dict__ to avoid MRO attribute lookup which
++            # would stop at the first parent with pytestmark
++            base_marks = basecls.__dict__.get("pytestmark")
++            if base_marks is not None:
++                if not isinstance(base_marks, list):
++                    base_marks = [base_marks]
++                mark_list.extend(base_marks)
++    else:
++        # For functions and other objects, use normal attribute lookup
++        mark_list = getattr(obj, "pytestmark", [])
++        if not isinstance(mark_list, list):
++            mark_list = [mark_list]
++
+     return normalize_mark_list(mark_list)
+ 
+ 
+@@ -388,7 +409,21 @@ def store_mark(obj, mark: Mark) -> None:
+     assert isinstance(mark, Mark), mark
+     # Always reassign name to avoid updating pytestmark in a reference that
+     # was only borrowed.
+-    obj.pytestmark = [*get_unpacked_marks(obj), mark]
++    # For classes, only look at the class's own marks (not inherited),
++    # to avoid duplicating marks from the MRO.
++    if isinstance(obj, type):
++        existing_mark_list = obj.__dict__.get("pytestmark")
++    else:
++        existing_mark_list = getattr(obj, "pytestmark", None)
++
++    if existing_mark_list is None:
++        existing_marks = []
++    elif not isinstance(existing_mark_list, list):
++        existing_marks = [existing_mark_list]
++    else:
++        existing_marks = list(existing_mark_list)
++
++    obj.pytestmark = [*existing_marks, mark]
+ 
+ 
+ # Typing for builtin pytest marks. This is cheating; it gives builtin marks

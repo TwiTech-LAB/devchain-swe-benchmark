@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-16642",
+  "status": "completed",
+  "patch": "diff --git a/django/http/response.py b/django/http/response.py\nindex f62dec8ce9..f0061f21b6 100644\n--- a/django/http/response.py\n+++ b/django/http/response.py\n@@ -610,6 +610,8 @@ class FileResponse(StreamingHttpResponse):\n                 # uncompressing files.\n                 content_type = {\n                     \"bzip2\": \"application/x-bzip\",\n+                    \"br\": \"application/x-brotli\",\n+                    \"compress\": \"application/x-compress\",\n                     \"gzip\": \"application/gzip\",\n                     \"xz\": \"application/x-xz\",\n                 }.get(encoding, content_type)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T15:56:56.597308",
+  "end_time": "2026-01-31T16:03:19.735748",
+  "duration_seconds": 383.13844,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "19a5fa8f-7447-4df1-8503-dc2f74baa936",
+      "epic_title": "Fix: django__django-16642",
+      "comment_id": "ee89d014-dd73-4da9-9f56-aa5c94facd70",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the MIME type guessing in FileResponse for files with `.Z` (compress) and `.br` (Brotli) extensions. Previously, these files would incorrectly have `text/html` as their Content-Type because the encoding mapping dictionary did not include entries for `compress` and `br` encodings.\n\n## Root Cause\n\nIn `django/http/response.py`, the `FileResponse.set_headers()` method uses `mimetypes.guess_type()` which correctly identifies compression encodings like `compress` (for .Z files) and `br` (for .br files). However, the encoding-to-MIME-type mapping dictionary only included `bzip2`, `gzip`, and `xz` - causing `compress` and `br` to fall through to the base content type (e.g., `text/html` for `test.html.Z`).\n\n## Files Modified\n\n- `django/http/response.py` (lines 611-615): Added `\"br\": \"application/x-brotli\"` and `\"compress\": \"application/x-compress\"` to the encoding mapping dictionary.\n\n## Test Results\n\n**Before Fix:**\n- `FileResponse(open('test.html.Z', 'rb'))` \u2192 Content-Type: `text/html` \u274c\n- `FileResponse(open('test.html.br', 'rb'))` \u2192 Content-Type: `text/html` \u274c\n\n**After Fix:**\n- `FileResponse(open('test.html.Z', 'rb'))` \u2192 Content-Type: `application/x-compress` \u2713\n- `FileResponse(open('test.html.br', 'rb'))` \u2192 Content-Type: `application/x-brotli` \u2713\n\n**Additional Verification:**\nAll existing compressed file types continue to work correctly:\n- `.tar.gz` \u2192 `application/gzip` \u2713\n- `.tar.bz2` \u2192 `application/x-bzip` \u2713\n- `.tar.xz` \u2192 `application/x-xz` \u2713\n\n## Concerns\n\nNone. The fix is minimal and follows the existing pattern for other compression formats. The MIME types used (`application/x-compress` and `application/x-brotli`) are standard for these compression formats.",
+      "created_at": "2026-01-31T15:03:06.998Z"
+    }
+  ]
+}

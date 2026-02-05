@@ -1,0 +1,47 @@
+diff --git a/django/core/handlers/asgi.py b/django/core/handlers/asgi.py
+index 39e2abe5a9..e7e9d7c797 100644
+--- a/django/core/handlers/asgi.py
++++ b/django/core/handlers/asgi.py
+@@ -186,6 +186,18 @@ class ASGIHandler(base.BaseHandler):
+         # chunking).
+         if isinstance(response, FileResponse):
+             response.block_size = self.chunk_size
++        # Strip the content for HEAD requests, 1xx, 204, and 304 responses
++        # to ensure compliance with RFC 9112 Section 6.3.
++        if 100 <= response.status_code < 200 or response.status_code in (204, 304):
++            if response.streaming:
++                response.streaming_content = []
++            else:
++                response.content = b""
++        if request.method == "HEAD":
++            if response.streaming:
++                response.streaming_content = []
++            else:
++                response.content = b""
+         # Send the response.
+         await self.send_response(response, send)
+ 
+diff --git a/django/core/handlers/wsgi.py b/django/core/handlers/wsgi.py
+index c2b7cc2b6f..6d2b423242 100644
+--- a/django/core/handlers/wsgi.py
++++ b/django/core/handlers/wsgi.py
+@@ -135,6 +135,19 @@ class WSGIHandler(base.BaseHandler):
+ 
+         response._handler_class = self.__class__
+ 
++        # Strip the content for HEAD requests, 1xx, 204, and 304 responses
++        # to ensure compliance with RFC 9112 Section 6.3.
++        if 100 <= response.status_code < 200 or response.status_code in (204, 304):
++            if response.streaming:
++                response.streaming_content = []
++            else:
++                response.content = b""
++        if request.method == "HEAD":
++            if response.streaming:
++                response.streaming_content = []
++            else:
++                response.content = b""
++
+         status = "%d %s" % (response.status_code, response.reason_phrase)
+         response_headers = [
+             *response.items(),

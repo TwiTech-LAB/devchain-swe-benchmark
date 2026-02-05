@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-11141",
+  "status": "completed",
+  "patch": "diff --git a/django/db/migrations/loader.py b/django/db/migrations/loader.py\nindex 8c308621d2..2761aff2d4 100644\n--- a/django/db/migrations/loader.py\n+++ b/django/db/migrations/loader.py\n@@ -84,11 +84,6 @@ class MigrationLoader:\n                     continue\n                 raise\n             else:\n-                # Empty directories are namespaces.\n-                # getattr() needed on PY36 and older (replace w/attribute access).\n-                if getattr(module, '__file__', None) is None:\n-                    self.unmigrated_apps.add(app_config.label)\n-                    continue\n                 # Module is not a package (e.g. migrations.py).\n                 if not hasattr(module, '__path__'):\n                     self.unmigrated_apps.add(app_config.label)\n@@ -101,6 +96,12 @@ class MigrationLoader:\n                 name for _, name, is_pkg in pkgutil.iter_modules(module.__path__)\n                 if not is_pkg and name[0] not in '_~'\n             }\n+            # Empty directories are namespaces. If no migrations are found,\n+            # treat the app as unmigrated.\n+            if not migration_names and getattr(module, '__file__', None) is None:\n+                self.migrated_apps.discard(app_config.label)\n+                self.unmigrated_apps.add(app_config.label)\n+                continue\n             # Load migrations\n             for migration_name in migration_names:\n                 migration_path = '%s.%s' % (module_name, migration_name)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T10:41:58.190936",
+  "end_time": "2026-02-03T10:56:20.944748",
+  "duration_seconds": 862.753812,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "058c3131-b758-4fcf-bd72-a9fe79ba8bf6",
+      "epic_title": "Fix: django__django-11141",
+      "comment_id": "4cdc76c7-9e80-4d4a-b4cf-9d92abd3012a",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe issue was that Django's `MigrationLoader` was checking for the `__file__` attribute on migrations packages and immediately rejecting any package where `__file__` was `None` (namespace packages). This prevented namespace packages (directories without `__init__.py`) from being used for migrations, even when they contained valid migration files.\n\nThe fix moves the `__file__` check to AFTER `pkgutil.iter_modules()` discovers migration files. This allows:\n1. Namespace packages WITH migrations to be properly loaded and treated as migrated apps\n2. Empty namespace packages to still be treated as unmigrated (maintains test compatibility)\n\n## Files Modified\n- `django/db/migrations/loader.py`: Moved the `__file__` check to after migration discovery, and only use it to detect empty namespace packages (not to reject all namespace packages)\n\n## Test Results\nThe fix correctly handles all three cases:\n1. **Namespace package WITH migrations** \u2192 Finds migrations, treats as migrated \u2713\n2. **Empty namespace package** \u2192 No migrations found, treats as unmigrated \u2713  \n3. **Regular package with __init__.py** \u2192 Works as before \u2713\n\n## Technical Details\n**Before:** The `__file__` check was done immediately after importing the module, rejecting ALL namespace packages before even trying to discover migrations.\n\n**After:** The `__file__` check is done AFTER `pkgutil.iter_modules()` discovers migration files. If `migration_names` is empty AND `__file__` is `None`, only then is the app treated as unmigrated.\n\nThis aligns with the bug report's explanation that the `__file__` check was originally needed for migration file discovery, but since #23406 changed discovery to use `pkgutil.iter_modules()` (which works with namespace packages via `__path__`), the early rejection of namespace packages is no longer necessary.",
+      "created_at": "2026-02-03T09:54:58.484Z"
+    },
+    {
+      "epic_id": "058c3131-b758-4fcf-bd72-a9fe79ba8bf6",
+      "epic_title": "Fix: django__django-11141",
+      "comment_id": "31a3f69f-9851-44fd-a870-5030cd2fe810",
+      "author_name": "Code Reviewer",
+      "content": "Code Review PASSED\n\n**Reviewed:** `django/db/migrations/loader.py`\n\n**Checklist:**\n- \u2705 No test files modified (source code only)\n- \u2705 No unrelated files modified\n- \u2705 Fix logically addresses the problem\n- \u2705 No obvious crash bugs or logical errors\n- \u2705 Changes are minimal and focused\n\n**Analysis:**\n\nThe fix correctly restructures the `__file__` check in `MigrationLoader.load_disk()`:\n\n1. **Old behavior:** `__file__` was checked immediately after import, rejecting ALL namespace packages before `pkgutil.iter_modules()` could discover any migrations.\n\n2. **New behavior:** The `__file__` check is deferred to AFTER `pkgutil.iter_modules()` runs. Only if no migrations are found AND `__file__` is `None` (empty namespace package) is the app treated as unmigrated.\n\n**Logic trace verified:**\n- Namespace packages WITH migrations \u2192 `iter_modules()` finds them \u2192 `migration_names` is non-empty \u2192 new check skipped \u2192 migrations loaded correctly \u2713\n- Empty namespace packages \u2192 `iter_modules()` finds nothing \u2192 `migration_names` empty + `__file__` is None \u2192 `discard` from `migrated_apps`, add to `unmigrated_apps` \u2713\n- Regular packages with `__init__.py` \u2192 `__file__` is not None \u2192 new check doesn't trigger \u2192 behavior unchanged \u2713\n\nThe `self.migrated_apps.discard()` at line 102 correctly undoes the `self.migrated_apps.add()` at line 94. Clean and correct fix.",
+      "created_at": "2026-02-03T09:56:07.680Z"
+    }
+  ]
+}

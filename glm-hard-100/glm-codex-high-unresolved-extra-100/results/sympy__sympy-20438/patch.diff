@@ -1,0 +1,18 @@
+diff --git a/sympy/sets/sets.py b/sympy/sets/sets.py
+index 3c4aa86e36..5a39fb3933 100644
+--- a/sympy/sets/sets.py
++++ b/sympy/sets/sets.py
+@@ -865,6 +865,13 @@ def __len__(self):
+     def __bool__(self):
+         return all([bool(s) for s in self.sets])
+ 
++    def _eval_is_subset(self, other):
++        # Check if all elements of the ProductSet are in the other set
++        # If the ProductSet is iterable (all components are finite),
++        # check each element individually
++        if self.is_iterable:
++            return fuzzy_and(other._contains(el) for el in self)
++
+ 
+ class Interval(Set, EvalfMixin):
+     """

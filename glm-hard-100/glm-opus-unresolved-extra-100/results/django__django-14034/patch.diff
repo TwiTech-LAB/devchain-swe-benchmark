@@ -1,0 +1,16 @@
+diff --git a/django/forms/fields.py b/django/forms/fields.py
+index 65d6a9ec82..193cfe7df2 100644
+--- a/django/forms/fields.py
++++ b/django/forms/fields.py
+@@ -1025,6 +1025,11 @@ class MultiValueField(Field):
+             if not value or not [v for v in value if v not in self.empty_values]:
+                 if self.required:
+                     raise ValidationError(self.error_messages['required'], code='required')
++                # If not all fields are required, check if any individual field is required.
++                # If so, don't return early - let the per-field validation handle it.
++                elif not self.require_all_fields and any(f.required for f in self.fields):
++                    # Continue to validate individual fields
++                    pass
+                 else:
+                     return self.compress([])
+         else:

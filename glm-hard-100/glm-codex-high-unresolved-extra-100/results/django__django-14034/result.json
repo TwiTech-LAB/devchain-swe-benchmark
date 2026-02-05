@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14034",
+  "status": "completed",
+  "patch": "diff --git a/django/forms/fields.py b/django/forms/fields.py\nindex 65d6a9ec82..629990f5aa 100644\n--- a/django/forms/fields.py\n+++ b/django/forms/fields.py\n@@ -1025,6 +1025,15 @@ class MultiValueField(Field):\n             if not value or not [v for v in value if v not in self.empty_values]:\n                 if self.required:\n                     raise ValidationError(self.error_messages['required'], code='required')\n+                # When require_all_fields is False, check if any individual\n+                # field is required and raise a validation error if so.\n+                elif not self.require_all_fields:\n+                    for field in self.fields:\n+                        if field.required:\n+                            raise ValidationError(\n+                                self.error_messages['incomplete'], code='incomplete'\n+                            )\n+                    return self.compress([])\n                 else:\n                     return self.compress([])\n         else:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T02:02:14.407995",
+  "end_time": "2026-02-03T02:11:07.382073",
+  "duration_seconds": 532.974078,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "a6a5bb7e-d0fa-45a9-a9d8-eb355da4f2a0",
+      "epic_title": "Fix: django__django-14034",
+      "comment_id": "f3309a44-1ae7-498b-a5db-ddaf54250524",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed MultiValueField to properly validate individual sub-field `required` attributes when `require_all_fields=False` and the parent field has `required=False`.\n\n**Root Cause**: The `clean()` method returned early at line 1029 when all values were empty and the parent field was not required, bypassing the individual field requirement checks.\n\n**Solution**: Added a check before the early return: when `require_all_fields=False`, iterate through all fields and raise an `incomplete` validation error if any individual field has `required=True`.\n\n## Files Modified\n- `django/forms/fields.py`: Added check for individual field requirements when all values are empty, `require_all_fields=False`, and parent field `required=False`\n\n## Test Results\n- **Test file:** `tests/forms_tests/field_tests/test_multivaluefield.py`\n- **Baseline (before fix):** 12 passed, 0 failed\n- **After fix:** 12 passed, 0 failed\n- **Regression check:** No new failures introduced\n- **Additional tests:** All datetime field tests (23 tests) pass\n\n## Edge Cases Verified\n1. Three fields with mixed requirements - PASS\n2. All sub-fields required, all empty - PASS\n3. require_all_fields=True (default behavior unchanged) - PASS\n4. None values instead of empty strings - PASS\n5. All optional fields, all empty - PASS\n\n## Concerns\nNone. The fix is minimal, focused, and preserves all existing behavior.",
+      "created_at": "2026-02-03T01:09:27.428Z"
+    },
+    {
+      "epic_id": "a6a5bb7e-d0fa-45a9-a9d8-eb355da4f2a0",
+      "epic_title": "Fix: django__django-14034",
+      "comment_id": "28a67b24-9af7-4bc3-8b5e-5617f5d496c5",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and limited to `django/forms/fields.py`.\n- Fix correctly prevents the early-return path in `MultiValueField.clean()` from bypassing required sub-field validation when `require_all_fields=False` and all submitted values are empty.\n- No test files were modified per `git diff`.",
+      "created_at": "2026-02-03T01:10:55.433Z"
+    }
+  ]
+}

@@ -1,0 +1,1546 @@
+diff --git a/django/forms/models.py b/django/forms/models.py
+index 3fa04b821f..a0f0c378a0 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -1177,7 +1177,10 @@ class BaseInlineFormSet(BaseModelFormSet):
+                 to_field = self.instance._meta.get_field(kwargs["to_field"])
+             else:
+                 to_field = self.instance._meta.pk
+-            if to_field.has_default():
++            # Only clear primary key fields with defaults. Fields that are not
++            # the primary key but have defaults (like UUIDField alternate keys)
++            # should be preserved to avoid validation errors (#16950).
++            if to_field.primary_key and to_field.has_default():
+                 setattr(self.instance, to_field.attname, None)
+ 
+         form.fields[name] = InlineForeignKeyField(self.instance, **kwargs)
+diff --git a/test_bug_16950.py b/test_bug_16950.py
+new file mode 100644
+index 0000000000..72ce6d3acb
+--- /dev/null
++++ b/test_bug_16950.py
+@@ -0,0 +1,169 @@
++#!/usr/bin/env python
++"""
++Test to reproduce the exact bug from issue #16950.
++
++The issue: When adding a Thing with SubThing inline in admin,
++it fails because Thing.id (UUID) is set to null.
++"""
++import os
++import sys
++import uuid
++
++# Setup path
++sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++
++# Setup Django before importing models
++os.environ['DJANGO_SETTINGS_MODULE'] = 'django.conf.global_settings'
++
++import django
++from django.conf import settings
++
++# Configure minimal settings
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        SECRET_KEY='test-secret-key',
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++            'django.contrib.admin',
++        ],
++        DEFAULT_AUTO_FIELD='django.db.models.BigAutoField',
++        USE_TZ=True,
++    )
++
++django.setup()
++
++from django.db import models
++from django.contrib import admin
++from django.contrib.admin.sites import AdminSite
++from django.contrib.admin.options import ModelAdmin, InlineModelAdmin
++from django.contrib.admin.helpers import InlineAdminForm
++from django.forms import Form
++
++# Create test models matching the bug report
++class UUIDModel(models.Model):
++    pkid = models.BigAutoField(primary_key=True, editable=False)
++    id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
++
++    class Meta:
++        abstract = True
++        app_label = 'bugapp'
++
++
++class Thing(UUIDModel):
++    name = models.CharField(max_length=191)
++
++    class Meta:
++        app_label = 'bugapp'
++        verbose_name = 'Thing'
++        verbose_name_plural = 'Things'
++
++
++class SubThing(models.Model):
++    name = models.CharField(max_length=191)
++    thing = models.ForeignKey(
++        Thing,
++        to_field='id',
++        on_delete=models.CASCADE,
++        related_name='subthings',
++    )
++
++    class Meta:
++        app_label = 'bugapp'
++        verbose_name = 'SubThing'
++        verbose_name_plural = 'SubThings'
++
++
++# Create the database tables
++from django.db import connection
++with connection.schema_editor() as schema_editor:
++    schema_editor.create_model(Thing)
++    schema_editor.create_model(SubThing)
++
++print("=" * 70)
++print("Bug #16950: Django Admin with Inlines not using UUIDField default")
++print("=" * 70)
++
++# Scenario 1: What happens when you create a Thing with an inline in admin
++print("\nScenario 1: Creating Thing with SubThing inline (admin workflow)")
++print("-" * 70)
++
++# Create the admin classes
++class SubThingInline(admin.StackedInline):
++    model = SubThing
++    extra = 1
++
++
++class ThingAdmin(admin.ModelAdmin):
++    list_display = ('name',)
++    ordering = ('pkid',)
++    inlines = (SubThingInline,)
++
++
++# Simulate admin workflow
++site = AdminSite()
++thing_admin = ThingAdmin(Thing, site)
++
++# Create a new Thing (unsaved)
++thing = Thing(name="Test Thing")
++print(f"Before getting formsets:")
++print(f"  thing.id = {thing.id}")
++print(f"  thing.pkid = {thing.pkid}")
++print(f"  thing._state.adding = {thing._state.adding}")
++
++# Get the formsets (this is what admin does when rendering the add form)
++formsets, inline_instances = thing_admin.get_formsets_with_inlines(None, thing)
++
++print(f"\nAfter getting formsets:")
++print(f"  thing.id = {thing.id}")
++print(f"  thing.pkid = {thing.pkid}")
++
++# Check if the UUID was cleared
++if thing.id is None:
++    print("\nPROBLEM: thing.id was cleared to None!")
++    print("This is the bug reported in #16950")
++else:
++    print(f"\nOK: thing.id is still {thing.id}")
++
++# Check the inline formset's foreign key field
++for formset in formsets:
++    for form in formset.forms:
++        if 'thing' in form.fields:
++            thing_field = form.fields['thing']
++            print(f"  Inline 'thing' field initial = {thing_field.initial}")
++
++# Scenario 2: What happens when you save
++print("\nScenario 2: Saving Thing with SubThing")
++print("-" * 70)
++
++thing2 = Thing(name="Test Thing 2")
++uuid_before = thing2.id
++print(f"UUID before formset: {uuid_before}")
++
++# Get formsets again
++formsets2, _ = thing_admin.get_formsets_with_inlines(None, thing2)
++print(f"UUID after formset: {thing2.id}")
++
++if thing2.id is None:
++    print("UUID was cleared - parent needs to be regenerated")
++    # Save the parent
++    thing2.save()
++    print(f"After save, thing2.id = {thing2.id}")
++    print(f"After save, thing2.pkid = {thing2.pkid}")
++else:
++    print(f"UUID preserved: {thing2.id}")
++
++print("\n" + "=" * 70)
++print("The bug is that thing.id gets cleared when creating formsets.")
++print("This causes problems when:")
++print("1. The user enters data for the inline")
++print("2. The inline's foreign key references thing.id")
++print("3. When saving, thing.id might be None or regenerated")
++print("=" * 70)
+diff --git a/test_bug_16950_simple.py b/test_bug_16950_simple.py
+new file mode 100644
+index 0000000000..91158055ab
+--- /dev/null
++++ b/test_bug_16950_simple.py
+@@ -0,0 +1,128 @@
++#!/usr/bin/env python
++"""
++Test to reproduce the exact bug from issue #16950.
++
++The issue: When adding a Thing with SubThing inline in admin,
++it fails because Thing.id (UUID) is set to null.
++"""
++import os
++import sys
++import uuid
++
++# Setup path
++sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++
++# Setup Django before importing models
++os.environ['DJANGO_SETTINGS_MODULE'] = 'django.conf.global_settings'
++
++import django
++from django.conf import settings
++
++# Configure minimal settings
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        SECRET_KEY='test-secret-key',
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++        ],
++        DEFAULT_AUTO_FIELD='django.db.models.BigAutoField',
++        USE_TZ=True,
++    )
++
++django.setup()
++
++from django.db import models
++from django.forms.models import inlineformset_factory
++
++# Create test models matching the bug report
++class UUIDModel(models.Model):
++    pkid = models.BigAutoField(primary_key=True, editable=False)
++    id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
++
++    class Meta:
++        abstract = True
++        app_label = 'bugapp'
++
++
++class Thing(UUIDModel):
++    name = models.CharField(max_length=191)
++
++    class Meta:
++        app_label = 'bugapp'
++
++
++class SubThing(models.Model):
++    name = models.CharField(max_length=191)
++    thing = models.ForeignKey(
++        Thing,
++        to_field='id',
++        on_delete=models.CASCADE,
++        related_name='subthings',
++    )
++
++    class Meta:
++        app_label = 'bugapp'
++
++print("=" * 70)
++print("Bug #16950: Django Admin with Inlines not using UUIDField default")
++print("=" * 70)
++
++# Scenario: What happens when you create a formset for a new Thing
++print("\nScenario: Creating inline formset for new Thing")
++print("-" * 70)
++
++# Create a new Thing (unsaved)
++thing = Thing(name="Test Thing")
++print(f"Before formset creation:")
++print(f"  thing.id = {thing.id}")
++print(f"  thing.pkid = {thing.pkid}")
++print(f"  thing._state.adding = {thing._state.adding}")
++
++# Create the inline formset (this is what admin does)
++formset_class = inlineformset_factory(
++    Thing,
++    SubThing,
++    fk_name='thing',
++    fields=['name'],
++)
++
++formset = formset_class(instance=thing)
++
++print(f"\nAfter formset creation:")
++print(f"  thing.id = {thing.id}")
++print(f"  thing.pkid = {thing.pkid}")
++
++# Check if the UUID was cleared
++if thing.id is None:
++    print("\nPROBLEM: thing.id was cleared to None!")
++    print("This is the bug reported in #16950")
++    print("\nThe problem is:")
++    print("1. The parent Thing had a valid UUID generated")
++    print("2. Creating the formset cleared it to None")
++    print("3. When the form is submitted, the Thing.id is None")
++    print("4. The SubThing's foreign key (thing_id) references Thing.id")
++    print("5. This causes issues because the FK value is None or gets regenerated")
++else:
++    print(f"\nOK: thing.id is still {thing.id}")
++
++# Check the inline form's foreign key field
++for form in formset.forms:
++    if 'thing' in form.fields:
++        thing_field = form.fields['thing']
++        print(f"  Inline 'thing' field initial = {thing_field.initial}")
++        print(f"  Inline 'thing' field parent_instance.id = {thing_field.parent_instance.id}")
++
++print("\n" + "=" * 70)
++print("Summary:")
++print("The current behavior clears thing.id when creating the formset.")
++print("This is expected for primary keys that are auto-generated.")
++print("But for non-PK UUID fields with a default, this might cause issues.")
++print("=" * 70)
+diff --git a/test_bug_save.py b/test_bug_save.py
+new file mode 100644
+index 0000000000..60d6174201
+--- /dev/null
++++ b/test_bug_save.py
+@@ -0,0 +1,236 @@
++#!/usr/bin/env python
++"""
++Test to understand what happens during save with bug #16950.
++"""
++import os
++import sys
++import uuid
++
++# Setup path
++sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++
++# Setup Django before importing models
++os.environ['DJANGO_SETTINGS_MODULE'] = 'django.conf.global_settings'
++
++import django
++from django.conf import settings
++
++# Configure minimal settings
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        SECRET_KEY='test-secret-key',
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++        ],
++        DEFAULT_AUTO_FIELD='django.db.models.BigAutoField',
++        USE_TZ=True,
++    )
++
++django.setup()
++
++from django.db import models
++from django.forms.models import inlineformset_factory
++
++# Create test models matching the bug report
++class UUIDModel(models.Model):
++    pkid = models.BigAutoField(primary_key=True, editable=False)
++    id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
++
++    class Meta:
++        abstract = True
++        app_label = 'bugapp'
++
++
++class Thing(UUIDModel):
++    name = models.CharField(max_length=191)
++
++    class Meta:
++        app_label = 'bugapp'
++        verbose_name = 'Thing'
++        verbose_name_plural = 'Things'
++
++
++class SubThing(models.Model):
++    name = models.CharField(max_length=191)
++    thing = models.ForeignKey(
++        Thing,
++        to_field='id',
++        on_delete=models.CASCADE,
++        related_name='subthings',
++    )
++
++    class Meta:
++        app_label = 'bugapp'
++        verbose_name = 'SubThing'
++        verbose_name_plural = 'SubThings'
++
++
++# Create the database tables
++from django.db import connection
++with connection.schema_editor() as schema_editor:
++    schema_editor.create_model(Thing)
++    schema_editor.create_model(SubThing)
++
++print("Testing save behavior with bug #16950...")
++print("=" * 70)
++
++# Scenario 1: Save Thing without inline (baseline)
++print("\nScenario 1: Save Thing without inline (baseline)")
++print("-" * 70)
++
++thing1 = Thing(name="Thing 1")
++print(f"Before save: thing.id = {thing1.id}, thing.pkid = {thing1.pkid}")
++thing1.save()
++print(f"After save:  thing.id = {thing1.id}, thing.pkid = {thing1.pkid}")
++
++# Scenario 2: Save Thing with inline formset (empty formset)
++print("\nScenario 2: Save Thing with empty inline formset")
++print("-" * 70)
++
++thing2 = Thing(name="Thing 2")
++original_uuid = thing2.id
++print(f"Before formset: thing.id = {thing2.id}")
++
++formset_class = inlineformset_factory(
++    Thing,
++    SubThing,
++    fk_name='thing',
++    fields=['name'],
++)
++
++formset2 = formset_class(
++    {
++        'subthings-TOTAL_FORMS': '0',
++        'subthings-INITIAL_FORMS': '0',
++        'subthings-MIN_NUM_FORMS': '0',
++        'subthings-MAX_NUM_FORMS': '1000',
++    },
++    instance=thing2,
++)
++
++print(f"After formset: thing.id = {thing2.id}")
++
++# Check if formset is valid
++if formset2.is_valid():
++    print("Formset is valid")
++    # Save the parent
++    thing2.save()
++    print(f"After parent save: thing.id = {thing2.id}, thing.pkid = {thing2.pkid}")
++    print(f"UUID changed? {thing2.id != original_uuid}")
++else:
++    print(f"Formset has errors: {formset2.errors}")
++
++# Scenario 3: Save Thing with inline formset containing data
++print("\nScenario 3: Save Thing with inline formset containing data")
++print("-" * 70)
++
++thing3 = Thing(name="Thing 3")
++original_uuid3 = thing3.id
++print(f"Before formset: thing.id = {thing3.id}")
++
++formset_class3 = inlineformset_factory(
++    Thing,
++    SubThing,
++    fk_name='thing',
++    fields=['name'],
++)
++
++formset3 = formset_class3(
++    {
++        'subthings-TOTAL_FORMS': '1',
++        'subthings-INITIAL_FORMS': '0',
++        'subthings-MIN_NUM_FORMS': '0',
++        'subthings-MAX_NUM_FORMS': '1000',
++        'subthings-0-name': 'SubThing 3',
++        'subthings-0-thing': str(original_uuid3),  # Pass the UUID value
++    },
++    instance=thing3,
++)
++
++print(f"After formset: thing.id = {thing3.id}")
++
++# Check if formset is valid
++if formset3.is_valid():
++    print("Formset is valid")
++    # Save the parent
++    thing3.save()
++    print(f"After parent save: thing.id = {thing3.id}, thing.pkid = {thing3.pkid}")
++    print(f"UUID changed? {thing3.id != original_uuid3}")
++    # Save the formset
++    formset3.save()
++    print(f"After formset save:")
++    print(f"  thing.id = {thing3.id}, thing.pkid = {thing3.pkid}")
++    # Check what was saved
++    subthing = SubThing.objects.get(name='SubThing 3')
++    print(f"  subthing.thing_id = {subthing.thing_id}")
++    print(f"  subthing.thing.id = {subthing.thing.id}")
++    print(f"  FK matches parent PK? {subthing.thing_id == thing3.id}")
++else:
++    print(f"Formset has errors: {formset3.errors}")
++    for form in formset3:
++        print(f"  Form errors: {form.errors}")
++
++# Scenario 4: Save with formset data but thing_id cleared
++print("\nScenario 4: Save with formset data but WITHOUT thing_id in form data")
++print("-" * 70)
++
++thing4 = Thing(name="Thing 4")
++original_uuid4 = thing4.id
++print(f"Before formset: thing.id = {thing4.id}")
++
++formset_class4 = inlineformset_factory(
++    Thing,
++    SubThing,
++    fk_name='thing',
++    fields=['name'],
++)
++
++# Don't pass the thing_id value - this is what happens when UUID is cleared
++formset4 = formset_class4(
++    {
++        'subthings-TOTAL_FORMS': '1',
++        'subthings-INITIAL_FORMS': '0',
++        'subthings-MIN_NUM_FORMS': '0',
++        'subthings-MAX_NUM_FORMS': '1000',
++        'subthings-0-name': 'SubThing 4',
++        'subthings-0-thing': '',  # Empty string - UUID was cleared
++    },
++    instance=thing4,
++)
++
++print(f"After formset: thing.id = {thing4.id}")
++
++# Check if formset is valid
++if formset4.is_valid():
++    print("Formset is valid")
++    # Save the parent
++    thing4.save()
++    print(f"After parent save: thing.id = {thing4.id}, thing.pkid = {thing4.pkid}")
++    print(f"UUID changed? {thing4.id != original_uuid4}")
++    # Save the formset
++    formset4.save()
++    print(f"After formset save:")
++    print(f"  thing.id = {thing4.id}, thing.pkid = {thing4.pkid}")
++    # Check what was saved
++    subthing = SubThing.objects.get(name='SubThing 4')
++    print(f"  subthing.thing_id = {subthing.thing_id}")
++    print(f"  subthing.thing.id = {subthing.thing.id}")
++    print(f"  FK matches parent PK? {subthing.thing_id == thing4.id}")
++else:
++    print(f"Formset has errors: {formset4.errors}")
++    for form in formset4:
++        print(f"  Form errors: {form.errors}")
++
++print("\n" + "=" * 70)
++print("Summary:")
++print("The issue might be related to how the FK value is handled")
++print("when the parent UUID is cleared and then regenerated.")
++print("=" * 70)
+diff --git a/test_bug_scenario.py b/test_bug_scenario.py
+new file mode 100644
+index 0000000000..a05a58d5c2
+--- /dev/null
++++ b/test_bug_scenario.py
+@@ -0,0 +1,201 @@
++#!/usr/bin/env python
++"""
++Test to reproduce the exact scenario from the bug report.
++
++The bug occurs when:
++1. A parent model (Thing) has an AutoField PK (pkid) and a UUID field (id) with default
++2. A child model (SubThing) has a ForeignKey to Thing using to_field='id'
++3. In admin, when adding a new Thing with a SubThing inline
++
++The error reported was that Thing.id was being set to null.
++"""
++import os
++import sys
++import uuid
++
++# Setup path
++sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++
++# Setup Django before importing models
++os.environ['DJANGO_SETTINGS_MODULE'] = 'django.conf.global_settings'
++
++import django
++from django.conf import settings
++
++# Configure minimal settings
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        SECRET_KEY='test-secret-key',
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++            'django.contrib.admin',
++        ],
++        DEFAULT_AUTO_FIELD='django.db.models.BigAutoField',
++        USE_TZ=True,
++    )
++
++django.setup()
++
++from django.db import models
++from django.contrib.admin.sites import AdminSite
++from django.contrib.admin.options import InlineModelAdmin
++from django.forms.models import inlineformset_factory
++
++# Create test models matching the bug report
++class UUIDModel(models.Model):
++    pkid = models.BigAutoField(primary_key=True, editable=False)
++    id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
++
++    class Meta:
++        abstract = True
++        app_label = 'test_app'
++
++
++class Thing(UUIDModel):
++    name = models.CharField(max_length=191)
++
++    class Meta:
++        app_label = 'test_app'
++
++
++class SubThing(models.Model):
++    name = models.CharField(max_length=191)
++    thing = models.ForeignKey(
++        Thing,
++        to_field='id',  # Using UUID field, not PK
++        on_delete=models.CASCADE,
++        related_name='subthings',
++    )
++
++    class Meta:
++        app_label = 'test_app'
++
++
++# Create the database tables
++from django.core.management import call_command
++from django.db import connection
++with connection.schema_editor() as schema_editor:
++    schema_editor.create_model(Thing)
++    schema_editor.create_model(SubThing)
++
++print("Test: Bug Report Scenario - Thing with SubThing inline")
++print("=" * 70)
++
++# Scenario 1: Creating a new Thing (unsaved) with inline
++print("\n1. Creating a new Thing (unsaved) with inline formset")
++print("-" * 70)
++
++parent = Thing(name="Test Thing")
++print(f"Before formset creation:")
++print(f"  parent.id = {parent.id}")
++print(f"  parent.pkid = {parent.pkid}")
++print(f"  parent._state.adding = {parent._state.adding}")
++
++# Create the inline formset (this is what admin does)
++formset_class = inlineformset_factory(
++    Thing,
++    SubThing,
++    fk_name='thing',
++    fields=['name'],
++)
++
++formset = formset_class(instance=parent)
++
++print(f"\nAfter formset creation:")
++print(f"  parent.id = {parent.id}")
++print(f"  parent.pkid = {parent.pkid}")
++
++# Check the inline form's field
++inline_form = formset.forms[0]
++print(f"  Inline form's 'thing' field initial = {inline_form.fields['thing'].initial}")
++print(f"  Inline form's thing FK value = {getattr(inline_form.instance, 'thing_id', 'N/A')}")
++
++# Scenario 2: Submitting form data to create Thing with SubThing
++print("\n2. Simulating form submission with data")
++print("-" * 70)
++
++# Create a fresh parent for this test
++parent2 = Thing(name="Test Thing 2")
++uuid_before = parent2.id
++print(f"Parent UUID before formset: {uuid_before}")
++
++formset2 = formset_class(
++    {
++        'subthing-TOTAL_FORMS': '1',
++        'subthing-INITIAL_FORMS': '0',
++        'subthing-MIN_NUM_FORMS': '0',
++        'subthing-MAX_NUM_FORMS': '1000',
++        'subthing-0-name': 'Test SubThing',
++        'subthing-0-thing': str(uuid_before) if uuid_before else '',
++        'name': 'Test Thing 2',
++    },
++    instance=parent2,
++)
++
++print(f"Parent UUID after formset creation: {parent2.id}")
++print(f"Parent UUID matches before: {parent2.id == uuid_before}")
++
++# Check validation
++print(f"Number of forms: {len(formset2.forms)}")
++print(f"Formset is_valid: {formset2.is_valid()}")
++print(f"Formset errors: {formset2.errors}")
++for i, form in enumerate(formset2.forms):
++    print(f"  Form {i} errors: {form.errors}")
++if formset2.is_valid():
++    print("Formset is valid!")
++    # Try to save
++    parent2.save()
++    formset2.save()
++    print(f"Parent saved with id={parent2.id}, pkid={parent2.pkid}")
++    print(f"Child created: {formset2.forms[0].instance}")
++else:
++    print(f"Formset validation FAILED")
++
++# Scenario 3: What if the UUID was cleared (simulating the bug)?
++print("\n3. Simulating the BUG - what if UUID is cleared?")
++print("-" * 70)
++
++parent3 = Thing(name="Test Thing 3")
++original_uuid = parent3.id
++print(f"Original UUID: {original_uuid}")
++
++# Manually clear the UUID (simulating the old buggy behavior)
++parent3.id = None
++print(f"After clearing, parent.id = {parent3.id}")
++
++formset3 = formset_class(
++    {
++        'subthing-TOTAL_FORMS': '1',
++        'subthing-INITIAL_FORMS': '0',
++        'subthing-MIN_NUM_FORMS': '0',
++        'subthing-MAX_NUM_FORMS': '1000',
++        'subthing-0-name': 'Test SubThing 3',
++        'subthing-0-thing': '',
++        'name': 'Test Thing 3',
++    },
++    instance=parent3,
++)
++
++print(f"Formset created with cleared UUID parent")
++print(f"Inline 'thing' field initial: {formset3.forms[0].fields['thing'].initial}")
++
++if formset3.is_valid():
++    print("Formset is valid (no error shown in this simple case)")
++else:
++    print(f"Formset has validation errors: {formset3.errors}")
++
++print("\n" + "=" * 70)
++print("Summary:")
++print("The bug is that when creating a new Thing with inline, the Thing.id")
++print("(UUID) gets cleared to None. This causes issues because:")
++print("1. The child form's foreign key field expects a valid UUID")
++print("2. When saved, the Thing might not have its UUID properly set")
++print("=" * 70)
+diff --git a/test_bug_trace.py b/test_bug_trace.py
+new file mode 100644
+index 0000000000..972c4b0b37
+--- /dev/null
++++ b/test_bug_trace.py
+@@ -0,0 +1,117 @@
++#!/usr/bin/env python
++"""
++Test to trace the bug from issue #16950.
++"""
++import os
++import sys
++import uuid
++
++# Setup path
++sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++
++# Setup Django before importing models
++os.environ['DJANGO_SETTINGS_MODULE'] = 'django.conf.global_settings'
++
++import django
++from django.conf import settings
++
++# Configure minimal settings
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        SECRET_KEY='test-secret-key',
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++        ],
++        DEFAULT_AUTO_FIELD='django.db.models.BigAutoField',
++        USE_TZ=True,
++    )
++
++django.setup()
++
++from django.db import models
++from django.forms.models import inlineformset_factory
++
++# Create test models matching the bug report
++class UUIDModel(models.Model):
++    pkid = models.BigAutoField(primary_key=True, editable=False)
++    id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
++
++    class Meta:
++        abstract = True
++        app_label = 'bugapp'
++
++
++class Thing(UUIDModel):
++    name = models.CharField(max_length=191)
++
++    class Meta:
++        app_label = 'bugapp'
++
++
++class SubThing(models.Model):
++    name = models.CharField(max_length=191)
++    thing = models.ForeignKey(
++        Thing,
++        to_field='id',
++        on_delete=models.CASCADE,
++        related_name='subthings',
++    )
++
++    class Meta:
++        app_label = 'bugapp'
++
++print("Tracing bug #16950...")
++print("=" * 70)
++
++# Create a new Thing (unsaved)
++thing = Thing(name="Test Thing")
++print(f"1. After creating Thing: thing.id = {thing.id}")
++
++# Create the inline formset
++formset_class = inlineformset_factory(
++    Thing,
++    SubThing,
++    fk_name='thing',
++    fields=['name'],
++)
++
++print(f"2. Before creating formset: thing.id = {thing.id}")
++
++# Create formset WITHOUT accessing forms
++formset = formset_class(instance=thing)
++
++print(f"3. After creating formset (before accessing forms): thing.id = {thing.id}")
++
++# Access the forms (this triggers add_fields)
++print(f"4. About to access forms...")
++for i, form in enumerate(formset.forms):
++    print(f"5. Inside form loop, form {i}: thing.id = {thing.id}")
++    print(f"   parent_instance.id = {form.fields['thing'].parent_instance.id}")
++    print(f"   Are they same object? {form.fields['thing'].parent_instance is thing}")
++
++print(f"6. After accessing forms: thing.id = {thing.id}")
++print(f"7. id(thing) = {id(thing)}")
++print(f"8. id(formset.instance) = {id(formset.instance)}")
++print(f"9. Same object? {formset.instance is thing}")
++
++# The key insight: The formset.instance IS the same object as thing
++# So if we modify formset.instance.id, we're modifying thing.id
++
++# But wait - the output shows thing.id is preserved at the end
++# Let me check if there's any deferred evaluation or caching
++
++# Access one more form to see what happens
++if formset.forms:
++    form = formset.forms[0]
++    print(f"10. After accessing first form again: thing.id = {thing.id}")
++    print(f"    form.fields['thing'].parent_instance.id = {form.fields['thing'].parent_instance.id}")
++
++print("=" * 70)
+diff --git a/test_bug_when.py b/test_bug_when.py
+new file mode 100644
+index 0000000000..294aee6a25
+--- /dev/null
++++ b/test_bug_when.py
+@@ -0,0 +1,148 @@
++#!/usr/bin/env python
++"""
++Test to understand WHEN the UUID clearing happens.
++"""
++import os
++import sys
++import uuid
++
++# Setup path
++sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++
++# Setup Django before importing models
++os.environ['DJANGO_SETTINGS_MODULE'] = 'django.conf.global_settings'
++
++import django
++from django.conf import settings
++
++# Configure minimal settings
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        SECRET_KEY='test-secret-key',
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++        ],
++        DEFAULT_AUTO_FIELD='django.db.models.BigAutoField',
++        USE_TZ=True,
++    )
++
++django.setup()
++
++from django.db import models
++from django.forms.models import inlineformset_factory
++
++# Create test models
++class UUIDModel(models.Model):
++    pkid = models.BigAutoField(primary_key=True, editable=False)
++    id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
++
++    class Meta:
++        abstract = True
++        app_label = 'bugapp'
++
++
++class Thing(UUIDModel):
++    name = models.CharField(max_length=191)
++
++    class Meta:
++        app_label = 'bugapp'
++
++
++class SubThing(models.Model):
++    name = models.CharField(max_length=191)
++    thing = models.ForeignKey(
++        Thing,
++        to_field='id',
++        on_delete=models.CASCADE,
++        related_name='subthings',
++    )
++
++    class Meta:
++        app_label = 'bugapp'
++
++print("Understanding WHEN UUID clearing happens...")
++print("=" * 70)
++
++# Test 1: Formset without data, accessing forms
++print("\nTest 1: Formset WITHOUT data, then accessing forms")
++print("-" * 70)
++
++thing1 = Thing(name="Thing 1")
++print(f"Before: thing.id = {thing1.id}")
++
++formset_class = inlineformset_factory(
++    Thing,
++    SubThing,
++    fk_name='thing',
++    fields=['name'],
++)
++
++formset1 = formset_class(instance=thing1)
++print(f"After formset creation (no data): thing.id = {thing1.id}")
++
++# Access forms
++_ = formset1.forms
++print(f"After accessing forms: thing.id = {thing1.id}")
++
++# Test 2: Formset WITH data, accessing forms
++print("\nTest 2: Formset WITH data, then accessing forms")
++print("-" * 70)
++
++thing2 = Thing(name="Thing 2")
++original_uuid2 = thing2.id
++print(f"Before: thing.id = {thing2.id}")
++
++formset2 = formset_class(
++    {
++        'subthings-TOTAL_FORMS': '1',
++        'subthings-INITIAL_FORMS': '0',
++        'subthings-MIN_NUM_FORMS': '0',
++        'subthings-MAX_NUM_FORMS': '1000',
++        'subthings-0-name': 'SubThing 2',
++        'subthings-0-thing': str(original_uuid2),
++    },
++    instance=thing2,
++)
++print(f"After formset creation (with data): thing.id = {thing2.id}")
++
++# Access forms
++_ = formset2.forms
++print(f"After accessing forms: thing.id = {thing2.id}")
++
++# Test 3: Formset WITHOUT data, but with initial forms
++print("\nTest 3: Formset with existing data (initial forms)")
++print("-" * 70)
++
++# First save a parent
++thing3_saved = Thing(name="Thing 3 (saved)")
++thing3_saved.save()
++saved_uuid = thing3_saved.id
++print(f"Saved thing: id = {saved_uuid}, pkid = {thing3_saved.pkid}")
++
++# Create a child
++subthing3 = SubThing(name="SubThing 3", thing_id=saved_uuid)
++subthing3.save()
++print(f"Saved subthing: thing_id = {subthing3.thing_id}")
++
++# Now create a formset for the saved parent
++formset3 = formset_class(instance=thing3_saved)
++print(f"After formset creation (saved parent): thing.id = {thing3_saved.id}")
++
++# Access forms
++_ = formset3.forms
++print(f"After accessing forms: thing.id = {thing3_saved.id}")
++
++print("\n" + "=" * 70)
++print("Key insight:")
++print("The UUID clearing only happens when:")
++print("1. The parent is being added (._state.adding = True)")
++print("2. The forms are accessed (which triggers add_fields)")
++print("=" * 70)
+diff --git a/test_simple_uuid.py b/test_simple_uuid.py
+new file mode 100644
+index 0000000000..6ce11a61e6
+--- /dev/null
++++ b/test_simple_uuid.py
+@@ -0,0 +1,143 @@
++#!/usr/bin/env python
++"""
++Simple test to verify UUID is preserved when it's not the primary key.
++"""
++import os
++import sys
++import uuid
++
++# Setup path
++sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++
++# Setup Django before importing models
++os.environ['DJANGO_SETTINGS_MODULE'] = 'django.conf.global_settings'
++
++import django
++from django.conf import settings
++
++# Configure minimal settings
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        SECRET_KEY='test-secret-key',
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++        ],
++        DEFAULT_AUTO_FIELD='django.db.models.BigAutoField',
++        USE_TZ=True,
++    )
++
++django.setup()
++
++from django.db import models
++from django.forms.models import inlineformset_factory
++
++# Test Case 1: UUID is NOT the primary key (like the bug report)
++print("=" * 70)
++print("Test Case 1: UUID is NOT the primary key")
++print("=" * 70)
++
++class Thing1(models.Model):
++    pkid = models.BigAutoField(primary_key=True, editable=False)
++    id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
++    name = models.CharField(max_length=191)
++    class Meta:
++        app_label = 'test1'
++
++class SubThing1(models.Model):
++    name = models.CharField(max_length=191)
++    thing = models.ForeignKey(Thing1, to_field='id', on_delete=models.CASCADE)
++    class Meta:
++        app_label = 'test1'
++
++parent1 = Thing1(name="Test")
++print(f"Before formset: parent.id = {parent1.id}")
++
++formset_class1 = inlineformset_factory(Thing1, SubThing1, fk_name='thing', fields=['name'])
++formset1 = formset_class1(instance=parent1)
++# Access forms to trigger add_fields
++_ = formset1.forms
++
++print(f"After formset:  parent.id = {parent1.id}")
++if parent1.id is None:
++    print("FAIL: UUID was cleared (bug still exists)")
++else:
++    print("PASS: UUID was preserved")
++
++# Test Case 2: UUID IS the primary key (like the test case)
++print("\n" + "=" * 70)
++print("Test Case 2: UUID IS the primary key")
++print("=" * 70)
++
++class Thing2(models.Model):
++    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
++    name = models.CharField(max_length=191)
++    class Meta:
++        app_label = 'test2'
++
++class SubThing2(models.Model):
++    name = models.CharField(max_length=191)
++    thing = models.ForeignKey(Thing2, on_delete=models.CASCADE)
++    class Meta:
++        app_label = 'test2'
++
++parent2 = Thing2(name="Test")
++print(f"Before formset: parent.id = {parent2.id}")
++
++formset_class2 = inlineformset_factory(Thing2, SubThing2, fields=['name'])
++formset2 = formset_class2(instance=parent2)
++# Access forms to trigger add_fields
++_ = formset2.forms
++
++print(f"After formset:  parent.id = {parent2.id}")
++if parent2.id is None:
++    print("PASS: UUID PK was cleared (expected behavior)")
++else:
++    print("FAIL: UUID PK was NOT cleared")
++
++# Test Case 3: UUID is alternate key (not PK)
++print("\n" + "=" * 70)
++print("Test Case 3: UUID is an alternate key (not PK)")
++print("=" * 70)
++
++class Thing3(models.Model):
++    # AutoField PK is implicit
++    uuid = models.UUIDField(unique=True, default=uuid.uuid4, editable=False)
++    name = models.CharField(max_length=191)
++    class Meta:
++        app_label = 'test3'
++
++class SubThing3(models.Model):
++    name = models.CharField(max_length=191)
++    thing = models.ForeignKey(Thing3, to_field='uuid', on_delete=models.CASCADE)
++    class Meta:
++        app_label = 'test3'
++
++parent3 = Thing3(name="Test")
++print(f"Before formset: parent.uuid = {parent3.uuid}")
++
++formset_class3 = inlineformset_factory(Thing3, SubThing3, fk_name='thing', fields=['name'])
++formset3 = formset_class3(instance=parent3)
++# Access forms to trigger add_fields
++_ = formset3.forms
++
++print(f"After formset:  parent.uuid = {parent3.uuid}")
++if parent3.uuid is None:
++    print("PASS: UUID alternate key was cleared")
++else:
++    print("FAIL: UUID alternate key was NOT cleared")
++
++print("\n" + "=" * 70)
++print("Summary:")
++print("The fix should:")
++print("1. Preserve UUID when it's NOT the primary key (bug report)")
++print("2. Clear UUID when it IS the primary key (test case)")
++print("3. Clear UUID alternate key when using to_field (test case)")
++print("=" * 70)
+diff --git a/test_uuid_inline_fix.py b/test_uuid_inline_fix.py
+new file mode 100644
+index 0000000000..0c54d2b13a
+--- /dev/null
++++ b/test_uuid_inline_fix.py
+@@ -0,0 +1,199 @@
++#!/usr/bin/env python
++"""
++Test script to verify the UUIDField default value fix for admin inlines.
++
++This script reproduces the issue described in django__django-16950:
++Django Admin with Inlines not using UUIDField default value.
++"""
++import os
++import sys
++import django
++import uuid
++
++# Setup Django settings
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sqlite_settings')
++sys.path.insert(0, '/testbed')
++
++# Create a minimal settings file
++settings_content = """
++SECRET_KEY = 'test-secret-key'
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'django.contrib.admin',
++    'test_app',
++]
++DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
++"""
++
++with open('/testbed/sqlite_settings.py', 'w') as f:
++    f.write(settings_content)
++
++# Create test app
++test_app_dir = '/testbed/test_app'
++os.makedirs(test_app_dir, exist_ok=True)
++
++with open(f'{test_app_dir}/__init__.py', 'w') as f:
++    f.write('')
++
++# Create models with UUID field
++models_content = """
++from django.db import models
++import uuid
++
++class UUIDModel(models.Model):
++    pkid = models.BigAutoField(primary_key=True, editable=False)
++    id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
++
++    class Meta:
++        abstract = True
++
++class Thing(UUIDModel):
++    name = models.CharField(max_length=191)
++
++class SubThing(models.Model):
++    name = models.CharField(max_length=191)
++    thing = models.ForeignKey(
++        'Thing',
++        to_field='id',
++        on_delete=models.CASCADE,
++        related_name='subthings',
++    )
++"""
++
++with open(f'{test_app_dir}/models.py', 'w') as f:
++    f.write(models_content)
++
++# Create admin
++admin_content = """
++from django.contrib import admin
++from .models import Thing, SubThing
++
++class SubThingInline(admin.StackedInline):
++    model = SubThing
++
++@admin.register(Thing)
++class ThingAdmin(admin.ModelAdmin):
++    list_display = ('name',)
++    ordering = ('pkid',)
++    inlines = (SubThingInline,)
++"""
++
++with open(f'{test_app_dir}/admin.py', 'w') as f:
++    f.write(admin_content)
++
++# Initialize Django
++django.setup()
++
++# Now test the inline formset behavior
++from django.contrib.admin.sites import AdminSite
++from test_app.models import Thing, SubThing
++from test_app.admin import SubThingInline
++
++# Create database tables
++from django.core.management import call_command
++call_command('migrate', '--run-syncdb', verbosity=0)
++
++# Test 1: Verify that Thing with UUIDField works when creating with inline
++print("Test 1: Creating Thing with inline formset")
++print("=" * 60)
++
++# Create a new Thing instance (unsaved)
++parent = Thing(name="Test Thing")
++print(f"Parent before formset - id: {parent.id}, pkid: {parent.pkid}")
++print(f"Parent is adding: {parent._state.adding}")
++
++# Create inline formset
++site = AdminSite()
++inline = SubThingInline(Thing, site)
++formset_class = inline.get_formset(None, parent)
++
++# Create formset with data for one inline
++formset = formset_class(
++    data={
++        'subthings-TOTAL_FORMS': '1',
++        'subthings-INITIAL_FORMS': '0',
++        'subthings-MIN_NUM_FORMS': '0',
++        'subthings-MAX_NUM_FORMS': '1000',
++        'subthings-0-name': 'Test SubThing',
++        'subthings-0-thing': '',  # This will be set to parent's id
++        'name': 'Test Thing',
++    },
++    instance=parent,
++    prefix='subthings'
++)
++
++# Check the parent's id after formset creation
++print(f"Parent after formset - id: {parent.id}, pkid: {parent.pkid}")
++print(f"Parent is adding: {parent._state.adding}")
++
++# The fix ensures that parent.id should NOT be None for UUIDField
++if parent.id is None:
++    print("FAIL: parent.id is None (UUID default was incorrectly cleared)")
++    sys.exit(1)
++else:
++    print(f"PASS: parent.id is {parent.id} (UUID default preserved)")
++
++# Test 2: Verify that AutoField still gets cleared (if applicable)
++print("\nTest 2: Verifying AutoFieldMixin behavior")
++print("=" * 60)
++
++from django.db.models import AutoFieldMixin
++from test_app.models import Thing
++
++# Check that pkid (AutoField) is an AutoFieldMixin
++pkid_field = Thing._meta.get_field('pkid')
++print(f"pkid_field type: {type(pkid_field).__name__}")
++print(f"pkid_field is AutoFieldMixin: {isinstance(pkid_field, AutoFieldMixin)}")
++
++# Check that id (UUIDField) is NOT an AutoFieldMixin
++id_field = Thing._meta.get_field('id')
++print(f"id_field type: {type(id_field).__name__}")
++print(f"id_field is AutoFieldMixin: {isinstance(id_field, AutoFieldMixin)}")
++print(f"id_field has_default: {id_field.has_default()}")
++
++if isinstance(id_field, AutoFieldMixin):
++    print("FAIL: UUIDField should not be an AutoFieldMixin")
++    sys.exit(1)
++else:
++    print("PASS: UUIDField is correctly identified as not an AutoFieldMixin")
++
++# Test 3: Verify the form can be validated and saved
++print("\nTest 3: Verifying form validation and save")
++print("=" * 60)
++
++# Create a new parent and verify inline works
++parent2 = Thing(name="Test Thing 2")
++inline2 = SubThingInline(Thing, site)
++formset_class2 = inline2.get_formset(None, parent2)
++
++formset2 = formset_class2(
++    data={
++        'subthings-TOTAL_FORMS': '1',
++        'subthings-INITIAL_FORMS': '0',
++        'subthings-MIN_NUM_FORMS': '0',
++        'subthings-MAX_NUM_FORMS': '1000',
++        'subthings-0-name': 'Test SubThing 2',
++        'subthings-0-thing': str(parent2.id),  # Use the UUID
++        'name': 'Test Thing 2',
++    },
++    instance=parent2,
++    prefix='subthings'
++)
++
++# Check the forms
++for form in formset2:
++    if form.has_changed():
++        print(f"Form changed: {form.changed_data}")
++
++print("PASS: Formset created successfully")
++
++print("\n" + "=" * 60)
++print("All tests passed!")
++print("=" * 60)
+diff --git a/test_uuid_inline_fix2.py b/test_uuid_inline_fix2.py
+new file mode 100644
+index 0000000000..4a359e4f84
+--- /dev/null
++++ b/test_uuid_inline_fix2.py
+@@ -0,0 +1,135 @@
++#!/usr/bin/env python
++"""
++Test script to verify the UUIDField default value fix for admin inlines.
++This reproduces the issue from django__django-16950.
++"""
++import os
++import sys
++import uuid
++
++# Setup path
++sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++
++# Setup Django before importing models
++os.environ['DJANGO_SETTINGS_MODULE'] = 'django.conf.global_settings'
++
++import django
++from django.conf import settings
++
++# Configure minimal settings
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        SECRET_KEY='test-secret-key',
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++            'django.contrib.admin',
++        ],
++        DEFAULT_AUTO_FIELD='django.db.models.BigAutoField',
++        USE_TZ=True,
++    )
++
++django.setup()
++
++# Now we can import Django modules
++from django.db import models
++from django.contrib.admin.sites import AdminSite
++from django.forms.models import inlineformset_factory
++
++# Create test models
++class UUIDModel(models.Model):
++    pkid = models.BigAutoField(primary_key=True, editable=False)
++    id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
++
++    class Meta:
++        abstract = True
++        app_label = 'test_app'
++
++
++class Thing(UUIDModel):
++    name = models.CharField(max_length=191)
++
++    class Meta:
++        app_label = 'test_app'
++
++
++class SubThing(models.Model):
++    name = models.CharField(max_length=191)
++    thing = models.ForeignKey(
++        Thing,
++        to_field='id',
++        on_delete=models.CASCADE,
++        related_name='subthings',
++    )
++
++    class Meta:
++        app_label = 'test_app'
++
++
++# Create the database tables
++from django.core.management import call_command
++from django.db import connection
++with connection.schema_editor() as schema_editor:
++    schema_editor.create_model(Thing)
++    schema_editor.create_model(SubThing)
++
++print("Test: UUIDField default value with inline formsets")
++print("=" * 60)
++
++# Create a new Thing instance (unsaved)
++parent = Thing(name="Test Thing")
++print(f"Parent before formset:")
++print(f"  - id: {parent.id}")
++print(f"  - pkid: {parent.pkid}")
++print(f"  - _state.adding: {parent._state.adding}")
++
++# Create inline formset
++formset_class = inlineformset_factory(
++    Thing,
++    SubThing,
++    fk_name='thing',
++    fields=['name', 'thing'],
++)
++
++# Create formset with the parent instance
++formset = formset_class(instance=parent)
++
++print(f"\nParent after formset creation:")
++print(f"  - id: {parent.id}")
++print(f"  - pkid: {parent.pkid}")
++print(f"  - _state.adding: {parent._state.adding}")
++
++# Check if the UUID was preserved (not cleared)
++if parent.id is None:
++    print("\nFAIL: parent.id is None (UUID default was incorrectly cleared)")
++    print("The fix did not work correctly.")
++    sys.exit(1)
++else:
++    print(f"\nPASS: parent.id is {parent.id} (UUID default preserved)")
++    print("The fix works correctly!")
++
++# Also verify that AutoFieldMixin check is correct
++from django.db.models.fields import AutoFieldMixin
++
++pkid_field = Thing._meta.get_field('pkid')
++id_field = Thing._meta.get_field('id')
++
++print(f"\nField type checks:")
++print(f"  - pkid_field is AutoFieldMixin: {isinstance(pkid_field, AutoFieldMixin)}")
++print(f"  - id_field is AutoFieldMixin: {isinstance(id_field, AutoFieldMixin)}")
++print(f"  - id_field.has_default(): {id_field.has_default()}")
++
++if isinstance(id_field, AutoFieldMixin):
++    print("\nFAIL: UUIDField should not be an AutoFieldMixin")
++    sys.exit(1)
++
++print("\n" + "=" * 60)
++print("All tests passed!")
++print("=" * 60)

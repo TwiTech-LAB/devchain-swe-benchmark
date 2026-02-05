@@ -1,0 +1,108 @@
+diff --git a/django/db/backends/sqlite3/base.py b/django/db/backends/sqlite3/base.py
+index 8a105d4f35..6a14da9966 100644
+--- a/django/db/backends/sqlite3/base.py
++++ b/django/db/backends/sqlite3/base.py
+@@ -23,6 +23,7 @@ from django.utils import timezone
+ from django.utils.asyncio import async_unsafe
+ from django.utils.dateparse import parse_datetime, parse_time
+ from django.utils.duration import duration_microseconds
++from django.utils.functional import Promise
+ from django.utils.regex_helper import _lazy_re_compile
+ from django.utils.version import PY38
+ 
+@@ -77,6 +78,18 @@ Database.register_converter("timestamp", decoder(parse_datetime))
+ Database.register_adapter(decimal.Decimal, str)
+ 
+ 
++def promise_adapter(promise):
++    """
++    Adapt Promise objects (created by lazy()) for SQLite parameter binding.
++    Forces evaluation of the lazy object to get the actual value.
++    """
++    # Force evaluation by converting to string
++    return str(promise)
++
++
++Database.register_adapter(Promise, promise_adapter)
++
++
+ class DatabaseWrapper(BaseDatabaseWrapper):
+     vendor = 'sqlite'
+     display_name = 'SQLite'
+diff --git a/django/db/backends/sqlite3/operations.py b/django/db/backends/sqlite3/operations.py
+index 1f77b3109f..4cb9946aa3 100644
+--- a/django/db/backends/sqlite3/operations.py
++++ b/django/db/backends/sqlite3/operations.py
+@@ -153,7 +153,9 @@ class DatabaseOperations(BaseDatabaseOperations):
+                 values = tuple(params.values())
+                 values = self._quote_params_for_last_executed_query(values)
+                 params = dict(zip(params, values))
+-            return sql % params
++            # Replace ? placeholders with %s for Python string formatting
++            format_sql = sql.replace('?', '%s')
++            return format_sql % params
+         # For consistency with SQLiteCursorWrapper.execute(), just return sql
+         # when there are no parameters. See #13648 and #17158.
+         else:
+diff --git a/django/utils/functional.py b/django/utils/functional.py
+index 6d38f932f9..5b2d138ee0 100644
+--- a/django/utils/functional.py
++++ b/django/utils/functional.py
+@@ -70,7 +70,11 @@ class Promise:
+     Base class for the proxy class created in the closure of the lazy function.
+     It's used to recognize promises in code.
+     """
+-    pass
++    def __conform__(self, protocol):
++        # Support SQLite adaptation for lazy objects.
++        # When a lazy object is used as a parameter in a query, it will be
++        # automatically evaluated to its actual value via __str__().
++        return str(self)
+ 
+ 
+ def lazy(func, *resultclasses):
+diff --git a/django/views/generic/base.py b/django/views/generic/base.py
+index ea5baca08d..860d2f918d 100644
+--- a/django/views/generic/base.py
++++ b/django/views/generic/base.py
+@@ -11,7 +11,7 @@ from django.template.response import TemplateResponse
+ from django.urls import reverse
+ from django.utils.decorators import classonlymethod
+ from django.utils.deprecation import RemovedInDjango40Warning
+-from django.utils.functional import SimpleLazyObject
++from django.utils.functional import lazy
+ 
+ logger = logging.getLogger('django.request')
+ 
+@@ -166,19 +166,20 @@ class TemplateView(TemplateResponseMixin, ContextMixin, View):
+ 
+ # RemovedInDjango40Warning
+ def _wrap_url_kwargs_with_deprecation_warning(url_kwargs):
++    def warn_and_return(key, value):
++        warnings.warn(
++            'TemplateView passing URL kwargs to the context is '
++            'deprecated. Reference %s in your template through '
++            'view.kwargs instead.' % key,
++            RemovedInDjango40Warning, stacklevel=2,
++        )
++        return value
++
+     context_kwargs = {}
+     for key, value in url_kwargs.items():
+-        # Bind into function closure.
+-        @SimpleLazyObject
+-        def access_value(key=key, value=value):
+-            warnings.warn(
+-                'TemplateView passing URL kwargs to the context is '
+-                'deprecated. Reference %s in your template through '
+-                'view.kwargs instead.' % key,
+-                RemovedInDjango40Warning, stacklevel=2,
+-            )
+-            return value
+-        context_kwargs[key] = access_value
++        # Use lazy() with the value's type as the result class so that
++        # isinstance() and type checking work correctly in database queries.
++        context_kwargs[key] = lazy(warn_and_return, type(value))(key, value)
+     return context_kwargs
+ 
+ 

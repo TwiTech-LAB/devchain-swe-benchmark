@@ -1,0 +1,22 @@
+{
+  "instance_id": "psf__requests-5414",
+  "status": "completed",
+  "patch": "diff --git a/requests/adapters.py b/requests/adapters.py\nindex fe22ff45..a6347bb6 100644\n--- a/requests/adapters.py\n+++ b/requests/adapters.py\n@@ -28,6 +28,7 @@ from urllib3.exceptions import ReadTimeoutError\n from urllib3.exceptions import SSLError as _SSLError\n from urllib3.exceptions import ResponseError\n from urllib3.exceptions import LocationValueError\n+from urllib3.exceptions import LocationParseError\n \n from .models import Response\n from .compat import urlparse, basestring\n@@ -411,7 +412,7 @@ class HTTPAdapter(BaseAdapter):\n \n         try:\n             conn = self.get_connection(request.url, proxies)\n-        except LocationValueError as e:\n+        except (LocationValueError, LocationParseError) as e:\n             raise InvalidURL(e, request=request)\n \n         self.cert_verify(conn, request.url, verify, cert)\n@@ -524,6 +525,9 @@ class HTTPAdapter(BaseAdapter):\n         except _ProxyError as e:\n             raise ProxyError(e)\n \n+        except LocationParseError as e:\n+            raise InvalidURL(e, request=request)\n+\n         except (_SSLError, _HTTPError) as e:\n             if isinstance(e, _SSLError):\n                 # This branch is for urllib3 versions earlier than v1.22\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T20:01:14.811162",
+  "end_time": "2026-01-31T20:08:42.289105",
+  "duration_seconds": 447.477943,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "b21209bf-1d89-4caf-8060-5d9c24acdeea",
+      "epic_title": "Fix: psf__requests-5414",
+      "comment_id": "21f60278-3b82-4e9a-9aca-157bdf34eef6",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where URLs with invalid domain labels (like `http://.example.com`) were raising `urllib3.exceptions.LocationParseError` instead of the expected `requests.exceptions.InvalidURL`.\n\n## Files Modified\n- **requests/adapters.py** (3 changes):\n  - Line 31: Added import for `LocationParseError` from `urllib3.exceptions`\n  - Line 415: Added `LocationParseError` to exception handler in `get_connection()` block\n  - Line 528-529: Added exception handler for `LocationParseError` in `send()` method (placed before `_HTTPError` handler since `LocationParseError` is a subclass of `HTTPError`)\n\n## Root Cause\n`LocationParseError` is a subclass of `HTTPError`. The existing code had an `except (_SSLError, _HTTPError)` handler that was catching `LocationParseError` before our new handler could process it. The fix places the more specific `LocationParseError` handler before the more general `_HTTPError` handler.\n\n## Test Results\n- **Test file:** `/testbed/tests/test_requests.py`\n- **Baseline (before fix):** 129 passed, 1 xfailed, 158 errors\n- **After fix:** 129 passed, 1 xfailed, 158 errors (no new regressions)\n\n### Manual Verification\n```python\n# Before fix: urllib3.exceptions.LocationParseError\n# After fix: requests.exceptions.InvalidURL\nimport requests\nrequests.get('http://.example.com')  # Now raises InvalidURL correctly\n```\n\n### Edge Cases Tested\n- `http://.example.com` \u2192 InvalidURL \u2713\n- `http://example..com` \u2192 InvalidURL \u2713\n- `http://*` \u2192 InvalidURL \u2713 (already working)",
+      "created_at": "2026-01-31T19:08:31.994Z"
+    }
+  ]
+}

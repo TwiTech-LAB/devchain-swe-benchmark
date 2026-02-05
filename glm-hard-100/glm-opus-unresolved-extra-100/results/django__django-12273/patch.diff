@@ -1,0 +1,41 @@
+diff --git a/django/db/models/base.py b/django/db/models/base.py
+index 844c01e95e..b07e7783a8 100644
+--- a/django/db/models/base.py
++++ b/django/db/models/base.py
+@@ -569,7 +569,20 @@ class Model(metaclass=ModelBase):
+         return getattr(self, meta.pk.attname)
+ 
+     def _set_pk_val(self, value):
+-        return setattr(self, self._meta.pk.attname, value)
++        setattr(self, self._meta.pk.attname, value)
++        # When setting the primary key to None, also set parent primary keys to
++        # None. This ensures that all tables in a multi-table inheritance
++        # hierarchy will get new primary keys on save, not just the child table.
++        if value is None:
++            parents = self._meta.parents
++            # Process all parent models recursively to handle multi-level inheritance
++            while parents:
++                new_parents = {}
++                for parent, field in parents.items():
++                    setattr(self, parent._meta.pk.attname, None)
++                    # Collect this parent's parents for the next iteration
++                    new_parents.update(parent._meta.parents)
++                parents = new_parents
+ 
+     pk = property(_get_pk_val, _set_pk_val)
+ 
+@@ -803,6 +816,14 @@ class Model(metaclass=ModelBase):
+         meta = cls._meta
+         inserted = False
+         for parent, field in meta.parents.items():
++            # When a parent PK is set to None (e.g., obj.pk = None to create a
++            # new object), also set the child's FK to None so both parent and
++            # child get new primary keys on save. Check if the PK attribute is
++            # in __dict__ to distinguish between "explicitly set to None" and
++            # "never set".
++            pk_attname = parent._meta.pk.attname
++            if field and pk_attname in self.__dict__ and getattr(self, pk_attname) is None:
++                setattr(self, field.attname, None)
+             # Make sure the link fields are synced between parent and self.
+             if (field and getattr(self, parent._meta.pk.attname) is None and
+                     getattr(self, field.attname) is not None):

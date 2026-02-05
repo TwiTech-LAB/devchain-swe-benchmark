@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-14034",
+  "status": "completed",
+  "patch": "diff --git a/django/forms/fields.py b/django/forms/fields.py\nindex 65d6a9ec82..4b137a7907 100644\n--- a/django/forms/fields.py\n+++ b/django/forms/fields.py\n@@ -1025,8 +1025,11 @@ class MultiValueField(Field):\n             if not value or not [v for v in value if v not in self.empty_values]:\n                 if self.required:\n                     raise ValidationError(self.error_messages['required'], code='required')\n-                else:\n+                elif self.require_all_fields:\n+                    # If require_all_fields=True, all individual fields have required=False,\n+                    # so it's safe to return early when the MultiValueField itself is not required.\n                     return self.compress([])\n+                # When require_all_fields=False, continue to check individual field requirements\n         else:\n             raise ValidationError(self.error_messages['invalid'], code='invalid')\n         for i, field in enumerate(self.fields):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T18:17:11.684778",
+  "end_time": "2026-01-31T18:23:45.336969",
+  "duration_seconds": 393.652191,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "bbb11c07-d7f3-43c0-8853-ce05f544bd4f",
+      "epic_title": "Fix: django__django-14034",
+      "comment_id": "f58493ba-be6a-4eba-bad7-907dd882c8c4",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where `MultiValueField` with `require_all_fields=False` incorrectly validated when all sub-fields were empty, ignoring individual sub-field `required` settings.\n\n**Root Cause:** The `clean()` method in `MultiValueField` was returning early when the MultiValueField itself had `required=False` and all values were empty. This early return happened before checking individual field requirements when `require_all_fields=False`.\n\n**Fix:** Modified the early return logic to only return early when `require_all_fields=True` (since in that case individual fields have their `required` attribute set to `False`). When `require_all_fields=False`, the code now continues to the loop that validates individual field requirements.\n\n## Files Modified\n\n- `django/forms/fields.py` (lines 1024-1031): Added condition to check `require_all_fields` before early return when all values are empty\n\n## Test Results\n\nAll edge cases verified:\n\n1. **Bug fix verified:** Both fields empty with `require_all_fields=False`, one sub-field required \u2192 now correctly returns `False` (was `True` before)\n2. **Both optional:** All fields optional and empty \u2192 correctly returns `True`\n3. **Default behavior preserved:** `require_all_fields=True` with `required=False` \u2192 correctly returns `True`\n4. **Default required:** `require_all_fields=True` with `required=True` \u2192 correctly returns `False`\n5. **Partial validation:** With mixed required sub-fields, correctly validates based on which fields are filled\n\n## Additional Verification\n\n- Tested with `SplitDateTimeField` (default `require_all_fields=True`) - no regressions\n- Tested all combinations of `required`/`require_all_fields`/sub-field `required` settings\n\n## Concerns\n\nNone - the fix is minimal and focused, addressing only the specific bug without changing any other behavior.",
+      "created_at": "2026-01-31T17:23:40.245Z"
+    }
+  ]
+}

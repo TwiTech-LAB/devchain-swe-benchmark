@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-19495",
+  "status": "completed",
+  "patch": "diff --git a/sympy/sets/conditionset.py b/sympy/sets/conditionset.py\nindex 118eda6f77..c8c70929d9 100644\n--- a/sympy/sets/conditionset.py\n+++ b/sympy/sets/conditionset.py\n@@ -243,7 +243,7 @@ def _eval_subs(self, old, new):\n         cond = self.condition.subs(old, new)\n         base = self.base_set.subs(old, new)\n         if cond is S.true:\n-            return ConditionSet(new, Contains(new, base), base)\n+            return base\n         return self.func(self.sym, cond, base)\n \n     def dummy_eq(self, other, symbol=None):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T17:15:39.180515",
+  "end_time": "2026-02-03T17:20:41.093760",
+  "duration_seconds": 301.913245,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "3c5eaa49-8d6a-4d67-baa6-671c2a79e860",
+      "epic_title": "Fix: sympy__sympy-19495",
+      "comment_id": "c132350c-0624-4a76-9393-2383665190f6",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where `subs` on a `ConditionSet` with an `ImageSet` base set was producing incorrect results. The issue was in `_eval_subs` method of `ConditionSet` class.\n\n**Root Cause:** When `subs` caused the condition to evaluate to `S.true` (e.g., `Contains(y, Interval(-1,1)).subs(y, Rational(1,3))` returns `S.true`), the code was incorrectly creating `ConditionSet(new, Contains(new, base), base)` where `new` is the substitution value (e.g., `Rational(1,3)`). This created a ConditionSet with a non-symbol dummy variable, leading to incorrect output like `{1/3 | 1/3 \u220a ...}`.\n\n**Fix:** When the condition evaluates to `S.true` after substitution, return `base` directly instead of creating a new ConditionSet. This is consistent with the `__new__` method behavior which returns `base_set` when `condition is S.true`.\n\n## Files Modified\n- `sympy/sets/conditionset.py`: Line 246 - Changed `return ConditionSet(new, Contains(new, base), base)` to `return base`\n\n## Test Results\n- **Test files:**\n  - `sympy/sets/tests/test_sets.py`: 93 passed, 4 expected to fail (baseline: same)\n  - `sympy/sets/tests/test_fancysets.py`: 48 passed, 1 expected to fail (baseline: same)\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\n- Original issue example now works correctly:\n  ```python\n  ConditionSet(x, Contains(y, Interval(-1,1)), ImageSet(...)).subs(y, Rational(1,3))\n  # Returns: ImageSet(Lambda(n, 2*pi*n + asin(1/3)), Integers)\n  ```\n- Edge cases tested:\n  - Substitution causing condition to become false\n  - Multiple substitutions\n  - Condition that doesn't become True/False\n  - Empty substitution (no change)\n  - Substituting the sym itself\n  - Complex ImageSet with lambda expressions\n\n## Concerns\nNone - the fix is minimal and follows the existing pattern in the `__new__` method.",
+      "created_at": "2026-02-03T16:19:22.755Z"
+    },
+    {
+      "epic_id": "3c5eaa49-8d6a-4d67-baa6-671c2a79e860",
+      "epic_title": "Fix: sympy__sympy-19495",
+      "comment_id": "73c610a0-52fc-4e05-8b07-e854f39dcf44",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n**Review Summary:**\n- Single line change in `sympy/sets/conditionset.py:246` \u2014 replaces the buggy `return ConditionSet(new, Contains(new, base), base)` with `return base` when the condition evaluates to `S.true` after substitution.\n- The old code created a nonsensical ConditionSet with a non-symbol dummy variable (e.g., `Rational(1,3)`) leading to the incorrect output described in the problem statement.\n- The fix is consistent with the `__new__` method (lines 146-147) which already returns `base_set` when `condition is S.true`.\n- No test files modified, no unrelated files touched.\n- Test results show no regressions (identical to baseline).\n- Minimal, focused, and correct.",
+      "created_at": "2026-02-03T16:20:31.525Z"
+    }
+  ]
+}

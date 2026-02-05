@@ -1,0 +1,67 @@
+diff --git a/django/db/backends/sqlite3/base.py b/django/db/backends/sqlite3/base.py
+index 8a105d4f35..5c6fa96f59 100644
+--- a/django/db/backends/sqlite3/base.py
++++ b/django/db/backends/sqlite3/base.py
+@@ -23,6 +23,7 @@ from django.utils import timezone
+ from django.utils.asyncio import async_unsafe
+ from django.utils.dateparse import parse_datetime, parse_time
+ from django.utils.duration import duration_microseconds
++from django.utils.functional import SimpleLazyObject
+ from django.utils.regex_helper import _lazy_re_compile
+ from django.utils.version import PY38
+ 
+@@ -77,6 +78,17 @@ Database.register_converter("timestamp", decoder(parse_datetime))
+ Database.register_adapter(decimal.Decimal, str)
+ 
+ 
++def adapt_simple_lazy_object(value):
++    """Unwrap SimpleLazyObject before passing to sqlite3."""
++    # Force evaluation of the lazy object by accessing __class__ (a proxy property)
++    # which triggers _setup() if the object hasn't been evaluated yet.
++    value.__class__
++    return value._wrapped
++
++
++Database.register_adapter(SimpleLazyObject, adapt_simple_lazy_object)
++
++
+ class DatabaseWrapper(BaseDatabaseWrapper):
+     vendor = 'sqlite'
+     display_name = 'SQLite'
+diff --git a/django/db/backends/sqlite3/operations.py b/django/db/backends/sqlite3/operations.py
+index 1f77b3109f..0baba2436f 100644
+--- a/django/db/backends/sqlite3/operations.py
++++ b/django/db/backends/sqlite3/operations.py
+@@ -149,11 +149,31 @@ class DatabaseOperations(BaseDatabaseOperations):
+         if params:
+             if isinstance(params, (list, tuple)):
+                 params = self._quote_params_for_last_executed_query(params)
++                # Handle SQLite-style ? placeholders by replacing them with %s
++                # Replace only the expected number of placeholders from left to right
++                if '?' in sql:
++                    # Count placeholders in the original SQL and replace only that many
++                    param_count = sql.count('?')
++                    if param_count == len(params):
++                        # Safe to replace all ? with %s since counts match
++                        return sql.replace('?', '%s') % params
++                    else:
++                        # Replace placeholders one at a time from left to right
++                        result = []
++                        param_idx = 0
++                        for char in sql:
++                            if char == '?' and param_idx < len(params):
++                                result.append('%s')
++                                param_idx += 1
++                            else:
++                                result.append(char)
++                        return ''.join(result) % params
++                return sql % params
+             else:
+                 values = tuple(params.values())
+                 values = self._quote_params_for_last_executed_query(values)
+                 params = dict(zip(params, values))
+-            return sql % params
++                return sql % params
+         # For consistency with SQLiteCursorWrapper.execute(), just return sql
+         # when there are no parameters. See #13648 and #17158.
+         else:

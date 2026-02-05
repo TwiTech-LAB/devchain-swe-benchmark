@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-20916",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/conventions.py b/sympy/printing/conventions.py\nindex 9a3be6bbe9..5e3aa1ab54 100644\n--- a/sympy/printing/conventions.py\n+++ b/sympy/printing/conventions.py\n@@ -7,7 +7,7 @@\n from collections.abc import Iterable\n from sympy import Derivative\n \n-_name_with_digits_p = re.compile(r'^([a-zA-Z]+)([0-9]+)$')\n+_name_with_digits_p = re.compile(r'^([^\\W\\d_]+)([0-9]+)$')\n \n \n def split_super_sub(text):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T03:08:28.337429",
+  "end_time": "2026-02-03T03:18:19.063060",
+  "duration_seconds": 590.725631,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "e9827026-050d-46bb-8ffb-3770f5095315",
+      "epic_title": "Fix: sympy__sympy-20916",
+      "comment_id": "a59ec3a7-ee99-41b8-a360-5d0de9420635",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where Unicode pretty printing does not format subscripts on Greek letters when symbols are created with Unicode Greek letters directly in their names (e.g., `Symbol('\u03c90')`).\n\nThe problem was in `sympy/printing/conventions.py` where the regex pattern `_name_with_digits_p` used `[a-zA-Z]` to match letters, which only includes Latin letters. When a symbol like `\u03c90` (Unicode omega + digit) was processed, the regex didn't match because `\u03c9` is not in `[a-zA-Z]`, causing the trailing digit to not be recognized as a subscript.\n\n**The fix:** Changed the regex from `r'^([a-zA-Z]+)([0-9]+)$'` to `r'^([^\\W\\d_]+)([0-9]+)$'`. The pattern `[^\\W\\d_]+` matches any Unicode word character that is NOT a digit or underscore, effectively matching all Unicode letters (including Greek, Cyrillic, etc.).\n\n## Files Modified\n- `sympy/printing/conventions.py`: Updated `_name_with_digits_p` regex to support Unicode letters\n\n## Test Results\n- **Test file:** `sympy/printing/pretty/tests/test_pretty.py`\n- **Baseline (before fix):** 142 passed\n- **After fix:** 142 passed\n- **Regression check:** No new failures introduced\n- **Additional tests:**\n  - `sympy/printing/tests/test_conventions.py`: 2 passed, 1 expected to fail\n  - `sympy/printing/tests/test_latex.py`: 153 passed, 2 expected to fail\n\n## Additional Verification\n- Verified `Symbol('\u03c90')` now correctly prints as `\u03c9\u2080` (with subscript 0)\n- Verified `Symbol('omega0')` still works as before\n- Tested edge cases: multiple digits, capital Greek letters, empty strings\n- All edge cases pass correctly\n\n## Concerns\nNone. The fix is minimal, follows existing code patterns, and handles all Unicode letters correctly.",
+      "created_at": "2026-02-03T02:17:02.455Z"
+    },
+    {
+      "epic_id": "e9827026-050d-46bb-8ffb-3770f5095315",
+      "epic_title": "Fix: sympy__sympy-20916",
+      "comment_id": "b1409303-4f80-4bf2-899d-d7d8d94e4aa2",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and directly addresses the reported issue: `_name_with_digits_p` now matches Unicode letters (e.g. Greek `\u03c9`) so trailing digits are recognized and formatted as subscripts in unicode pretty printing.\n- Only source file modified: `sympy/printing/conventions.py` (no tests/config changes).\n- No obvious regression risk: pattern still excludes digits/underscore from the base name and preserves the \u201cletters+digits\u201d split semantics.",
+      "created_at": "2026-02-03T02:18:08.926Z"
+    }
+  ]
+}

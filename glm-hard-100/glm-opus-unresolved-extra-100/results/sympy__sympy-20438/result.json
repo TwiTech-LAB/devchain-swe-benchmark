@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-20438",
+  "status": "completed",
+  "patch": "diff --git a/sympy/sets/handlers/issubset.py b/sympy/sets/handlers/issubset.py\nindex fdca06025a..2bf838f49e 100644\n--- a/sympy/sets/handlers/issubset.py\n+++ b/sympy/sets/handlers/issubset.py\n@@ -1,7 +1,7 @@\n from sympy import S, Symbol\n from sympy.core.logic import fuzzy_and, fuzzy_bool, fuzzy_not, fuzzy_or\n from sympy.core.relational import Eq\n-from sympy.sets.sets import FiniteSet, Interval, Set, Union\n+from sympy.sets.sets import FiniteSet, Interval, ProductSet, Set, Union\n from sympy.sets.fancysets import Complexes, Reals, Range, Rationals\n from sympy.multipledispatch import dispatch\n \n@@ -133,3 +133,10 @@ def is_subset_sets(a, b): # noqa:F811\n @dispatch(Rationals, Range)  # type: ignore # noqa:F811\n def is_subset_sets(a, b): # noqa:F811\n     return False\n+\n+@dispatch(ProductSet, Set)  # type: ignore # noqa:F811\n+def is_subset_sets(a, b): # noqa:F811\n+    # Check if ProductSet a is a subset of Set b\n+    # If ProductSet is iterable (finite), we can check all elements\n+    if a.is_iterable:\n+        return fuzzy_and(b.contains(elem) for elem in a)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T13:35:06.912342",
+  "end_time": "2026-02-03T13:46:18.400093",
+  "duration_seconds": 671.487751,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "ecd72240-c33c-41b2-a7e2-eef435656d68",
+      "epic_title": "Fix: sympy__sympy-20438",
+      "comment_id": "79def2cc-1f87-43ad-97b4-98649862bdb2",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `is_subset` for `ProductSet` when comparing with `FiniteSet` (and other Set types). The issue was that `ProductSet.is_subset(FiniteSet)` returned `None` when it should return `True` when all elements of the ProductSet are in the FiniteSet.\n\n## Root Cause\n\nThe `is_subset_sets` handler in `sympy/sets/handlers/issubset.py` had no specific handler for `ProductSet`, so it fell through to the default `(Set, Set)` handler which returns `None`.\n\n## Files Modified\n\n- `sympy/sets/handlers/issubset.py`: Added import for `ProductSet` and added a dispatch handler for `(ProductSet, Set)` that checks if all elements of an iterable ProductSet are contained in the other set.\n\n## Test Results\n\n- **Test file:** `sympy/sets/tests/test_sets.py`\n- **Baseline (before fix):** 95 passed, 4 expected to fail\n- **After fix:** 95 passed, 4 expected to fail\n- **Regression check:** No new failures introduced\n\n## Verification\n\n```python\nfrom sympy import FiniteSet, ProductSet\n\na = FiniteSet(1, 2)\nb = ProductSet(a, a)\nc = FiniteSet((1, 1), (1, 2), (2, 1), (2, 2))\n\n# Before fix: b.is_subset(c) returned None\n# After fix: b.is_subset(c) returns True\nassert b.is_subset(c) == True\nassert c.is_subset(b) == True\n```\n\n## Edge Cases Considered\n\n- Empty ProductSet (EmptySet is subset of any set)\n- Non-iterable (infinite) ProductSet - falls back to default behavior\n- ProductSet that is NOT a subset of smaller FiniteSet\n- Single element ProductSet\n\nAll edge cases handled correctly.",
+      "created_at": "2026-02-03T12:44:53.230Z"
+    },
+    {
+      "epic_id": "ecd72240-c33c-41b2-a7e2-eef435656d68",
+      "epic_title": "Fix: sympy__sympy-20438",
+      "comment_id": "a5d75f7c-c403-48d2-9d60-caa5c11a3a13",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED\n\n**Checklist:**\n- [x] No test files modified \u2014 only `sympy/sets/handlers/issubset.py` changed\n- [x] No unrelated files modified \u2014 single file, directly related to the bug\n- [x] Fix logically addresses the problem \u2014 adds missing `(ProductSet, Set)` dispatch handler\n- [x] No obvious crash bugs \u2014 `is_iterable` guard, `fuzzy_and` three-valued logic, implicit `None` fallback\n- [x] Changes are minimal and focused \u2014 7 new lines + 1 import change\n\n**Assessment:**\nThe fix correctly adds a `(ProductSet, Set)` dispatch handler to `is_subset_sets` so that finite ProductSets can be checked for subset membership by enumerating their elements. This follows the exact same pattern already used in the file for `(Range, FiniteSet)` at line 79. The `is_iterable` guard prevents issues with infinite ProductSets, and `fuzzy_and` is the correct function for three-valued containment checks. The import of `ProductSet` from `sympy.sets.sets` is valid.\n\nNo regressions expected \u2014 baseline tests remain at 95 passed / 4 xfail.",
+      "created_at": "2026-02-03T12:46:11.913Z"
+    }
+  ]
+}

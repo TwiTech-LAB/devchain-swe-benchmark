@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-12406",
+  "status": "completed",
+  "patch": "diff --git a/django/forms/models.py b/django/forms/models.py\nindex dafc11f995..a92f75ca72 100644\n--- a/django/forms/models.py\n+++ b/django/forms/models.py\n@@ -13,7 +13,8 @@ from django.forms.forms import BaseForm, DeclarativeFieldsMetaclass\n from django.forms.formsets import BaseFormSet, formset_factory\n from django.forms.utils import ErrorList\n from django.forms.widgets import (\n-    HiddenInput, MultipleHiddenInput, SelectMultiple,\n+    CheckboxSelectMultiple, HiddenInput, MultipleHiddenInput,\n+    RadioSelect, SelectMultiple,\n )\n from django.utils.text import capfirst, get_text_list\n from django.utils.translation import gettext, gettext_lazy as _\n@@ -1185,7 +1186,12 @@ class ModelChoiceField(ChoiceField):\n                  required=True, widget=None, label=None, initial=None,\n                  help_text='', to_field_name=None, limit_choices_to=None,\n                  **kwargs):\n-        if required and (initial is not None):\n+        # RadioSelect and CheckboxSelectMultiple use an inherent unfilled state\n+        # for empty values (no button checked), so empty_label shouldn't be\n+        # included when the field is required. The widget can be a class or an\n+        # instance, so check both with issubclass/isinstance.\n+        widget_type = widget if isinstance(widget, type) else type(widget) if widget else None\n+        if required and (initial is not None or (widget_type is not None and issubclass(widget_type, (RadioSelect, CheckboxSelectMultiple)))):\n             self.empty_label = None\n         else:\n             self.empty_label = empty_label\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T03:25:23.666849",
+  "end_time": "2026-02-03T03:46:20.993242",
+  "duration_seconds": 1257.326393,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "1f6d2ad9-cb85-4f12-b24f-761468690912",
+      "epic_title": "Fix: django__django-12406",
+      "comment_id": "1cf9b7d2-530f-46ad-a5c0-a9f18f0bdbab",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where ModelForm RadioSelect widgets for foreign keys incorrectly showed a blank option even when `blank=False` on the model.\n\n**Root Cause:** `ModelChoiceField.__init__` only set `empty_label=None` when `required=True AND initial is not None`. For new forms (initial=None), the empty label was always shown regardless of widget type.\n\n**Fix:** Modified `ModelChoiceField.__init__` to also set `empty_label=None` when using RadioSelect or CheckboxSelectMultiple widgets with required fields. This is correct because these widgets have an inherent unfilled state (no button checked), so a blank option is redundant and misleading.\n\n## Files Modified\n- `django/forms/models.py`: \n  - Added imports for `RadioSelect` and `CheckboxSelectMultiple` widgets\n  - Updated `ModelChoiceField.__init__` to check for these widget types and exclude empty_label when required\n\n## Test Results\n- Logic tests pass for all cases:\n  - RadioSelect class: empty_label=None when required \u2713\n  - RadioSelect instance: empty_label=None when required \u2713\n  - CheckboxSelectMultiple: empty_label=None when required \u2713\n  - Select widget: empty_label=\"---------\" (unchanged behavior) \u2713\n  - RadioSelect not required: empty_label=\"---------\" \u2713\n  - No widget specified: empty_label=\"---------\" (unchanged) \u2713\n\n## Concerns\n- None. The fix is minimal and focused on the specific issue.",
+      "created_at": "2026-02-03T02:44:28.561Z"
+    },
+    {
+      "epic_id": "1f6d2ad9-cb85-4f12-b24f-761468690912",
+      "epic_title": "Fix: django__django-12406",
+      "comment_id": "8101c1f0-d856-4c04-a7b8-e3f95b4feeeb",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal (only `django/forms/models.py`) and doesn\u2019t touch tests.\n- Logic matches the report: required `ModelChoiceField` with `RadioSelect` no longer injects `empty_label`, preventing the misleading \u201c---------\u201d choice and avoiding a default checked blank option on new/unbound forms.\n- Default Select behavior remains unchanged.",
+      "created_at": "2026-02-03T02:46:08.211Z"
+    }
+  ]
+}

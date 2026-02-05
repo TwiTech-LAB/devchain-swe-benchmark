@@ -1,0 +1,42 @@
+diff --git a/lib/matplotlib/contour.py b/lib/matplotlib/contour.py
+index 144eadeae2..305a27180d 100644
+--- a/lib/matplotlib/contour.py
++++ b/lib/matplotlib/contour.py
+@@ -1446,11 +1446,37 @@ class QuadContourSet(ContourSet):
+         else:
+             fn = 'contour'
+         nargs = len(args)
++
++        # Auto-detect boolean arrays and set levels to [0.5] if not specified
++        # self.levels is set in __init__ from the levels keyword argument
++        levels_provided = self.levels is not None
++        if not levels_provided and nargs >= 2:
++            # Check if levels is provided as a positional argument
++            # (after Z for nargs <= 2, or after X,Y,Z for nargs <= 4)
++            if nargs <= 2:
++                # contour(Z, levels) or contour(Z)
++                levels_provided = (nargs == 2)
++            else:
++                # contour(X, Y, Z, levels) or contour(X, Y, Z)
++                levels_provided = (nargs == 4)
++
+         if nargs <= 2:
++            # Check if Z is boolean before converting to float
++            z_input = np.asarray(args[0])
++            if (not levels_provided and
++                    hasattr(z_input, 'dtype') and
++                    z_input.dtype.kind == 'b'):
++                self.levels = [0.5]
+             z = ma.asarray(args[0], dtype=np.float64)
+             x, y = self._initialize_x_y(z)
+             args = args[1:]
+         elif nargs <= 4:
++            # Check if Z is boolean before converting to float
++            z_input = np.asarray(args[2])
++            if (not levels_provided and
++                    hasattr(z_input, 'dtype') and
++                    z_input.dtype.kind == 'b'):
++                self.levels = [0.5]
+             x, y, z = self._check_xyz(args[:3], kwargs)
+             args = args[3:]
+         else:

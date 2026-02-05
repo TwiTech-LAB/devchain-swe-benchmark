@@ -1,0 +1,26 @@
+diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py
+index b6af5f5491..f594dbef07 100644
+--- a/django/utils/autoreload.py
++++ b/django/utils/autoreload.py
+@@ -223,8 +223,19 @@ def get_child_arguments():
+     # __spec__ is set when the server was started with the `-m` option,
+     # see https://docs.python.org/3/reference/import.html#main-spec
+     # __spec__ may not exist, e.g. when running in a Conda env.
+-    if getattr(__main__, '__spec__', None) is not None and __main__.__spec__.parent:
+-        args += ['-m', __main__.__spec__.parent]
++    # Check if -m was used to run a package with __main__.py (e.g., -m django)
++    # or a module (e.g., -m foo.bar.baz where baz is a module, not a package).
++    # If __spec__.name ends with .__main__, a package was run. Otherwise,
++    # it's a module and __spec__.name should be used. However, if __spec__.parent
++    # is falsy (e.g., when running python -m pytest), the original behavior should
++    # be preserved. See django__django_14311 for context.
++    if getattr(__main__, '__spec__', None) is not None and __main__.__spec__.name:
++        if __main__.__spec__.name.endswith('.__main__'):
++            # -m package with __main__.py
++            args += ['-m', __main__.__spec__.parent]
++        elif __main__.__spec__.parent:
++            # -m module, use the full module name
++            args += ['-m', __main__.__spec__.name]
+         args += sys.argv[1:]
+     elif not py_script.exists():
+         # sys.argv[0] may not exist for several reasons on Windows.

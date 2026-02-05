@@ -1,0 +1,30 @@
+{
+  "instance_id": "psf__requests-5414",
+  "status": "completed",
+  "patch": "diff --git a/requests/adapters.py b/requests/adapters.py\nindex fe22ff45..a913779e 100644\n--- a/requests/adapters.py\n+++ b/requests/adapters.py\n@@ -27,7 +27,7 @@ from urllib3.exceptions import ProtocolError\n from urllib3.exceptions import ReadTimeoutError\n from urllib3.exceptions import SSLError as _SSLError\n from urllib3.exceptions import ResponseError\n-from urllib3.exceptions import LocationValueError\n+from urllib3.exceptions import LocationValueError, LocationParseError\n \n from .models import Response\n from .compat import urlparse, basestring\n@@ -411,7 +411,7 @@ class HTTPAdapter(BaseAdapter):\n \n         try:\n             conn = self.get_connection(request.url, proxies)\n-        except LocationValueError as e:\n+        except (LocationValueError, LocationParseError) as e:\n             raise InvalidURL(e, request=request)\n \n         self.cert_verify(conn, request.url, verify, cert)\n@@ -524,6 +524,9 @@ class HTTPAdapter(BaseAdapter):\n         except _ProxyError as e:\n             raise ProxyError(e)\n \n+        except LocationParseError as e:\n+            raise InvalidURL(e, request=request)\n+\n         except (_SSLError, _HTTPError) as e:\n             if isinstance(e, _SSLError):\n                 # This branch is for urllib3 versions earlier than v1.22\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-01T08:36:40.787930",
+  "end_time": "2026-02-01T08:51:40.342310",
+  "duration_seconds": 899.55438,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "34324847-d115-4c33-8e07-37783daecec1",
+      "epic_title": "Fix: psf__requests-5414",
+      "comment_id": "2b785817-47e9-4461-aee3-97d7ceffa45c",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where accessing URLs with leading dots (e.g., `http://.example.com`) raised `urllib3.exceptions.LocationParseError` instead of the expected `requests.exceptions.InvalidURL`.\n\n## Root Cause\n\nThe `LocationParseError` exception from urllib3 was not being caught properly. The issue was that `LocationParseError` is a subclass of `HTTPError` (via the MRO: `LocationParseError` \u2192 `LocationValueError` \u2192 `ValueError` \u2192 `HTTPError`), so it was being caught by the `except (_SSLError, _HTTPError)` handler which simply reraised the exception without converting it to `InvalidURL`.\n\n## Files Modified\n\n- **requests/adapters.py**:\n  - Line 30: Added `LocationParseError` to imports from `urllib3.exceptions`\n  - Line 414: Added `LocationParseError` to the exception handler for `get_connection` (catches early)\n  - Line 527-528: Added `except LocationParseError` handler BEFORE the `(_SSLError, _HTTPError)` handler to convert `LocationParseError` to `InvalidURL`\n\n## Test Results\n\n**Before fix:**\n- `requests.get('http://.example.com')` raised `urllib3.exceptions.LocationParseError`\n\n**After fix:**\n- `requests.get('http://.example.com')` raises `requests.exceptions.InvalidURL: Failed to parse: '.example.com', label empty or too long`\n- `requests.get('http://.ex\u00e4mple.com')` raises `requests.exceptions.InvalidURL` (non-ASCII with leading dot)\n- Valid URLs still work correctly\n\n**Baseline tests:** 129 passed, 1 xfailed, 158 errors (pre-existing, likely test server issues)\n**After fix:** Same test results - no regressions introduced\n\n## Edge Cases Considered\n\n- Leading dots: `.example.com` \u2192 InvalidURL \u2713\n- Leading dots with non-ASCII: `.ex\u00e4mple.com` \u2192 InvalidURL \u2713\n- Double dots: `example..com` \u2192 InvalidURL \u2713\n- Valid URLs: `example.com` \u2192 Works \u2713\n\n## Concerns\n\nNone. The fix is minimal and follows the existing pattern of catching urllib3 exceptions and converting them to requests exceptions.",
+      "created_at": "2026-02-01T07:49:42.127Z"
+    },
+    {
+      "epic_id": "34324847-d115-4c33-8e07-37783daecec1",
+      "epic_title": "Fix: psf__requests-5414",
+      "comment_id": "4033716d-ac50-4966-9b84-6d4ae68c604e",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED\n\nThe fix correctly addresses the problem statement and is ready for submission.\n\n### Review Summary\n\n**Problem Addressed:** \u2713\n- URLs with leading dots (e.g., `http://.example.com`) now raise `InvalidURL` instead of `UnicodeError`/`LocationParseError`\n\n**Code Changes Verified:**\n- \u2713 Only `requests/adapters.py` modified (no test files)\n- \u2713 Added `LocationParseError` to imports (line 30)\n- \u2713 Added early exception handler at line 414 with `LocationValueError`\n- \u2713 Added main exception handler at lines 527-528 BEFORE the generic `(_SSLError, _HTTPError)` handler\n- \u2713 Correct exception ordering ensures `LocationParseError` is caught and converted to `InvalidURL`\n\n**Code Quality:** \u2713\n- Minimal and focused changes\n- Follows existing code patterns (same approach as `LocationValueError`)\n- Clean implementation\n\n**Testing:** \u2713\n- Baseline tests run: 129 passed, 1 xfailed, 158 errors (pre-existing)\n- After fix: Same results - no regressions\n- Edge cases tested: leading dots, non-ASCII with leading dots, double dots, valid URLs\n\n**Verdict:** The fix properly catches urllib3's `LocationParseError` and converts it to `requests.exceptions.InvalidURL`, which matches the expected behavior described in the problem statement.",
+      "created_at": "2026-02-01T07:51:24.100Z"
+    }
+  ]
+}

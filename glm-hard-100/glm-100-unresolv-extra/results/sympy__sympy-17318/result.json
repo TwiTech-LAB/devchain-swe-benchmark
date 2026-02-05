@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-17318",
+  "status": "completed",
+  "patch": "diff --git a/sympy/simplify/radsimp.py b/sympy/simplify/radsimp.py\nindex 216ae26204..de59422669 100644\n--- a/sympy/simplify/radsimp.py\n+++ b/sympy/simplify/radsimp.py\n@@ -1113,6 +1113,8 @@ def _split_gcd(*a):\n     >>> _split_gcd(55, 35, 22, 14, 77, 10)\n     (5, [55, 35, 10], [22, 14, 77])\n     \"\"\"\n+    if not a:\n+        return 1, [], []\n     g = a[0]\n     b1 = [g]\n     b2 = []\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T16:43:44.545676",
+  "end_time": "2026-01-31T16:47:35.024542",
+  "duration_seconds": 230.478866,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "ca4ee4fe-2011-40fb-89cc-d707e6a89fbf",
+      "epic_title": "Fix: sympy__sympy-17318",
+      "comment_id": "da04b8db-d34f-4da8-9002-47c40d79ebd8",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `IndexError: tuple index out of range` in `_split_gcd` function when processing expressions with no surds (e.g., expressions containing complex numbers but no square roots).\n\nThe issue occurred when `split_surds` was called with an expression like `4 + 3*I`. The surds list became empty, and then `_split_gcd(*[])` was called with an empty tuple, causing the IndexError at line `g = a[0]`.\n\n## Files Modified\n\n- `sympy/simplify/radsimp.py`: Added check for empty input at the beginning of `_split_gcd` function (line 1116). When no arguments are passed, the function now returns `(1, [], [])` representing gcd=1 with empty lists.\n\n## Test Results\n\n- **Test files:**\n  - `sympy/simplify/tests/test_sqrtdenest.py`: 11 passed, 1 skipped\n  - `sympy/simplify/tests/test_radsimp.py`: 21 passed\n  - `sympy/simplify/tests/test_simplify.py`: 46 passed, 2 expected to fail\n\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n\n- Tested original failing case: `sqrtdenest((3 - sqrt(2)*sqrt(4 + 3*I) + 3*I)/2)` now returns expression unchanged instead of raising IndexError\n- Tested `_split_gcd()` with empty input returns `(1, [], [])`\n- Tested edge cases including complex numbers and various sqrt expressions\n\n## Concerns\n\nNone. The fix is minimal and follows the existing code pattern. The change only affects the edge case where no surds are present, which previously caused an IndexError.",
+      "created_at": "2026-01-31T15:47:19.054Z"
+    }
+  ]
+}

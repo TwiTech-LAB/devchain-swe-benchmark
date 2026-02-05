@@ -1,0 +1,50 @@
+diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
+index b3daa06f1..a7e519d84 100644
+--- a/sphinx/ext/napoleon/docstring.py
++++ b/sphinx/ext/napoleon/docstring.py
+@@ -392,15 +392,24 @@ class GoogleDocstring:
+         lines = []
+         for _name, _type, _desc in fields:
+             _desc = self._strip_empty(_desc)
+-            if any(_desc):
+-                _desc = self._fix_field_desc(_desc)
+-                field = ':%s %s: ' % (field_role, _name)
+-                lines.extend(self._format_block(field, _desc))
+-            else:
+-                lines.append(':%s %s:' % (field_role, _name))
++            _desc_processed = False
++
++            # Handle multiple parameter names separated by ", "
++            # (e.g., "x1, x2" should create separate :param: directives)
++            _names = _name.split(", ") if ", " in _name else [_name]
++
++            for i, name in enumerate(_names):
++                if any(_desc):
++                    if not _desc_processed:
++                        _desc = self._fix_field_desc(_desc)
++                        _desc_processed = True
++                    field = ':%s %s: ' % (field_role, name)
++                    lines.extend(self._format_block(field, _desc))
++                else:
++                    lines.append(':%s %s:' % (field_role, name))
+ 
+-            if _type:
+-                lines.append(':%s %s: %s' % (type_role, _name, _type))
++                if _type:
++                    lines.append(':%s %s: %s' % (type_role, name, _type))
+         return lines + ['']
+ 
+     def _format_field(self, _name: str, _type: str, _desc: List[str]) -> List[str]:
+diff --git a/tox.ini b/tox.ini
+index bddd822a6..34baee205 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

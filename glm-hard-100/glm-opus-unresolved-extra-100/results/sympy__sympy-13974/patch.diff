@@ -1,0 +1,55 @@
+diff --git a/sympy/physics/quantum/tensorproduct.py b/sympy/physics/quantum/tensorproduct.py
+index 9dd10d219e..77f3e7cfc7 100644
+--- a/sympy/physics/quantum/tensorproduct.py
++++ b/sympy/physics/quantum/tensorproduct.py
+@@ -316,7 +316,15 @@ def tensor_product_simp_Mul(e):
+         return e
+     c_part, nc_part = e.args_cnc()
+     n_nc = len(nc_part)
+-    if n_nc == 0 or n_nc == 1:
++    if n_nc == 0:
++        return e
++    elif n_nc == 1:
++        # Handle case where the single nc part is a Pow of TensorProduct
++        # e.g., x**2 * (TensorProduct(1, A))**2 -> x**2 * TensorProduct(1, A**2)
++        if isinstance(nc_part[0], Pow):
++            nc_simp = tensor_product_simp(nc_part[0])
++            if nc_simp != nc_part[0]:
++                return Mul(*c_part) * nc_simp
+         return e
+     elif e.has(TensorProduct):
+         current = nc_part[0]
+@@ -382,7 +390,12 @@ def tensor_product_simp(e, **hints):
+     if isinstance(e, Add):
+         return Add(*[tensor_product_simp(arg) for arg in e.args])
+     elif isinstance(e, Pow):
+-        return tensor_product_simp(e.base) ** e.exp
++        base = tensor_product_simp(e.base)
++        if isinstance(base, TensorProduct):
++            # Distribute exponent across tensor product elements
++            # TensorProduct(a,b)**2 -> TensorProduct(a**2, b**2)
++            return TensorProduct(*[arg**e.exp for arg in base.args])
++        return base ** e.exp
+     elif isinstance(e, Mul):
+         return tensor_product_simp_Mul(e)
+     elif isinstance(e, Commutator):
+@@ -391,3 +404,19 @@ def tensor_product_simp(e, **hints):
+         return AntiCommutator(*[tensor_product_simp(arg) for arg in e.args])
+     else:
+         return e
++
++
++# Monkey-patch Mul and Pow to support expand(tensorproduct=True)
++def _Mul_eval_expand_tensorproduct(self, **hints):
++    return tensor_product_simp(self)
++
++
++def _Pow_eval_expand_tensorproduct(self, **hints):
++    return tensor_product_simp(self)
++
++
++# Add the methods only if they don't already exist
++if not hasattr(Mul, '_eval_expand_tensorproduct'):
++    Mul._eval_expand_tensorproduct = _Mul_eval_expand_tensorproduct
++if not hasattr(Pow, '_eval_expand_tensorproduct'):
++    Pow._eval_expand_tensorproduct = _Pow_eval_expand_tensorproduct

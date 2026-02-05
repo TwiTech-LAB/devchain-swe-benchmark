@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-16502",
+  "status": "completed",
+  "patch": "diff --git a/django/core/handlers/wsgi.py b/django/core/handlers/wsgi.py\nindex c2b7cc2b6f..591ec8a1b5 100644\n--- a/django/core/handlers/wsgi.py\n+++ b/django/core/handlers/wsgi.py\n@@ -133,6 +133,20 @@ class WSGIHandler(base.BaseHandler):\n         request = self.request_class(environ)\n         response = self.get_response(request)\n \n+        # Simulate the behavior of most web servers by removing the content\n+        # of responses for HEAD requests, 1xx, 204, and 304 responses.\n+        # Ensures compliance with RFC 9112 Section 6.3.\n+        if 100 <= response.status_code < 200 or response.status_code in (204, 304):\n+            if response.streaming:\n+                response.streaming_content = []\n+            else:\n+                response.content = b\"\"\n+        elif request.method == \"HEAD\":\n+            if response.streaming:\n+                response.streaming_content = []\n+            else:\n+                response.content = b\"\"\n+\n         response._handler_class = self.__class__\n \n         status = \"%d %s\" % (response.status_code, response.reason_phrase)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:58:04.114986",
+  "end_time": "2026-02-03T12:08:17.173721",
+  "duration_seconds": 613.058735,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "3e2a00e0-af0f-4819-ab5c-171129577ff7",
+      "epic_title": "Fix: django__django-16502",
+      "comment_id": "8006c334-2b6a-4fc3-93a0-1a0c16a780c1",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where Django's `runserver` returns response body for HTTP HEAD requests, violating RFC 9112 Section 6.3 (formerly RFC 2616 Section 4.3).\n\n## Root Cause\n\nAfter PR #26052, the `conditional_content_removal` function was removed from the production WSGI handler with the expectation that web servers (gunicorn, mod_wsgi) would handle HEAD request body stripping. However, Django's development server (`runserver`) did not implement this behavior.\n\n## Files Modified\n\n- `django/core/handlers/wsgi.py`: Added conditional content removal logic in `WSGIHandler.__call__` method to strip response bodies for:\n  - HEAD requests (any status code)\n  - 1xx informational responses\n  - 204 No Content responses\n  - 304 Not Modified responses\n  - Both regular and streaming responses\n\n## Test Results\n\nCreated comprehensive verification script that tests:\n- HEAD requests return no content \u2713\n- 204 No Content responses return no content \u2713\n- 304 Not Modified responses return no content \u2713\n- Normal GET requests still return content \u2713\n- Streaming responses with HEAD return no content \u2713\n- 1xx informational responses return no content \u2713\n- Edge cases (100 + HEAD, 204 + HEAD) handled correctly \u2713\n\n## Implementation Details\n\nThe fix follows the same logic as `conditional_content_removal` in `django/test/client.py`:\n1. Checks for 1xx, 204, 304 status codes and strips content\n2. Checks for HEAD request method and strips content\n3. Handles both regular and streaming responses\n\nThe fix is applied in `WSGIHandler.__call__` after getting the response from `get_response()` but before setting the response handler class and calling `start_response()`, ensuring headers are still properly set while the body is stripped.",
+      "created_at": "2026-02-03T11:06:40.181Z"
+    },
+    {
+      "epic_id": "3e2a00e0-af0f-4819-ab5c-171129577ff7",
+      "epic_title": "Fix: django__django-16502",
+      "comment_id": "e836c399-0ff7-4248-8ce6-f8ad9c50c911",
+      "author_name": "Code Reviewer",
+      "content": "Code Review PASSED\n\n**Checklist:**\n- [x] No test files modified \u2014 only `django/core/handlers/wsgi.py` changed\n- [x] No unrelated files modified \u2014 single file, directly related to the problem\n- [x] Fix logically addresses the problem \u2014 replicates the exact `conditional_content_removal` logic from `django/test/client.py` (lines 125-134) into `WSGIHandler.__call__`, which is what `runserver` uses\n- [x] No obvious crash bugs \u2014 mirrors proven existing logic; `content` setter does not modify `Content-Length` so headers remain correct; `HttpResponseNotModified.content` setter accepts falsy values so no crash on 304\n- [x] Changes are minimal and focused \u2014 14 lines added, all directly related to the fix\n\n**Notes:**\n- The fix uses `elif` for the HEAD check while the reference `conditional_content_removal` uses a separate `if`. This is functionally equivalent since both branches perform the identical operation (strip content).\n- Placement in `WSGIHandler.__call__` is correct: after `get_response()` but before `start_response()`, ensuring headers are preserved while the body is stripped.\n- Handles both regular (`response.content`) and streaming (`response.streaming_content`) responses correctly.",
+      "created_at": "2026-02-03T11:08:08.126Z"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "instance_id": "pylint-dev__pylint-7080",
+  "status": "completed",
+  "patch": "diff --git a/pylint/lint/pylinter.py b/pylint/lint/pylinter.py\nindex e2bbf061e..3786e7533 100644\n--- a/pylint/lint/pylinter.py\n+++ b/pylint/lint/pylinter.py\n@@ -34,7 +34,7 @@ from pylint.constants import (\n from pylint.interfaces import HIGH\n from pylint.lint.base_options import _make_linter_options\n from pylint.lint.caching import load_results, save_results\n-from pylint.lint.expand_modules import _is_ignored_file, expand_modules\n+from pylint.lint.expand_modules import _is_ignored_file, _is_in_ignore_list_re, expand_modules\n from pylint.lint.message_state_handler import _MessageStateHandler\n from pylint.lint.parallel import check_parallel\n from pylint.lint.report_functions import (\n@@ -602,6 +602,8 @@ class PyLinter(\n                         self.config.ignore,\n                         self.config.ignore_patterns,\n                         self.config.ignore_paths,\n+                    ) or _is_in_ignore_list_re(\n+                        root + os.sep, self.config.ignore_paths\n                     ):\n                         skip_subtrees.append(root)\n                         continue\ndiff --git a/test_debug/.pylintrc b/test_debug/.pylintrc\nnew file mode 100644\nindex 000000000..0b77043d0\n--- /dev/null\n+++ b/test_debug/.pylintrc\n@@ -0,0 +1,2 @@\n+[MASTER]\n+ignore-paths=^src/gen/.*$\ndiff --git a/test_debug/src/a.py b/test_debug/src/a.py\nnew file mode 100644\nindex 000000000..2ae28399f\n--- /dev/null\n+++ b/test_debug/src/a.py\n@@ -0,0 +1 @@\n+pass\ndiff --git a/test_debug/src/gen/b.py b/test_debug/src/gen/b.py\nnew file mode 100644\nindex 000000000..2ae28399f\n--- /dev/null\n+++ b/test_debug/src/gen/b.py\n@@ -0,0 +1 @@\n+pass\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T16:31:28.439734",
+  "end_time": "2026-01-31T16:43:19.339496",
+  "duration_seconds": 710.899762,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": []
+}

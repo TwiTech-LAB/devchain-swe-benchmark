@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-18698",
+  "status": "completed",
+  "patch": "diff --git a/sympy/polys/polytools.py b/sympy/polys/polytools.py\nindex c9e77a901f..287f5e3f7a 100644\n--- a/sympy/polys/polytools.py\n+++ b/sympy/polys/polytools.py\n@@ -5950,6 +5950,32 @@ def _symbolic_factor_list(expr, opt, method):\n \n                 factors.append((_factors_product(other), exp))\n \n+    # For square-free factorization, combine factors with the same multiplicity > 1\n+    if method == 'sqf' and factors:\n+        from collections import defaultdict\n+        grouped_gt1 = defaultdict(list)\n+        factors_eq1 = []\n+        for f, k in factors:\n+            if k == 1:\n+                # Keep multiplicity 1 factors as they are (they're already square-free)\n+                factors_eq1.append((f, k))\n+            else:\n+                # Group by multiplicity for k > 1\n+                grouped_gt1[k].append(f)\n+\n+        # Rebuild factors list with combined factors for multiplicities > 1\n+        factors = factors_eq1  # Start with multiplicity 1 factors\n+        for k in sorted(grouped_gt1.keys()):\n+            group = grouped_gt1[k]\n+            if len(group) == 1:\n+                factors.append((group[0], k))\n+            else:\n+                # Multiply all factors in this group\n+                result = group[0]\n+                for f in group[1:]:\n+                    result = result.mul(f) if hasattr(result, 'mul') else result * f\n+                factors.append((result, k))\n+\n     return coeff, factors\n \n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T03:18:54.355402",
+  "end_time": "2026-02-03T03:34:25.083634",
+  "duration_seconds": 930.728232,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "f49209ab-90be-4281-bb49-9b4400cedac1",
+      "epic_title": "Fix: sympy__sympy-18698",
+      "comment_id": "1e23fdc3-14a5-4787-bc84-fb46c0cfdf5f",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the inconsistency in `sqf_list` output where factors with the same multiplicity were not being combined.\n\n**Root Cause:** The `_symbolic_factor_list` function in `sympy/polys/polytools.py` decomposed expressions into multiplicative components and processed each separately. When components like `(x-2)**3` and `(x-3)**3` were processed, their results were combined without merging factors with the same multiplicity.\n\n**Fix:** Added post-processing logic in `_symbolic_factor_list` (lines 5953-5972) that:\n1. Groups factors by their multiplicity for multiplicities > 1\n2. Multiplies factors within each group to produce a single combined factor\n3. Preserves factors with multiplicity 1 as they are already square-free\n\n**Example:**\n- Before: `sqf_list((x**2 + 1) * (x - 1)**2 * (x - 2)**3 * (x - 3)**3)` returned `[(x**2 + 1, 1), (x - 1, 2), (x - 3, 3), (x - 2, 3)]`\n- After: Returns `[(x**2 + 1, 1), (x - 1, 2), (x**2 - 5*x + 6, 3)]`\n\n## Files Modified\n- `sympy/polys/polytools.py`: Added factor combining logic in `_symbolic_factor_list` function (lines 5953-5972)\n\n## Test Results\n- **Test files run:**\n  - `sympy/polys/tests/test_polytools.py`: 148 passed, 1 expected to fail\n  - `sympy/polys/tests/test_sqfreetools.py`: 3 passed\n  - `sympy/polys/tests/test_polyclasses.py`: 19 passed\n  \n- **All tests pass** - no regressions introduced\n\n## Additional Verification\nVerified the following edge cases:\n1. Multiple factors with same multiplicity \u2192 correctly combined\n2. Mixed multiplicities (1 and >1) \u2192 multiplicity 1 factors kept separate, >1 combined\n3. Single factor \u2192 works correctly\n4. Constant expressions \u2192 works correctly  \n5. `factor_list` remains unchanged \u2192 still returns irreducible factors\n\n## Concerns\n- The fix only applies to the `sqf` method, `factor_list` behavior is unchanged\n- Factors with multiplicity 1 are intentionally kept separate as they are already square-free",
+      "created_at": "2026-02-03T02:30:55.041Z"
+    },
+    {
+      "epic_id": "f49209ab-90be-4281-bb49-9b4400cedac1",
+      "epic_title": "Fix: sympy__sympy-18698",
+      "comment_id": "f0a2aeee-dab7-4e26-aed4-9249663339ca",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is confined to `sympy/polys/polytools.py` and does not touch tests/config.\n- The `method == 'sqf'` post-processing combines same-multiplicity factors (>1) into a single square-free factor, matching the issue\u2019s expected output.\n- Uses existing `_generic_factor_list` normalization/sorting, so output remains deterministic.",
+      "created_at": "2026-02-03T02:34:14.458Z"
+    }
+  ]
+}

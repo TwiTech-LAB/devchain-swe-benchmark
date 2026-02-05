@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-11820",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/base.py b/django/db/models/base.py\nindex 3ce711f3f1..9ea8e443fe 100644\n--- a/django/db/models/base.py\n+++ b/django/db/models/base.py\n@@ -1707,6 +1707,9 @@ class Model(metaclass=ModelBase):\n             _cls = cls\n             fld = None\n             for part in field.split(LOOKUP_SEP):\n+                # Handle 'pk' - it's an alias for the primary key field name.\n+                if part == 'pk':\n+                    part = _cls._meta.pk.name\n                 try:\n                     fld = _cls._meta.get_field(part)\n                     if fld.is_relation:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:19:03.831824",
+  "end_time": "2026-02-03T11:27:16.993256",
+  "duration_seconds": 493.161432,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "2815c618-1ae1-476f-aed6-108eafd99f83",
+      "epic_title": "Fix: django__django-11820",
+      "comment_id": "7fc38983-3b84-46f6-93ed-dd2b3f9caf45",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the false positive `models.E015` error when `Meta.ordering` contains `\"related_field__pk\"`.\n\n**Root Cause:** The `_check_ordering` method in `django/db/models/base.py` was not handling the special case of `pk` as a lookup in related field paths. When checking `option__pk`, it would try to call `get_field(\"pk\")` on the related model, which fails because `pk` is an alias for the primary key field, not an actual field name.\n\n**Fix:** Added a check in the related fields validation loop that replaces `part` with the actual primary key field name when `part == 'pk'`. This matches the behavior in `django/db/models/sql/query.py:1437-1438`.\n\n## Files Modified\n\n- `django/db/models/base.py`: Added `pk` alias handling in `_check_ordering` method (3 lines added)\n\n## Test Results\n\n- **Test file:** `tests/invalid_models_tests/test_models.py`\n- **Baseline (before fix):** 63 tests passed\n- **After fix:** 63 tests passed (no regressions)\n- **Query tests:** 282 tests passed\n- **Verified specific fix:** `parent__pk`, `-parent__pk`, `parent__grand_parent__pk` all work correctly now\n\n## Additional Verification\n\n- Confirmed `parent__pk` no longer raises E015 error\n- Confirmed queries with `parent__pk` ordering work correctly at runtime\n- Tested edge cases:\n  - Simple related pk: `parent__pk` \u2713\n  - Descending related pk: `-parent__pk` \u2713\n  - Nested related pk: `parent__grand_parent__pk` \u2713\n  - Mixed: `parent__pk` with other fields \u2713\n\n## Concerns\n\nNone. The fix is minimal, follows the existing pattern in `query.py`, and all tests pass.",
+      "created_at": "2026-02-03T10:26:00.112Z"
+    },
+    {
+      "epic_id": "2815c618-1ae1-476f-aed6-108eafd99f83",
+      "epic_title": "Fix: django__django-11820",
+      "comment_id": "372088c0-e3f6-401c-893f-d874d6d0df57",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED\n\n**Problem:** `models.E015` falsely raised when `Meta.ordering` contains `__pk` of a related field (e.g., `option__pk`), because `pk` is an alias and `get_field('pk')` fails.\n\n**Fix Verified:** The 3-line addition in `django/db/models/base.py` resolves `pk` to the actual primary key field name (`_cls._meta.pk.name`) before calling `get_field()` in the related fields validation loop. This follows the exact same pattern already established in `django/db/models/sql/query.py:1437-1438`.\n\n**Checklist:**\n- [x] No test files modified (source code only)\n- [x] No unrelated files modified\n- [x] Fix logically addresses the problem described in the problem statement\n- [x] No obvious crash bugs or logical errors introduced\n- [x] Changes are minimal and focused on the stated problem\n\n**Verdict:** PASS \u2014 minimal, correct fix consistent with existing Django patterns. All 63 existing tests pass with no regressions.",
+      "created_at": "2026-02-03T10:27:12.556Z"
+    }
+  ]
+}

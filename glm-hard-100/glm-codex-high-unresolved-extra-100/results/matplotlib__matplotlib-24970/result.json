@@ -1,0 +1,30 @@
+{
+  "instance_id": "matplotlib__matplotlib-24970",
+  "status": "completed",
+  "patch": "diff --git a/lib/matplotlib/colors.py b/lib/matplotlib/colors.py\nindex 2d3072da04..c9d13305d7 100644\n--- a/lib/matplotlib/colors.py\n+++ b/lib/matplotlib/colors.py\n@@ -725,6 +725,12 @@ class Colormap:\n                 # Avoid converting large positive values to negative integers.\n                 np.clip(xa, -1, self.N, out=xa)\n                 xa = xa.astype(int)\n+        elif xa.dtype.kind in (\"i\", \"u\"):\n+            # Ensure integer arrays can hold sentinel values (_i_over, _i_under,\n+            # _i_bad) which can be larger than the input dtype can represent.\n+            i_max = np.iinfo(xa.dtype).max\n+            if i_max < self.N + 2:\n+                xa = xa.astype(int)\n         # Set the over-range indices before the under-range;\n         # otherwise the under-range values get converted to over-range.\n         xa[xa > self.N - 1] = self._i_over\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T21:17:03.748882",
+  "end_time": "2026-01-31T21:21:46.731319",
+  "duration_seconds": 282.982437,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "d2b8bb0f-8098-4e75-a172-bcdc57e75189",
+      "epic_title": "Fix: matplotlib__matplotlib-24970",
+      "comment_id": "7856c014-5032-4d90-a375-6df4321d324f",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed NumPy 1.24 deprecation warnings when using colormap with uint8 arrays (and other small integer dtypes). The issue was that the code tried to assign sentinel values (`_i_over=N+1`, `_i_under=N`, `_i_bad=N+2`) to integer arrays that couldn't hold values larger than their max (e.g., uint8 max is 255, but N+2 can be 258).\n\n**Root cause**: In `Colormap.__call__()` (lib/matplotlib/colors.py:717-727), float inputs were converted to `int` dtype, but integer inputs were left as-is. When using uint8 (max=255) or other small integer types, the assignment of values like 256, 257, 258 triggered NumPy 1.24's out-of-bounds conversion warning.\n\n**Fix**: Added an `elif` clause (lines 728-733) to check if input is an integer dtype (signed \"i\" or unsigned \"u\") and if the dtype's max value is less than `self.N + 2`, convert to `int` dtype before assigning sentinel values.\n\n## Files Modified\n- `lib/matplotlib/colors.py`: Added integer dtype handling to prevent NumPy deprecation warnings\n\n## Test Results\n- **Test file:** /testbed/lib/matplotlib/tests/test_colors.py\n- **Baseline (before fix):** 250 passed, 1 failed, 1 skipped\n- **After fix:** 250 passed, 1 failed, 1 skipped\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** test_double_register_builtin_cmap (unrelated to this fix)\n\n## Additional Verification\nTested edge cases:\n- uint8 empty array (original bug case) - OK\n- uint8 with values - OK  \n- uint16 array - OK\n- int8 array - OK\n- int32 array - OK\n- float array - OK\n- scalar uint8 - OK\n\nAll edge cases pass without deprecation warnings.\n\n## Concerns\nNone. The fix is minimal and focused on the root cause.",
+      "created_at": "2026-01-31T20:20:37.084Z"
+    },
+    {
+      "epic_id": "d2b8bb0f-8098-4e75-a172-bcdc57e75189",
+      "epic_title": "Fix: matplotlib__matplotlib-24970",
+      "comment_id": "15866eb7-2bbd-43a3-b430-88e984d5ad0c",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and source-only (`lib/matplotlib/colors.py`), with no test/build config modifications.\n- Fix directly addresses NumPy 1.24 out-of-bounds integer assignment warnings by upcasting small integer dtypes before writing sentinel indices.\n- Verification looks adequate: `test_colors.py` run with baseline vs after showing no new failures (1 pre-existing failure unchanged).",
+      "created_at": "2026-01-31T20:21:37.557Z"
+    }
+  ]
+}

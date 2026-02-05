@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14140",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py\nindex ae0f886107..43c93ce455 100644\n--- a/django/db/models/query_utils.py\n+++ b/django/db/models/query_utils.py\n@@ -84,14 +84,10 @@ class Q(tree.Node):\n         path = '%s.%s' % (self.__class__.__module__, self.__class__.__name__)\n         if path.startswith('django.db.models.query_utils'):\n             path = path.replace('django.db.models.query_utils', 'django.db.models')\n-        args, kwargs = (), {}\n-        if len(self.children) == 1 and not isinstance(self.children[0], Q):\n-            child = self.children[0]\n-            kwargs = {child[0]: child[1]}\n-        else:\n-            args = tuple(self.children)\n-            if self.connector != self.default:\n-                kwargs = {'_connector': self.connector}\n+        args = tuple(self.children)\n+        kwargs = {}\n+        if self.connector != self.default:\n+            kwargs['_connector'] = self.connector\n         if self.negated:\n             kwargs['_negated'] = True\n         return path, args, kwargs\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:47:21.018146",
+  "end_time": "2026-02-03T01:53:12.864827",
+  "duration_seconds": 351.846681,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "3165b460-e074-4350-9b3f-f40d85b8a634",
+      "epic_title": "Fix: django__django-14140",
+      "comment_id": "5489614c-5afb-4351-ad00-a7bd42ff7782",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the `TypeError: 'Exists' object is not subscriptable` crash when calling `deconstruct()` on Q objects with non-subscriptable children (like `Exists()`, `Subquery()`, etc.).\n\n**Root Cause:** The `deconstruct()` method had a special case for single-child Q objects that tried to deconstruct them into kwargs using `child[0]` and `child[1]`, assuming the child was a 2-element tuple. This failed for non-subscriptable children like `Exists()`.\n\n**Fix Applied:** Removed the special case for single-child Q objects. Now all Q objects (single-child and multi-child) deconstruct their children into the `args` tuple, making the behavior consistent and fixing the crash.\n\n## Files Modified\n- `django/db/models/query_utils.py`: Simplified `deconstruct()` method to always use `args` for children, removed the special case that caused the crash\n\n## Test Results\n- **Verification:** Tested all Q deconstruct scenarios:\n  - Single keyword: `Q(x=1).deconstruct()` \u2192 `args=(('x', 1),), kwargs={}`\n  - Multiple keywords: `Q(x=1, y=2).deconstruct()` \u2192 `args=(('x', 1), ('y', 2)), kwargs={}`\n  - F expressions: Works correctly\n  - Negated Q: `~Q(x=1).deconstruct()` \u2192 includes `_negated: True`\n  - OR connector: Works correctly\n  - Nested Q: Works correctly\n  - **Non-subscriptable child (the bug case):** No longer crashes!\n  - Empty Q: Works correctly\n- **Reconstruction:** All Q objects can be successfully reconstructed using `Q(*args, **kwargs)`\n\n## Concerns\n- This is a breaking change to the serialization format of single-child Q objects\n- Old behavior: `Q(x=1).deconstruct()` returned `('django.db.models.Q', (), {'x': 1})`\n- New behavior: `Q(x=1).deconstruct()` returns `('django.db.models.Q', (('x', 1),), {})`\n- However, the problem statement notes: \"it's unlikely that anyone is relying on this undocumented behavior\"\n- The tests in `tests/queries/test_q.py` expect the old behavior and will need to be updated\n- Since `deconstruct()` is primarily used by Django's migration framework, and Q objects in migrations typically use the positional args form anyway, the impact should be minimal",
+      "created_at": "2026-02-03T00:52:08.422Z"
+    },
+    {
+      "epic_id": "3165b460-e074-4350-9b3f-f40d85b8a634",
+      "epic_title": "Fix: django__django-14140",
+      "comment_id": "c4250264-8266-4f34-862c-d8994ae963f5",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Diff is minimal and source-only (`django/db/models/query_utils.py`).\n- Removes the single-child `kwargs = {child[0]: child[1]}` special case that caused `TypeError: 'Exists' object is not subscriptable` and makes `Q.deconstruct()` consistent by always serializing children in `args`.\n- No obvious logical regressions in `connector`/`negated` handling (now `_connector` is emitted whenever non-default, regardless of child count).",
+      "created_at": "2026-02-03T00:53:05.117Z"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "instance_id": "sphinx-doc__sphinx-8056",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py\nindex b3daa06f1..ef9b5fc57 100644\n--- a/sphinx/ext/napoleon/docstring.py\n+++ b/sphinx/ext/napoleon/docstring.py\n@@ -273,7 +273,27 @@ class GoogleDocstring:\n         while not self._is_section_break():\n             _name, _type, _desc = self._consume_field(parse_type, prefer_type)\n             if _name or _type or _desc:\n-                fields.append((_name, _type, _desc,))\n+                # Check if multiple parameter names are separated by commas\n+                # Only split for simple names (no parentheses, backticks, or all asterisks)\n+                # This handles numpy-style parameters like \"x1, x2 : array_like\"\n+                # but doesn't split method signatures like \"func(i, j)\"\n+                # or special cases like \"*args, **kwargs\"\n+                names = [n.strip() for n in _name.split(',')]\n+                # Helper to check if a name is an asterisk parameter (escaped or not)\n+                def is_asterisk_param(n):\n+                    return n.startswith('*') or n.startswith(r'\\*')\n+                if (\n+                    len(names) > 1\n+                    and all(names)\n+                    and not any(('`' in n) for n in names)\n+                    and not any(('(' in n or ')' in n) for n in names)\n+                    and not all(is_asterisk_param(n) for n in names if n)\n+                ):\n+                    # Split into multiple fields with the same type and description\n+                    for name in names:\n+                        fields.append((name, _type, _desc,))\n+                else:\n+                    fields.append((_name, _type, _desc,))\n         return fields\n \n     def _consume_inline_attribute(self) -> Tuple[str, List[str]]:\ndiff --git a/tox.ini b/tox.ini\nindex bddd822a6..34baee205 100644\n--- a/tox.ini\n+++ b/tox.ini\n@@ -27,7 +27,7 @@ extras =\n setenv =\n     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils\n commands=\n-    pytest --durations 25 {posargs}\n+    pytest -rA --durations 25 {posargs}\n \n [testenv:flake8]\n basepython = python3\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T15:49:00.780644",
+  "end_time": "2026-02-03T16:00:41.756448",
+  "duration_seconds": 700.975804,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "7424068e-96ff-4a57-9be7-076379cfdac2",
+      "epic_title": "Fix: sphinx-doc__sphinx-8056",
+      "comment_id": "84cda933-b0ff-43c1-b34b-6245482a4c95",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the rendering error when combining multiple input parameters in numpy-style docstrings. The issue was that parameters like `x1, x2 : array_like` were being treated as a single parameter name with a comma, which didn't render properly.\n\n## Files Modified\n\n- **sphinx/ext/napoleon/docstring.py**: Modified `_consume_fields()` method to split comma-separated parameter names into separate fields. The fix:\n  - Splits parameter names like `x1, x2` into separate parameters with the same type and description\n  - Preserves special cases like method signatures `func(i, j)` (doesn't split due to parentheses)\n  - Preserves special cases like `*args, **kwargs` (doesn't split because both are asterisk parameters)\n  - Doesn't split names containing backticks (to handle special syntax)\n\n## Test Results\n\n- **Test file:** tests/test_ext_napoleon_docstring.py\n- **Baseline (before fix):** 39 passed, 2 failed (pre-existing)\n- **After fix:** 39 passed, 2 failed (same pre-existing failures)\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n\nTested multiple scenarios:\n- `x1, x2 : array_like` - Correctly splits into two parameters with same type\n- `x1, x2 : array_like, optional` - Correctly shows optional for both parameters\n- `x1, x2, x3 : array_like` - Correctly splits three parameters\n- `*args, **kwargs` - Correctly kept together as single parameter\n- Method signatures like `func(i, j)` - Correctly NOT split\n\n## Concerns\n\nNone - the fix handles all edge cases and follows the numpydoc convention for multiple parameters on one line.",
+      "created_at": "2026-02-03T14:58:38.087Z"
+    },
+    {
+      "epic_id": "7424068e-96ff-4a57-9be7-076379cfdac2",
+      "epic_title": "Fix: sphinx-doc__sphinx-8056",
+      "comment_id": "bd708130-c6e0-4fa5-b375-9a396819d445",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review: PASSED\n\n**Review Checklist:**\n- [x] No test files modified \u2014 only source code changed\n- [x] No unrelated files modified \u2014 `setup.py` and `tox.ini` are auto-excluded build configs\n- [x] Fix logically addresses the problem described in the problem statement\n- [x] No obvious crash bugs or logical errors introduced\n- [x] Changes are minimal and focused on the stated problem\n\n**Analysis:**\n\nThe fix in `_consume_fields()` correctly splits comma-separated parameter names (e.g., `x1, x2 : array_like`) into individual fields with the same type and description, matching the numpydoc convention.\n\nEdge case handling is sound:\n- `*args, **kwargs` \u2014 all asterisk params detected via `is_asterisk_param`, kept together (correct)\n- `func(i, j)` \u2014 parentheses detected, not split (correct)\n- Backtick names \u2014 not split (correct)\n- Interaction with `_escape_args_and_kwargs` is correct for both `GoogleDocstring` (base) and `NumpyDocstring` (override that splits on `\", \"` before escaping)\n\nTest results show no regressions (same 2 pre-existing failures before and after fix).\n\nApproved.",
+      "created_at": "2026-02-03T15:00:31.896Z"
+    }
+  ]
+}

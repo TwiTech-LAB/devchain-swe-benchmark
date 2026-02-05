@@ -1,0 +1,17 @@
+diff --git a/sklearn/metrics/_ranking.py b/sklearn/metrics/_ranking.py
+index 0cdead923..84dfd2f73 100644
+--- a/sklearn/metrics/_ranking.py
++++ b/sklearn/metrics/_ranking.py
+@@ -1083,7 +1083,11 @@ def roc_curve(
+     # to make sure that the curve starts at (0, 0)
+     tps = np.r_[0, tps]
+     fps = np.r_[0, fps]
+-    thresholds = np.r_[thresholds[0] + 1, thresholds]
++    # Use inf as the first threshold to ensure the curve starts at (0, 0).
++    # This works for both probability estimates (0-1 range) and decision
++    # function outputs (any real number), avoiding the issue of thresholds
++    # exceeding 1 when using probability estimates.
++    thresholds = np.r_[np.inf, thresholds]
+ 
+     if fps[-1] <= 0:
+         warnings.warn(

@@ -1,0 +1,71 @@
+diff --git a/sphinx/builders/linkcheck.py b/sphinx/builders/linkcheck.py
+index dd5317087..577737f32 100644
+--- a/sphinx/builders/linkcheck.py
++++ b/sphinx/builders/linkcheck.py
+@@ -213,7 +213,8 @@ class CheckExternalLinksBuilder(Builder):
+             if len(uri) == 0 or uri.startswith(('#', 'mailto:', 'ftp:')):
+                 return 'unchecked', '', 0
+             elif not uri.startswith(('http:', 'https:')):
+-                return 'local', '', 0
++                # Check if this is a valid internal reference
++                return self.check_internal_uri(uri, docname)
+             elif uri in self.good:
+                 return 'working', 'old', 0
+             elif uri in self.broken:
+@@ -337,6 +338,56 @@ class CheckExternalLinksBuilder(Builder):
+         if self.broken:
+             self.app.statuscode = 1
+ 
++    def check_internal_uri(self, uri: str, docname: str) -> Tuple[str, str, int]:
++        """Check if an internal URI reference is valid.
++
++        Returns tuple of (status, info, code) where:
++        - status: 'working' if reference exists, 'broken' if not, 'local' if not checkable
++        - info: error message if broken
++        - code: 0
++        """
++        # Check if the URI is a named reference in the standard domain
++        try:
++            std_domain = self.env.get_domain('std')
++
++            # Check in named labels (explicit references like .. _name: target)
++            if uri in std_domain.labels:
++                return 'working', '', 0
++
++            # Check in anonymous labels (implicit references)
++            if uri in std_domain.anonlabels:
++                return 'working', '', 0
++        except Exception:
++            # If we can't check the reference, treat it as local (unchecked)
++            pass
++
++        # Check if the URI is a valid document reference
++        # Strip .html or . extension if present
++        doc_ref = uri
++        if doc_ref.endswith('.html'):
++            doc_ref = doc_ref[:-5]
++        elif '.' in doc_ref and '.' not in doc_ref.replace('.', '', doc_ref.count('.') - 1):
++            # Handle other extensions by removing the last extension
++            doc_ref = path.splitext(doc_ref)[0]
++
++        # Split off anchor if present
++        if '#' in doc_ref:
++            doc_ref, anchor = doc_ref.split('#', 1)
++        else:
++            anchor = None
++
++        # Check if the document exists
++        if doc_ref in self.env.found_docs:
++            if anchor:
++                # If there's an anchor, we can't easily validate it without
++                # parsing the document's TOC, so treat it as working for now
++                # (the document exists, even if we can't verify the anchor)
++                return 'working', '', 0
++            return 'working', '', 0
++
++        # Not found in labels or documents - this is a broken internal link
++        return 'broken', __("Broken link to internal target: %s") % uri, 0
++
+     def write_entry(self, what: str, docname: str, filename: str, line: int,
+                     uri: str) -> None:
+         with open(path.join(self.outdir, 'output.txt'), 'a') as output:

@@ -1,0 +1,131 @@
+diff --git a/sphinx/domains/std.py b/sphinx/domains/std.py
+index d820cfe5c..759620c91 100644
+--- a/sphinx/domains/std.py
++++ b/sphinx/domains/std.py
+@@ -275,7 +275,7 @@ def split_term_classifiers(line: str) -> List[Optional[str]]:
+ 
+ def make_glossary_term(env: "BuildEnvironment", textnodes: Iterable[Node], index_key: str,
+                        source: str, lineno: int, node_id: str = None,
+-                       document: nodes.document = None) -> nodes.term:
++                       document: nodes.document = None, old_termtext: str = None) -> nodes.term:
+     # get a text-only representation of the term and register it
+     # as a cross-reference target
+     term = nodes.term('', '', *textnodes)
+@@ -305,7 +305,11 @@ def make_glossary_term(env: "BuildEnvironment", textnodes: Iterable[Node], index
+         term['ids'].append(node_id)
+ 
+     std = cast(StandardDomain, env.get_domain('std'))
+-    std.note_object('term', termtext.lower(), node_id, location=term)
++    # For i18n, update_object replaces the old term with the new translated term
++    if old_termtext is not None:
++        std.update_object('term', old_termtext, termtext, node_id)
++    else:
++        std.note_object('term', termtext, node_id, location=term)
+ 
+     # add an index entry too
+     indexnode = addnodes.index()
+@@ -663,6 +667,17 @@ class StandardDomain(Domain):
+                       RemovedInSphinx50Warning)
+         self.objects[objtype, name] = (docname, labelid)
+ 
++    def update_object(self, objtype: str, old_name: str, new_name: str, labelid: str) -> None:
++        """Update an object with a new name (used for i18n glossary term translation).
++
++        .. versionadded:: 3.0.2
++        """
++        # Remove the old entry if it exists
++        if (objtype, old_name) in self.objects:
++            del self.objects[objtype, old_name]
++        # Add the new entry (without duplicate warning since this is an update)
++        self.objects[objtype, new_name] = (self.env.docname, labelid)
++
+     @property
+     def progoptions(self) -> Dict[Tuple[str, str], Tuple[str, str]]:
+         return self.data.setdefault('progoptions', {})  # (program, name) -> docname, labelid
+@@ -928,9 +943,25 @@ class StandardDomain(Domain):
+                           node: pending_xref, contnode: Element) -> Element:
+         objtypes = self.objtypes_for_role(typ) or []
+         for objtype in objtypes:
+-            if (objtype, target) in self.objects:
+-                docname, labelid = self.objects[objtype, target]
+-                break
++            # For glossary terms, perform case-insensitive lookup
++            if objtype == 'term':
++                # First try exact match
++                if (objtype, target) in self.objects:
++                    docname, labelid = self.objects[objtype, target]
++                    break
++                # Try case-insensitive match
++                for (stored_objtype, stored_name), (docname2, labelid2) in self.objects.items():
++                    if stored_objtype == objtype and stored_name.lower() == target.lower():
++                        docname, labelid = docname2, labelid2
++                        break  # Break inner loop
++                else:
++                    # No match found in inner loop
++                    continue  # Continue to next objtype
++                break  # Break outer loop if inner loop found a match
++            else:
++                if (objtype, target) in self.objects:
++                    docname, labelid = self.objects[objtype, target]
++                    break
+         else:
+             docname, labelid = '', ''
+         if not docname:
+@@ -951,14 +982,30 @@ class StandardDomain(Domain):
+                 results.append(('std:' + role, res))
+         # all others
+         for objtype in self.object_types:
+-            key = (objtype, target)
++            # For glossary terms, perform case-insensitive lookup
+             if objtype == 'term':
++                # First try lowercase (for backwards compatibility)
+                 key = (objtype, ltarget)
+-            if key in self.objects:
+-                docname, labelid = self.objects[key]
+-                results.append(('std:' + self.role_for_objtype(objtype),
+-                                make_refnode(builder, fromdocname, docname,
+-                                             labelid, contnode)))
++                if key in self.objects:
++                    docname, labelid = self.objects[key]
++                    results.append(('std:' + self.role_for_objtype(objtype),
++                                    make_refnode(builder, fromdocname, docname,
++                                                 labelid, contnode)))
++                else:
++                    # Try case-insensitive match
++                    for (stored_objtype, stored_name), (docname2, labelid2) in self.objects.items():
++                        if stored_objtype == objtype and stored_name.lower() == ltarget:
++                            results.append(('std:' + self.role_for_objtype(objtype),
++                                            make_refnode(builder, fromdocname, docname2,
++                                                         labelid2, contnode)))
++                            break
++            else:
++                key = (objtype, target)
++                if key in self.objects:
++                    docname, labelid = self.objects[key]
++                    results.append(('std:' + self.role_for_objtype(objtype),
++                                    make_refnode(builder, fromdocname, docname,
++                                                 labelid, contnode)))
+         return results
+ 
+     def get_objects(self) -> Iterator[Tuple[str, str, str, str, str, int]]:
+diff --git a/sphinx/transforms/i18n.py b/sphinx/transforms/i18n.py
+index 34d5b1368..e3d410150 100644
+--- a/sphinx/transforms/i18n.py
++++ b/sphinx/transforms/i18n.py
+@@ -203,12 +203,15 @@ class Locale(SphinxTransform):
+             # glossary terms update refid
+             if isinstance(node, nodes.term):
+                 for _id in node['ids']:
++                    # Get the old term text before translation
++                    old_termtext = node.astext()
+                     parts = split_term_classifiers(msgstr)
+                     patch = publish_msgstr(self.app, parts[0], source,
+                                            node.line, self.config, settings)
+                     patch = make_glossary_term(self.env, patch, parts[1],
+                                                source, node.line, _id,
+-                                               self.document)
++                                               self.document,
++                                               old_termtext=old_termtext)
+                     processed = True
+ 
+             # update leaves with processed nodes

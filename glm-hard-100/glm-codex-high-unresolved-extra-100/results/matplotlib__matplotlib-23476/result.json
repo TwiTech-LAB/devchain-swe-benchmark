@@ -1,0 +1,30 @@
+{
+  "instance_id": "matplotlib__matplotlib-23476",
+  "status": "completed",
+  "patch": "diff --git a/lib/matplotlib/backend_bases.py b/lib/matplotlib/backend_bases.py\nindex 9ae2982c62..99d0eee214 100644\n--- a/lib/matplotlib/backend_bases.py\n+++ b/lib/matplotlib/backend_bases.py\n@@ -1653,7 +1653,8 @@ class FigureCanvasBase:\n         self.toolbar = None  # NavigationToolbar2 will set me\n         self._is_idle_drawing = False\n         # We don't want to scale up the figure DPI more than once.\n-        figure._original_dpi = figure.dpi\n+        if not hasattr(figure, '_original_dpi'):\n+            figure._original_dpi = figure.dpi\n         self._device_pixel_ratio = 1\n         super().__init__()  # Typically the GUI widget init (if any).\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T06:39:28.003427",
+  "end_time": "2026-02-03T06:43:39.702772",
+  "duration_seconds": 251.699345,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "852cc05c-0abf-4386-acb5-7d51fa4a8718",
+      "epic_title": "Fix: matplotlib__matplotlib-23476",
+      "comment_id": "341627cb-290b-469e-9834-4e785129b89e",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the DPI doubling bug during unpickling on MacOSX backend with high DPI displays.\n\n### Root Cause\n\nOn MacOSX with high DPI screens (device_pixel_ratio=2):\n1. When a figure is created, `FigureCanvasBase.__init__` sets `figure._original_dpi = figure.dpi` (e.g., 100)\n2. The backend then calls `_set_device_pixel_ratio(2)` which scales the DPI: `dpi = 2 * _original_dpi = 200`\n3. During unpickling, `__setstate__` restores the figure's state including `dpi=200`\n4. **BUG**: `FigureCanvasBase(self)` creates a new canvas and overwrites `_original_dpi = 200` (wrong!)\n5. The backend calls `_set_device_pixel_ratio(2)` again: `dpi = 2 * 200 = 400`\n\n### Solution\n\nIn `FigureCanvasBase.__init__`, only set `_original_dpi` if it doesn't already exist. This preserves the original unscaled DPI across pickle/unpickle cycles.\n\n## Files Modified\n- `lib/matplotlib/backend_bases.py`: Added conditional check to preserve `_original_dpi` when creating new canvas for existing figure\n\n## Test Results\n- **Test file:** lib/matplotlib/tests/test_pickle.py\n- **Baseline:** 182 passed\n- **After fix:** 182 passed\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n- Verified DPI preservation across multiple pickle/unpickle cycles\n- Tested edge cases: default DPI, device pixel ratio changes\n- All edge case tests pass\n\n## Concerns\n- Fix is minimal and targeted\n- Only affects the initialization path where a canvas is created for a figure that already has `_original_dpi` set (which happens during unpickling)",
+      "created_at": "2026-02-03T05:42:36.110Z"
+    },
+    {
+      "epic_id": "852cc05c-0abf-4386-acb5-7d51fa4a8718",
+      "epic_title": "Fix: matplotlib__matplotlib-23476",
+      "comment_id": "71ab217d-c8c0-43cc-99b3-1b2f7f71c055",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Diff is minimal and focused: only `lib/matplotlib/backend_bases.py` changes `FigureCanvasBase.__init__` to avoid overwriting an existing `figure._original_dpi`.\n- This directly addresses the reported MacOSX HiDPI pickle/unpickle DPI doubling root cause (prevents `_set_device_pixel_ratio()` from compounding the scaled DPI).\n- No test files or build configs modified; no unrelated file changes.",
+      "created_at": "2026-02-03T05:43:30.660Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-20438",
+  "status": "completed",
+  "patch": "diff --git a/sympy/sets/sets.py b/sympy/sets/sets.py\nindex 3c4aa86e36..6d55dc99ec 100644\n--- a/sympy/sets/sets.py\n+++ b/sympy/sets/sets.py\n@@ -852,6 +852,24 @@ def is_finite_set(self):\n         all_finite = fuzzy_and(s.is_finite_set for s in self.sets)\n         return fuzzy_or([self.is_empty, all_finite])\n \n+    def _eval_is_subset(self, other):\n+        \"\"\"\n+        Check if ProductSet is a subset of another set.\n+\n+        For finite ProductSets, iterate through all elements and check containment.\n+        For infinite ProductSets with finite other sets, return False.\n+        \"\"\"\n+        # If ProductSet is infinite and other is finite, cannot be a subset\n+        if self.is_finite_set is False and other.is_finite_set:\n+            return False\n+\n+        # If ProductSet is finite, check each element\n+        # Wrap tuples in Tuple since __iter__ yields plain tuples\n+        if self.is_iterable:\n+            return fuzzy_and(other._contains(Tuple(*e) if not isinstance(e, Tuple) else e)\n+                             for e in self)\n+        return None\n+\n     @property\n     def _measure(self):\n         measure = 1\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T19:19:01.784246",
+  "end_time": "2026-01-31T19:33:55.883989",
+  "duration_seconds": 894.099743,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "c602af2b-b492-44e5-9d87-2b693d04a899",
+      "epic_title": "Fix: sympy__sympy-20438",
+      "comment_id": "430e3254-7f27-4cf9-9f14-cb863019a27c",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `ProductSet.is_subset()` returning `None` instead of the correct result when comparing ProductSet with other sets like FiniteSet. The issue was that `ProductSet` did not implement `_eval_is_subset()`, causing the fallback logic to fail.\n\n## Files Modified\n\n- `sympy/sets/sets.py`: Added `_eval_is_subset()` method to `ProductSet` class (lines 855-869)\n  - Handles infinite ProductSet with finite other set \u2192 returns `False`\n  - Handles finite ProductSet \u2192 iterates through all elements and checks containment\n  - Wraps iteration results in `Tuple` objects since `__iter__` yields plain Python tuples\n\n## Test Results\n\n- **Test file:** `sympy/sets/tests/test_sets.py`\n- **Baseline (before fix):** 95 passed, 4 expected to fail\n- **After fix:** 95 passed, 4 expected to fail\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n\n```python\nfrom sympy import FiniteSet, ProductSet\n\na = FiniteSet(1, 2)\nb = ProductSet(a, a)\nc = FiniteSet((1, 1), (1, 2), (2, 1), (2, 2))\n\n# Both return True now (previously b.is_subset(c) returned None)\nb.is_subset(c)  # True\nc.is_subset(b)  # True\n```\n\nEdge cases verified:\n- Finite ProductSet with FiniteSet: Works correctly\n- Infinite ProductSet with finite set: Returns False correctly\n- Finite ProductSet with infinite ProductSet: Works correctly\n- Proper subset/superset methods work correctly\n\n## Concerns\n\nNone. The fix is minimal and focused on the root cause.",
+      "created_at": "2026-01-31T18:33:31.443Z"
+    }
+  ]
+}

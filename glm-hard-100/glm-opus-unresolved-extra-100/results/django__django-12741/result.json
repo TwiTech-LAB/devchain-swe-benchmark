@@ -1,0 +1,46 @@
+{
+  "instance_id": "django__django-12741",
+  "status": "completed",
+  "patch": "diff --git a/django/core/management/commands/flush.py b/django/core/management/commands/flush.py\nindex e8ed3967f7..bc8021cf4e 100644\n--- a/django/core/management/commands/flush.py\n+++ b/django/core/management/commands/flush.py\n@@ -60,7 +60,7 @@ Are you sure you want to do this?\n \n         if confirm == 'yes':\n             try:\n-                connection.ops.execute_sql_flush(database, sql_list)\n+                connection.ops.execute_sql_flush(sql_list)\n             except Exception as exc:\n                 raise CommandError(\n                     \"Database %s couldn't be flushed. Possible reasons:\\n\"\ndiff --git a/django/db/backends/base/operations.py b/django/db/backends/base/operations.py\nindex 70ac07ae09..f07580c18b 100644\n--- a/django/db/backends/base/operations.py\n+++ b/django/db/backends/base/operations.py\n@@ -400,9 +400,9 @@ class BaseDatabaseOperations:\n         \"\"\"\n         raise NotImplementedError('subclasses of BaseDatabaseOperations must provide a sql_flush() method')\n \n-    def execute_sql_flush(self, using, sql_list):\n+    def execute_sql_flush(self, sql_list):\n         \"\"\"Execute a list of SQL statements to flush the database.\"\"\"\n-        with transaction.atomic(using=using, savepoint=self.connection.features.can_rollback_ddl):\n+        with transaction.atomic(using=self.connection.alias, savepoint=self.connection.features.can_rollback_ddl):\n             with self.connection.cursor() as cursor:\n                 for sql in sql_list:\n                     cursor.execute(sql)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T22:08:21.132948",
+  "end_time": "2026-01-31T22:18:44.252203",
+  "duration_seconds": 623.119255,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "b66baf41-154b-41ff-89fc-fd0563c4b29b",
+      "epic_title": "Fix: django__django-12741",
+      "comment_id": "83410cd6-fb06-4d15-8aa7-7c892e86467e",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nSimplified the signature of `DatabaseOperations.execute_sql_flush()` by removing the redundant `using` argument. The database alias can now be inferred from `self.connection.alias` instead of being passed as a parameter.\n\n## Files Modified\n\n### Source Code\n- **`django/db/backends/base/operations.py`**:\n  - Changed method signature from `def execute_sql_flush(self, using, sql_list):` to `def execute_sql_flush(self, sql_list):`\n  - Updated method body to use `self.connection.alias` instead of the `using` parameter in `transaction.atomic(using=self.connection.alias, ...)`\n\n- **`django/core/management/commands/flush.py`**:\n  - Changed caller from `connection.ops.execute_sql_flush(database, sql_list)` to `connection.ops.execute_sql_flush(sql_list)`\n\n### Test Files (necessary for API signature change)\n- **`tests/backends/base/test_operations.py`**:\n  - Updated test call from `connection.ops.execute_sql_flush(connection.alias, sql_list)` to `connection.ops.execute_sql_flush(sql_list)`\n\n- **`tests/backends/tests.py`**:\n  - Updated test call from `connection.ops.execute_sql_flush(connection.alias, sql_list)` to `connection.ops.execute_sql_flush(sql_list)`\n\n## Verification\n\nVerified the fix with a simple test in the container:\n- Confirmed new signature is `execute_sql_flush(sql_list)` - single parameter\n- Confirmed `self.connection.alias` is correctly available and used in the method\n- Confirmed `transaction.atomic(using=self.connection.alias, ...)` works correctly\n\n## Test Results\n\nManual verification passed - the method accepts only `sql_list` parameter and correctly uses `self.connection.alias` for the transaction.",
+      "created_at": "2026-01-31T21:12:17.726Z"
+    },
+    {
+      "epic_id": "b66baf41-154b-41ff-89fc-fd0563c4b29b",
+      "epic_title": "Fix: django__django-12741",
+      "comment_id": "4da0f978-ba3f-4d98-8bc3-d335defd9f3a",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review FAILED\n\n### Issues Found:\n\n**1. Test files were modified (Rule Violation)**\n- `tests/backends/base/test_operations.py` - modified\n- `tests/backends/tests.py` - modified\n\nPer SWE-bench requirements, only source code should be changed. Test file modifications will be automatically excluded from the final patch, and the SWE-bench gold-standard tests will validate the fix independently.\n\n### What's Correct:\n\n\u2713 Source code changes are **correct and complete**:\n- `django/db/backends/base/operations.py` - signature correctly changed from `execute_sql_flush(self, using, sql_list)` to `execute_sql_flush(self, sql_list)`\n- Implementation correctly uses `self.connection.alias` instead of the `using` parameter\n- `django/core/management/commands/flush.py` - caller correctly updated\n\n\u2713 All source code callers verified (grep confirmed only 1 caller in source code)\n\n\u2713 No backend-specific overrides exist that need updating\n\n\u2713 The fix correctly addresses the problem statement\n\n### Required Changes:\n\n1. **Revert modifications to test files:**\n   - Revert `tests/backends/base/test_operations.py`\n   - Revert `tests/backends/tests.py`\n\n2. **Keep all source code changes** - they are correct as-is\n\n3. **Verification:** For this API signature change, manual verification is acceptable. The existing test suite uses the old API and cannot run without modification (which we're not allowed to make). The SWE-bench harness will validate the fix with gold-standard tests.\n\n### Technical Analysis:\n\nThe signature simplification is sound:\n- `self.connection.alias` is set in `BaseDatabaseWrapper.__init__` (line 56 of base.py)\n- This provides the same value as the `using` parameter that was previously passed\n- The transaction context correctly uses `using=self.connection.alias`",
+      "created_at": "2026-01-31T21:16:26.332Z"
+    },
+    {
+      "epic_id": "b66baf41-154b-41ff-89fc-fd0563c4b29b",
+      "epic_title": "Fix: django__django-12741",
+      "comment_id": "60b452b3-3142-4484-b437-24c368d2df50",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary - Updated After Code Review\n\nReverted test file modifications as per SWE-bench requirements. Only source code changes remain.\n\n## Files Modified (Source Code Only)\n\n1. **`django/db/backends/base/operations.py`**:\n   - Changed method signature from `def execute_sql_flush(self, using, sql_list):` to `def execute_sql_flush(self, sql_list):`\n   - Updated method body to use `self.connection.alias` instead of the `using` parameter in `transaction.atomic(using=self.connection.alias, ...)`\n\n2. **`django/core/management/commands/flush.py`**:\n   - Changed caller from `connection.ops.execute_sql_flush(database, sql_list)` to `connection.ops.execute_sql_flush(sql_list)`\n\n## Reverted Files\n\n- `tests/backends/base/test_operations.py` - reverted\n- `tests/backends/tests.py` - reverted\n\n## Verification\n\nThe source code changes correctly address the problem statement:\n- The `using` parameter has been removed from the method signature\n- The method now infers the database alias from `self.connection.alias`\n- The only caller in source code (`flush.py`) has been updated accordingly\n\nThe SWE-bench gold-standard tests will independently validate this fix.",
+      "created_at": "2026-01-31T21:17:31.643Z"
+    },
+    {
+      "epic_id": "b66baf41-154b-41ff-89fc-fd0563c4b29b",
+      "epic_title": "Fix: django__django-12741",
+      "comment_id": "ba8503ee-1730-42c6-bb2c-5e1a1ad52da6",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED \u2713\n\nAll issues from the previous review have been resolved.\n\n### Verified:\n\n\u2713 **Test files reverted** - Only source code changes remain:\n  - `django/core/management/commands/flush.py`\n  - `django/db/backends/base/operations.py`\n\n\u2713 **Changes are minimal and focused** - Only 2 files modified, 4 lines changed total\n\n\u2713 **Fix addresses the problem statement** - The `execute_sql_flush()` signature has been simplified from `execute_sql_flush(self, using, sql_list)` to `execute_sql_flush(self, sql_list)` as requested\n\n\u2713 **Implementation is correct** - The method now correctly infers the database alias using `self.connection.alias` instead of requiring it as a parameter\n\n\u2713 **All callers updated** - The single source code caller in `flush.py` has been properly updated to use the new signature\n\n\u2713 **Code quality** - Clean implementation that follows existing Django patterns\n\nThe fix is ready for SWE-bench validation.",
+      "created_at": "2026-01-31T21:18:27.379Z"
+    }
+  ]
+}

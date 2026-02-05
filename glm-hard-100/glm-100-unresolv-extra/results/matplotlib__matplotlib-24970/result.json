@@ -1,0 +1,22 @@
+{
+  "instance_id": "matplotlib__matplotlib-24970",
+  "status": "completed",
+  "patch": "diff --git a/lib/matplotlib/colors.py b/lib/matplotlib/colors.py\nindex 2d3072da04..c98e491879 100644\n--- a/lib/matplotlib/colors.py\n+++ b/lib/matplotlib/colors.py\n@@ -725,6 +725,9 @@ class Colormap:\n                 # Avoid converting large positive values to negative integers.\n                 np.clip(xa, -1, self.N, out=xa)\n                 xa = xa.astype(int)\n+        # For unsigned dtypes that cannot hold the special indices, convert to int.\n+        if xa.dtype.kind == \"u\" and np.iinfo(xa.dtype).max < self._i_bad:\n+            xa = xa.astype(int)\n         # Set the over-range indices before the under-range;\n         # otherwise the under-range values get converted to over-range.\n         xa[xa > self.N - 1] = self._i_over\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T15:16:32.914080",
+  "end_time": "2026-01-31T15:18:30.146440",
+  "duration_seconds": 117.23236,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "9b490156-aa27-4cb8-8184-c73ef785b539",
+      "epic_title": "Fix: matplotlib__matplotlib-24970",
+      "comment_id": "b98a1cc3-9800-43c0-994b-f6e2d186ba18",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed NumPy 1.24 deprecation warnings in `Colormap.__call__()` when using uint8 (or other small unsigned integer) input arrays. The issue was that special index values (`_i_over=N+1`, `_i_under=N`, `_i_bad=N+2`) were being assigned directly to unsigned integer arrays that couldn't hold these values (e.g., uint8 max is 255 but N+2=258 for N=256).\n\nThe fix checks if the array dtype is an unsigned integer type that cannot hold `_i_bad`, and if so, converts the array to a signed integer type before assigning the special indices.\n\n## Files Modified\n\n- `lib/matplotlib/colors.py`: Added check to convert unsigned integer dtypes to signed int when they cannot hold the special colormap index values (`_i_over`, `_i_under`, `_i_bad`)\n\n## Test Results\n\n- **Test file:** lib/matplotlib/tests/test_colors.py\n- **Baseline (before fix):** 250 passed, 1 failed, 1 skipped\n- **After fix:** 250 passed, 1 failed, 1 skipped\n- **Regression check:** No new failures introduced (the 1 failure is pre-existing: `test_double_register_builtin_cmap`)\n\n## Additional Verification\n\n- Original bug case `plt.get_cmap()(np.empty((0, ), dtype=np.uint8))` now runs without warnings from colors.py\n- Tested edge cases: empty uint8 arrays, non-empty uint8 arrays, uint16, uint32, masked arrays, out-of-range values\n\n## Concerns\n\nNone. The fix is minimal and focused on the root cause of the deprecation warnings.",
+      "created_at": "2026-01-31T14:18:22.640Z"
+    }
+  ]
+}

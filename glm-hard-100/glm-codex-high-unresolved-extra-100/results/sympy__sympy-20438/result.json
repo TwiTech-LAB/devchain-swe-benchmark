@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-20438",
+  "status": "completed",
+  "patch": "diff --git a/sympy/sets/sets.py b/sympy/sets/sets.py\nindex 3c4aa86e36..5a39fb3933 100644\n--- a/sympy/sets/sets.py\n+++ b/sympy/sets/sets.py\n@@ -865,6 +865,13 @@ def __len__(self):\n     def __bool__(self):\n         return all([bool(s) for s in self.sets])\n \n+    def _eval_is_subset(self, other):\n+        # Check if all elements of the ProductSet are in the other set\n+        # If the ProductSet is iterable (all components are finite),\n+        # check each element individually\n+        if self.is_iterable:\n+            return fuzzy_and(other._contains(el) for el in self)\n+\n \n class Interval(Set, EvalfMixin):\n     \"\"\"\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T02:38:09.712674",
+  "end_time": "2026-02-03T02:47:10.372787",
+  "duration_seconds": 540.660113,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "b36c4c89-c82e-4fa8-b729-97e6900e71d0",
+      "epic_title": "Fix: sympy__sympy-20438",
+      "comment_id": "b9f06fe4-7141-4c41-bf29-31b116738fbe",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nAdded `_eval_is_subset` method to `ProductSet` class to correctly handle subset checks with other sets (particularly `FiniteSet`).\n\n**Root Cause:** \n- `ProductSet` did not have its own `_eval_is_subset` method\n- When `b.is_subset(c)` was called (where `b` is a `ProductSet` and `c` is a `FiniteSet`), it fell through to the intersection-based fallback\n- The intersection `b.intersection(c)` returned a `FiniteSet`, not a `ProductSet`\n- So `b.intersection(c) == b` evaluated to `False` (different types), causing `is_subset` to return `None`\n\n**Solution:**\n- Added `_eval_is_subset` method to `ProductSet` that iterates through all elements when the ProductSet is iterable and checks if each element is contained in the other set\n- This mirrors the approach used by `FiniteSet._eval_is_subset`\n\n## Files Modified\n- `sympy/sets/sets.py`: Added `_eval_is_subset` method to `ProductSet` class (lines 868-872)\n\n## Test Results\n\n**Original Issue:**\n- `b.is_subset(c)` now returns `True` (previously returned `None`)\n- `c.is_subset(b)` returns `True` (already worked)\n\n**Comprehensive Testing:**\n- ProductSet == FiniteSet: PASS\n- FiniteSet == ProductSet: PASS\n- ProductSet subset of smaller FiniteSet: PASS (returns False)\n- ProductSet subset of larger FiniteSet: PASS (returns True)\n- ProductSet subset of itself: PASS\n- EmptySet subset of ProductSet: PASS\n- 3-way ProductSet: PASS\n- Interval ProductSet (infinite): PASS\n- Mixed ProductSet (finite x infinite): PASS\n\n## Edge Cases Handled\n- Empty inputs\n- Different input types (FiniteSet, ProductSet, Interval)\n- Boundary conditions (0, 1, 2, 3 elements)\n- Non-iterable ProductSets (falls back to base class behavior)\n\n## Concerns\nNone - the fix is minimal and follows existing patterns in the codebase.",
+      "created_at": "2026-02-03T01:45:34.443Z"
+    },
+    {
+      "epic_id": "b36c4c89-c82e-4fa8-b729-97e6900e71d0",
+      "epic_title": "Fix: sympy__sympy-20438",
+      "comment_id": "a13913ca-04cb-41e6-a9b2-2525158f930b",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and focused: only `sympy/sets/sets.py` modified; no tests/build configs touched.\n- `_eval_is_subset` added to `ProductSet` mirrors `FiniteSet._eval_is_subset` by using `fuzzy_and(other._contains(...))` when `self.is_iterable`, which directly addresses the reported `ProductSet.is_subset(FiniteSet)` returning `None` instead of `True` for finite cartesian products.\n- No obvious correctness or crash issues introduced; non-iterable `ProductSet` continues to fall back to existing logic.",
+      "created_at": "2026-02-03T01:47:00.779Z"
+    }
+  ]
+}

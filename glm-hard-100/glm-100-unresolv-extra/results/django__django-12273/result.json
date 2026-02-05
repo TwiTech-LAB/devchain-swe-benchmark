@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-12273",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/base.py b/django/db/models/base.py\nindex 844c01e95e..8bfa7ab255 100644\n--- a/django/db/models/base.py\n+++ b/django/db/models/base.py\n@@ -804,13 +804,26 @@ class Model(metaclass=ModelBase):\n         inserted = False\n         for parent, field in meta.parents.items():\n             # Make sure the link fields are synced between parent and self.\n+            # Track if the parent pk was explicitly reset to None while the pointer\n+            # field still has a value, which indicates the user wants to force an\n+            # INSERT instead of an UPDATE.\n+            parent_pk_reset = (\n+                field and\n+                not self._state.adding and\n+                getattr(self, field.attname) is None and\n+                getattr(self, parent._meta.pk.attname) is not None\n+            )\n             if (field and getattr(self, parent._meta.pk.attname) is None and\n-                    getattr(self, field.attname) is not None):\n+                    getattr(self, field.attname) is not None and\n+                    self._state.adding):\n                 setattr(self, parent._meta.pk.attname, getattr(self, field.attname))\n+            # If parent pk was reset, clear it before saving to force INSERT.\n+            if parent_pk_reset:\n+                setattr(self, parent._meta.pk.attname, None)\n             parent_inserted = self._save_parents(cls=parent, using=using, update_fields=update_fields)\n             updated = self._save_table(\n                 cls=parent, using=using, update_fields=update_fields,\n-                force_insert=parent_inserted,\n+                force_insert=parent_inserted or parent_pk_reset,\n             )\n             if not updated:\n                 inserted = True\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T18:38:44.677387",
+  "end_time": "2026-01-31T19:00:40.130791",
+  "duration_seconds": 1315.453404,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "786c5b1e-5cba-4dd1-8e10-d6fa51199b21",
+      "epic_title": "Fix: django__django-12273",
+      "comment_id": "83a7c630-23a8-42a0-b718-09dd342611de",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed issue #12273: Resetting primary key for a child model doesn't work.\n\nWhen a user explicitly sets the primary key of a derived model to None to force an INSERT (creating a new row instead of updating an existing one), Django was incorrectly restoring the parent's primary key from the OneToOneField pointer, causing an UPDATE instead of an INSERT.\n\n## Files Modified\n\n- `django/db/models/base.py`: Modified `_save_parents` method (lines 801-840)\n\n## Changes Made\n\n1. Added detection for \"pk reset\" scenario at lines 810-815:\n   - Detects when: not adding new object AND child pointer field is None AND parent pk attribute still has value\n   - This indicates the user intentionally reset the pk to force an INSERT\n\n2. Clear parent pk before saving when reset is detected (lines 820-822):\n   - Forces the parent to INSERT instead of UPDATE\n\n3. Pass `parent_pk_reset` to force_insert (line 826):\n   - Ensures the parent save uses INSERT mode\n\n## Test Results\n\n- **Model inheritance tests:** 46 tests passed\n- **Basic model tests:** 57 tests passed (2 skipped)\n- **Model inheritance regress tests:** 28 tests passed (1 expected failure)\n- **Proxy model inheritance tests:** 13 tests passed\n\n## Additional Verification\n\nCreated comprehensive tests covering:\n1. Basic reset and save - PASS\n2. Creating new derived objects - PASS  \n3. Updating existing objects without reset - PASS\n4. Multi-level inheritance reset - PASS\n5. Direct parent instance reset - PASS\n\n## Edge Cases Considered\n\n- Empty inputs (pk reset to None)\n- Multi-table inheritance\n- Parent/child pk synchronization\n- New object creation vs. existing object reset",
+      "created_at": "2026-01-31T18:00:29.575Z"
+    }
+  ]
+}

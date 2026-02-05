@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-16502",
+  "status": "completed",
+  "patch": "diff --git a/django/core/handlers/asgi.py b/django/core/handlers/asgi.py\nindex 39e2abe5a9..e7e9d7c797 100644\n--- a/django/core/handlers/asgi.py\n+++ b/django/core/handlers/asgi.py\n@@ -186,6 +186,18 @@ class ASGIHandler(base.BaseHandler):\n         # chunking).\n         if isinstance(response, FileResponse):\n             response.block_size = self.chunk_size\n+        # Strip the content for HEAD requests, 1xx, 204, and 304 responses\n+        # to ensure compliance with RFC 9112 Section 6.3.\n+        if 100 <= response.status_code < 200 or response.status_code in (204, 304):\n+            if response.streaming:\n+                response.streaming_content = []\n+            else:\n+                response.content = b\"\"\n+        if request.method == \"HEAD\":\n+            if response.streaming:\n+                response.streaming_content = []\n+            else:\n+                response.content = b\"\"\n         # Send the response.\n         await self.send_response(response, send)\n \ndiff --git a/django/core/handlers/wsgi.py b/django/core/handlers/wsgi.py\nindex c2b7cc2b6f..6d2b423242 100644\n--- a/django/core/handlers/wsgi.py\n+++ b/django/core/handlers/wsgi.py\n@@ -135,6 +135,19 @@ class WSGIHandler(base.BaseHandler):\n \n         response._handler_class = self.__class__\n \n+        # Strip the content for HEAD requests, 1xx, 204, and 304 responses\n+        # to ensure compliance with RFC 9112 Section 6.3.\n+        if 100 <= response.status_code < 200 or response.status_code in (204, 304):\n+            if response.streaming:\n+                response.streaming_content = []\n+            else:\n+                response.content = b\"\"\n+        if request.method == \"HEAD\":\n+            if response.streaming:\n+                response.streaming_content = []\n+            else:\n+                response.content = b\"\"\n+\n         status = \"%d %s\" % (response.status_code, response.reason_phrase)\n         response_headers = [\n             *response.items(),\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:54:11.106121",
+  "end_time": "2026-02-03T02:12:04.140923",
+  "duration_seconds": 1073.034802,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "d4f550df-2786-45a9-8b1f-43b851773842",
+      "epic_title": "Fix: django__django-16502",
+      "comment_id": "00a69c23-8258-4b51-b75b-afc00fcb2e7b",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where `runserver` (Django's development server) returns response bodies for HTTP HEAD requests, violating RFC 2616 section 4.3 / RFC 9112 Section 6.3.\n\n**Root Cause:** After PR #26052, response body stripping for HEAD requests was only implemented in the test client (`django/test/client.py`), but NOT in the production WSGI and ASGI handlers. This meant that `runserver` and other Django deployment methods were sending full response bodies for HEAD requests.\n\n## Files Modified\n\n- **django/core/handlers/wsgi.py**: Added content stripping logic in `WSGIHandler.__call__()` method\n- **django/core/handlers/asgi.py**: Added content stripping logic in `ASGIHandler.handle()` method\n\n## Changes Made\n\nBoth handlers now strip response bodies for:\n1. **HEAD requests** (all status codes)\n2. **1xx status codes** (100-199 informational responses)\n3. **204 No Content** responses\n4. **304 Not Modified** responses\n\nThis matches the existing behavior of the test client's `conditional_content_removal()` function and ensures RFC compliance.\n\n## Test Results\n\nVerified the fix with comprehensive tests:\n- **HEAD requests**: Return 0 bytes body content \u2713\n- **GET requests**: Still return full content \u2713\n- **204 responses**: Return 0 bytes body content \u2713\n- **304 responses**: Return 0 bytes body content \u2713\n- **Streaming responses**: Handle correctly for both HEAD and GET \u2713\n\nBoth WSGI and ASGI handlers tested and working correctly.\n\n## Additional Verification\n\nCreated and ran custom test scripts to verify:\n1. Regular responses with HEAD \u2192 empty body\n2. Regular responses with GET \u2192 full content\n3. Streaming responses with HEAD \u2192 empty body\n4. Streaming responses with GET \u2192 full content\n5. 204 and 304 status codes \u2192 empty body regardless of method\n\nAll tests passed successfully.\n\n## Concerns\n\nNone. The fix is minimal, focused, and follows the exact pattern already established in the test client code. The implementation is identical to the existing `conditional_content_removal()` function in `django/test/client.py`.",
+      "created_at": "2026-02-03T01:09:05.231Z"
+    },
+    {
+      "epic_id": "d4f550df-2786-45a9-8b1f-43b851773842",
+      "epic_title": "Fix: django__django-16502",
+      "comment_id": "eddea893-52d5-4f7f-86cf-7ecacaa63252",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Changes are limited to `django/core/handlers/wsgi.py` and `django/core/handlers/asgi.py` (no test/config edits).\n- Logic matches existing `django/test/client.py::conditional_content_removal()` and should ensure `runserver` (and other handler-based entrypoints) return empty bodies for HEAD, 1xx, 204, and 304 responses.\n- No obvious correctness or cleanup issues spotted (response `.close()` still runs; headers are preserved).",
+      "created_at": "2026-02-03T01:11:55.077Z"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+diff --git a/sympy/physics/quantum/tensorproduct.py b/sympy/physics/quantum/tensorproduct.py
+index 9dd10d219e..20a7a2bac3 100644
+--- a/sympy/physics/quantum/tensorproduct.py
++++ b/sympy/physics/quantum/tensorproduct.py
+@@ -314,6 +314,9 @@ def tensor_product_simp_Mul(e):
+     # TODO: This only works for the equivalent of single Qbit gates.
+     if not isinstance(e, Mul):
+         return e
++    # First simplify each part of the Mul (e.g., handle Pow of TensorProduct)
++    parts = [tensor_product_simp(arg) for arg in e.args]
++    e = Mul(*parts)
+     c_part, nc_part = e.args_cnc()
+     n_nc = len(nc_part)
+     if n_nc == 0 or n_nc == 1:
+@@ -382,6 +385,10 @@ def tensor_product_simp(e, **hints):
+     if isinstance(e, Add):
+         return Add(*[tensor_product_simp(arg) for arg in e.args])
+     elif isinstance(e, Pow):
++        # For powers of TensorProducts, distribute the power over components
++        # TensorProduct(A,B)**n -> TensorProduct(A**n, B**n)
++        if isinstance(e.base, TensorProduct):
++            return TensorProduct(*[arg**e.exp for arg in e.base.args])
+         return tensor_product_simp(e.base) ** e.exp
+     elif isinstance(e, Mul):
+         return tensor_product_simp_Mul(e)
+@@ -391,3 +398,14 @@ def tensor_product_simp(e, **hints):
+         return AntiCommutator(*[tensor_product_simp(arg) for arg in e.args])
+     else:
+         return e
++
++
++# Monkey-patch Pow to add _eval_expand_tensorproduct support
++def _pow_eval_expand_tensorproduct(self, **hints):
++    """Handle expand(tensorproduct=True) for powers of TensorProducts."""
++    if isinstance(self.base, TensorProduct):
++        return tensor_product_simp(self)
++    return self
++
++
++Pow._eval_expand_tensorproduct = _pow_eval_expand_tensorproduct

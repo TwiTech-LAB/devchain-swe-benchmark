@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-11848",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/http.py b/django/utils/http.py\nindex 572cfb4347..0b7246fb87 100644\n--- a/django/utils/http.py\n+++ b/django/utils/http.py\n@@ -176,10 +176,14 @@ def parse_http_date(date):\n     try:\n         year = int(m.group('year'))\n         if year < 100:\n-            if year < 70:\n-                year += 2000\n-            else:\n-                year += 1900\n+            # RFC 7231: interpret two-digit years that appear to be more than\n+            # 50 years in the future as representing the most recent year in\n+            # the past that had the same last two digits.\n+            current_year = datetime.datetime.now().year\n+            current_century = (current_year // 100) * 100\n+            year = current_century + year\n+            if year - current_year > 50:\n+                year -= 100\n         month = MONTHS.index(m.group('mon').lower()) + 1\n         day = int(m.group('day'))\n         hour = int(m.group('hour'))\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:07:24.649866",
+  "end_time": "2026-02-03T01:11:29.122449",
+  "duration_seconds": 244.472583,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "a91098b6-bfbe-4b78-9a08-0b0b91a29090",
+      "epic_title": "Fix: django__django-11848",
+      "comment_id": "a7d11a83-bb11-4493-b5ec-17f1b0a72fd1",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `django.utils.http.parse_http_date` to comply with RFC 7231 for two-digit year interpretation. The previous implementation used hardcoded ranges (0-69 \u2192 2000-2069, 70-99 \u2192 1970-1999). The new implementation dynamically interprets two-digit years relative to the current year with a 50-year threshold, as required by RFC 7231:\n\n> \"Recipients of a timestamp value in rfc850-date format, which uses a two-digit year, MUST interpret a timestamp that appears to be more than 50 years in the future as representing the most recent year in the past that had the same last two digits.\"\n\n## Files Modified\n- `django/utils/http.py`: Replaced hardcoded year mapping logic with RFC 7231 compliant algorithm\n\n## Test Results\n- **Test file:** tests/utils_tests/test_http.HttpDateProcessingTests\n- **Baseline (before fix):** 5 passed\n- **After fix:** 5 passed\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None in the HttpDateProcessingTests class\n\n## Additional Verification\nVerified RFC 7231 compliance with current year 2026:\n- Years 00-76 \u2192 2000-2076 (within 50 years from now)\n- Years 77-99 \u2192 1977-1999 (more than 50 years in the future \u2192 previous century)\n\nExample: \"Sunday, 06-Nov-94 08:49:37 GMT\" correctly maps to 1994 (not 2094) because 2094 would be 68 years in the future, exceeding the 50-year threshold.\n\n## Concerns\n- None. The fix is minimal, focused, and correctly implements RFC 7231 requirements.",
+      "created_at": "2026-02-03T00:09:53.427Z"
+    },
+    {
+      "epic_id": "a91098b6-bfbe-4b78-9a08-0b0b91a29090",
+      "epic_title": "Fix: django__django-11848",
+      "comment_id": "464e6505-4b89-438e-ae2b-794071c0697e",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and limited to `django/utils/http.py`.\n- Two-digit year handling now follows RFC 7231 by mapping to the current century and shifting back one century only when the interpreted year is >50 years in the future.\n- No test files or unrelated files were modified.",
+      "created_at": "2026-02-03T00:11:21.059Z"
+    }
+  ]
+}

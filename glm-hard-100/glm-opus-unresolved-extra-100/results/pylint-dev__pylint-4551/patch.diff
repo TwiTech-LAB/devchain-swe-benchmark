@@ -1,0 +1,45 @@
+diff --git a/pylint/pyreverse/writer.py b/pylint/pyreverse/writer.py
+index 0d80bb9ca..5b9e7f97a 100644
+--- a/pylint/pyreverse/writer.py
++++ b/pylint/pyreverse/writer.py
+@@ -134,11 +134,36 @@ class DotWriter(DiagramWriter):
+         if not self.config.only_classnames:
+             label = r"{}|{}\l|".format(label, r"\l".join(obj.attrs))
+             for func in obj.methods:
++                args = []
++                # Process positional arguments
+                 if func.args.args:
+-                    args = [arg.name for arg in func.args.args if arg.name != "self"]
+-                else:
+-                    args = []
+-                label = r"{}{}({})\l".format(label, func.name, ", ".join(args))
++                    for i, arg in enumerate(func.args.args):
++                        if arg.name == "self":
++                            continue
++                        arg_str = arg.name
++                        # Add type annotation if present
++                        annotations = func.args.annotations
++                        if i < len(annotations) and annotations[i] is not None:
++                            arg_str = "{}: {}".format(arg_str, annotations[i].as_string())
++                        args.append(arg_str)
++                # Process *args
++                if func.args.vararg:
++                    arg_str = "*{}".format(func.args.vararg)
++                    if func.args.varargannotation is not None:
++                        arg_str = "{}: {}".format(arg_str, func.args.varargannotation.as_string())
++                    args.append(arg_str)
++                # Process **kwargs
++                if func.args.kwarg:
++                    arg_str = "**{}".format(func.args.kwarg)
++                    if func.args.kwargannotation is not None:
++                        arg_str = "{}: {}".format(arg_str, func.args.kwargannotation.as_string())
++                    args.append(arg_str)
++                # Build method signature
++                method_str = "{}({})".format(func.name, ", ".join(args))
++                # Add return type if present
++                if func.returns is not None:
++                    method_str = "{} -> {}".format(method_str, func.returns.as_string())
++                label = r"{}{}\l".format(label, method_str)
+             label = "{%s}" % label
+         if is_exception(obj.node):
+             return dict(fontcolor="red", label=label, shape="record")

@@ -1,0 +1,183 @@
+diff --git a/sphinx/directives/other.py b/sphinx/directives/other.py
+index 19f7c0a8d..f98960b0c 100644
+--- a/sphinx/directives/other.py
++++ b/sphinx/directives/other.py
+@@ -376,6 +376,165 @@ class Include(BaseInclude, SphinxDirective):
+         rel_filename, filename = self.env.relfn2path(self.arguments[0])
+         self.arguments[0] = filename
+         self.env.note_included(filename)
++
++        # Get the docname for the included file to emit source-read event
++        docname = self.env.path2doc(filename)
++        if docname:
++            # Read the file content to emit source-read event
++            # This allows event handlers to modify the included content
++            encoding = self.options.get(
++                'encoding', self.state.document.settings.input_encoding)
++            e_handler = self.state.document.settings.input_encoding_error_handler
++
++            try:
++                import io
++                from docutils.statemachine import string2lines
++
++                with io.open(filename, encoding=encoding,
++                             errors=e_handler) as include_file:
++                    rawtext = include_file.read()
++
++                # Apply start-line and end-line options before emitting the event
++                startline = self.options.get('start-line', None)
++                endline = self.options.get('end-line', None)
++                if startline or (endline is not None):
++                    lines = rawtext.splitlines(True)
++                    rawtext = ''.join(lines[startline:endline])
++
++                # Apply start-after and end-before options
++                after_text = self.options.get('start-after', None)
++                if after_text:
++                    after_index = rawtext.find(after_text)
++                    if after_index >= 0:
++                        rawtext = rawtext[after_index + len(after_text):]
++
++                before_text = self.options.get('end-before', None)
++                if before_text:
++                    before_index = rawtext.find(before_text)
++                    if before_index >= 0:
++                        rawtext = rawtext[:before_index]
++
++                # Emit source-read event for the included file
++                # This allows extensions to modify the included content
++                arg = [rawtext]
++                self.env.events.emit('source-read', docname, arg)
++
++                # Process the (potentially modified) content
++                tab_width = self.options.get(
++                    'tab-width', self.state.document.settings.tab_width)
++                include_lines = string2lines(arg[0], tab_width,
++                                             convert_whitespace=True)
++
++                # Check line length limit
++                for i, line in enumerate(include_lines):
++                    if len(line) > self.state.document.settings.line_length_limit:
++                        raise self.warning('"%s": line %d exceeds the'
++                                           ' line-length-limit.' % (filename, i+1))
++
++                if 'literal' in self.options:
++                    # Handle literal option
++                    literal_block = nodes.literal_block(
++                        arg[0], source=filename,
++                        classes=self.options.get('class', []))
++                    literal_block.line = 1
++                    self.add_name(literal_block)
++
++                    if tab_width >= 0:
++                        text = arg[0].expandtabs(tab_width)
++                    else:
++                        text = arg[0]
++
++                    if 'number-lines' in self.options:
++                        from docutils.parsers.rst.directives.misc import NumberLines
++                        try:
++                            startline = int(self.options['number-lines'] or 1)
++                        except ValueError:
++                            raise self.error(':number-lines: with non-integer '
++                                             'start value')
++                        endline = startline + len(include_lines)
++                        if text.endswith('\n'):
++                            text = text[:-1]
++                        tokens = NumberLines([([], text)], startline, endline)
++                        for classes, value in tokens:
++                            if classes:
++                                literal_block += nodes.inline(value, value,
++                                                              classes=classes)
++                            else:
++                                literal_block += nodes.Text(value)
++                    else:
++                        literal_block += nodes.Text(text)
++                    return [literal_block]
++
++                if 'code' in self.options:
++                    # Handle code option - create a CodeBlock directive
++                    from docutils.parsers.rst.directives.code import CodeBlock
++                    self.options['source'] = filename
++                    if tab_width < 0:
++                        include_lines = arg[0].splitlines()
++                    codeblock = CodeBlock(self.name,
++                                          [self.options.pop('code')],
++                                          self.options,
++                                          include_lines,
++                                          self.lineno,
++                                          self.content_offset,
++                                          self.block_text,
++                                          self.state,
++                                          self.state_machine)
++                    return codeblock.run()
++
++                if 'parser' in self.options:
++                    # Handle parser option - parse into a dummy document
++                    from docutils import utils as docutils_utils
++                    document = docutils_utils.new_document(filename,
++                                                          self.state.document.settings)
++                    # Manage include_log to prevent circular inclusions
++                    include_log = self.state.document.include_log
++                    if not include_log:
++                        import os
++                        from docutils import utils as docutils_utils
++                        current_source = self.state.document.current_source
++                        from pathlib import Path
++                        include_log.append((docutils_utils.relative_path(
++                            None, Path(current_source)), (None, None, None, None)))
++                    document.include_log = include_log + [(filename, (None, None, None, None))]
++                    parser = self.options['parser']()
++                    parser.parse('\n'.join(include_lines), document)
++                    document.transformer.populate_from_components((parser,))
++                    document.transformer.apply_transforms()
++                    return document.children
++
++                # Handle standard RST include
++                # Manage include_log to prevent circular inclusions
++                import os
++                from docutils import utils as docutils_utils
++                from pathlib import Path
++
++                include_log = self.state.document.include_log
++                current_source = self.state.document.current_source
++                clip_options = (None, None, None, None)
++
++                # Initialize include_log if needed
++                if not include_log:
++                    include_log.append((docutils_utils.relative_path(
++                        None, Path(current_source)), clip_options))
++
++                # Check for circular inclusions
++                if (filename, clip_options) in include_log:
++                    master_paths = (pth for (pth, opt) in reversed(include_log))
++                    inclusion_chain = '\n> '.join((filename, *master_paths))
++                    raise self.warning('circular inclusion in "%s" directive:\n%s'
++                                       % (self.name, inclusion_chain))
++
++                # Insert the modified content into input stream
++                include_lines += ['', '.. end of inclusion from "%s"' % filename]
++                self.state_machine.insert_input(include_lines, filename)
++                include_log.append((filename, clip_options))
++                return []
++            except (OSError, UnicodeError):
++                # If there's an error reading the file, fall back to base class
++                # which will handle the error appropriately
++                pass
++
+         return super().run()
+ 
+ 
+diff --git a/tox.ini b/tox.ini
+index a3dc56211..c76147de3 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -24,7 +24,7 @@ setenv =
+     PYTHONWARNINGS = error
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -X warn_default_encoding -m pytest --durations 25 {posargs}
++    python -X dev -X warn_default_encoding -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:docs]
+ basepython = python3

@@ -1,0 +1,30 @@
+{
+  "instance_id": "matplotlib__matplotlib-25479",
+  "status": "completed",
+  "patch": "diff --git a/lib/matplotlib/cm.py b/lib/matplotlib/cm.py\nindex 38158db956..35b7a5f95f 100644\n--- a/lib/matplotlib/cm.py\n+++ b/lib/matplotlib/cm.py\n@@ -145,7 +145,9 @@ class ColormapRegistry(Mapping):\n             _api.warn_external(f\"Overwriting the cmap {name!r} \"\n                                \"that was already in the registry.\")\n \n-        self._cmaps[name] = cmap.copy()\n+        cmap_copy = cmap.copy()\n+        cmap_copy.name = name\n+        self._cmaps[name] = cmap_copy\n \n     def unregister(self, name):\n         \"\"\"\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T10:56:31.529196",
+  "end_time": "2026-02-03T11:09:35.450437",
+  "duration_seconds": 783.921241,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "45474c3f-16d4-4bbe-adb3-b877622d28c0",
+      "epic_title": "Fix: matplotlib__matplotlib-25479",
+      "comment_id": "d378eff3-9be6-4bba-883e-c83d08c07949",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe bug was in `ColormapRegistry.register()` method in `lib/matplotlib/cm.py`. When a colormap was registered with a different name than its internal `.name` attribute, the registry stored a copy of the colormap under the new name, but the copy still had the original `.name` attribute. This caused issues when `pyplot.set_cmap()` stored `cmap.name` in rcParams - it stored the original name instead of the registered name. Later, when `imshow()` called `get_cmap(None)`, it looked up the rcParams value which was the original (unregistered) name, causing a ValueError.\n\nThe fix updates the copied colormap's `.name` attribute to match the registered name, ensuring consistency between the registry key and the colormap's internal name.\n\n## Files Modified\n\n- `lib/matplotlib/cm.py`: Added 2 lines to update the copied colormap's name to match the registered name in `ColormapRegistry.register()`\n- `lib/matplotlib/tests/test_colors.py`: Updated `test_register_cmap` to check that the registered colormap has the correct name (instead of checking equality, which compared names)\n\n## Test Results\n\n- **Original bug scenario**: Verified working - creating a colormap with one name and registering it with a different name now works correctly with `plt.set_cmap()` and `plt.imshow()`\n- **Edge cases tested**: \n  - Register with same name as original\n  - Register with different name\n  - Register without specifying name\n  - Original colormap not modified after registration\n- **test_register_cmap**: Updated and passing\n- **test_colors.py**: 264 passed, 1 skipped (1 pre-existing failure unrelated to this fix)\n\n## Concerns\n\n- The `test_double_register_builtin_cmap` test was already failing before our changes (unrelated to this fix - it's about warning handling in deprecated functions)",
+      "created_at": "2026-02-03T10:07:45.921Z"
+    },
+    {
+      "epic_id": "45474c3f-16d4-4bbe-adb3-b877622d28c0",
+      "epic_title": "Fix: matplotlib__matplotlib-25479",
+      "comment_id": "9c040f91-fb53-48f5-b529-82e9098d7240",
+      "author_name": "Code Reviewer",
+      "content": "Code Review PASSED.\n\nThe fix correctly addresses the root cause: when a colormap is registered under a name different from its `.name` attribute, the stored copy's `.name` now matches the registered key. This prevents the mismatch that caused `plt.set_cmap()` to store an unregistered name in rcParams, which then failed lookup in `get_cmap()`.\n\nReview checklist:\n- [x] Source code change is minimal (2 lines in `ColormapRegistry.register()`)\n- [x] Fix logically addresses the problem described in the issue\n- [x] No crash bugs or logical errors \u2014 handles both `name=None` and explicit name correctly\n- [x] Original colormap is not mutated (uses `.copy()`)\n- [x] No unrelated files modified\n- [x] Test file change (`test_colors.py`) is auto-excluded from final patch; the old assertion would expectedly fail since the registered copy now has the registered name instead of the original name \u2014 this is correct new behavior, not a regression",
+      "created_at": "2026-02-03T10:09:29.288Z"
+    }
+  ]
+}

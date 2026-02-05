@@ -1,0 +1,84 @@
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 9735ce10c8..dd3a32e611 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -545,11 +545,79 @@ class Query(BaseExpression):
+ 
+         return dict(zip(outer_query.annotation_select, result))
+ 
++    def _get_annotation_refs(self, expr, check_identity=True):
++        """
++        Return a set of annotation names referenced by the given expression.
++        If check_identity is True, also check if expr is the same object as
++        an annotation (by object identity).
++        """
++        refs = set()
++        if isinstance(expr, Ref):
++            refs.add(expr.refs)
++        # Check if this expression is exactly the same object as an annotation
++        if check_identity:
++            for name, annotation in self.annotations.items():
++                if expr is annotation:
++                    refs.add(name)
++        if hasattr(expr, "get_source_expressions"):
++            for source in expr.get_source_expressions():
++                refs.update(self._get_annotation_refs(source, check_identity))
++        return refs
++
++    def _get_used_annotation_names(self):
++        """
++        Return the set of annotation names that are used by the query.
++        An annotation is used if it's referenced by:
++        - A filter (where clause)
++        - An ordering
++        - Another annotation (transitively)
++        """
++        used_names = set()
++
++        # Check where clause for annotation references
++        if self.where:
++            for child in self.where.children:
++                used_names.update(self._get_annotation_refs(child))
++
++        # Check order_by for annotation references
++        for item in self.order_by:
++            if isinstance(item, str):
++                if item.startswith("-"):
++                    item = item[1:]
++                if item in self.annotations:
++                    used_names.add(item)
++            elif hasattr(item, "get_source_expressions"):
++                for source in item.get_source_expressions():
++                    used_names.update(self._get_annotation_refs(source))
++
++        # Transitively check if referenced annotations reference others
++        to_process = list(used_names)
++        while to_process:
++            name = to_process.pop()
++            if name in self.annotations:
++                for ref in self._get_annotation_refs(self.annotations[name]):
++                    if ref not in used_names:
++                        used_names.add(ref)
++                        to_process.append(ref)
++
++        return used_names
++
+     def get_count(self, using):
+         """
+         Perform a COUNT() query using the current filter constraints.
+         """
+         obj = self.clone()
++        # Find which annotations are used by filters, ordering, or other annotations.
++        used_names = obj._get_used_annotation_names()
++        unused_names = set(obj.annotations.keys()) - used_names
++
++        # Set the annotation_select_mask to exclude unused annotations.
++        # This keeps the annotations in the dict (so get_aggregation uses the
++        # subquery path when needed) but excludes them from the SELECT clause.
++        if unused_names:
++            # The mask should include only used annotations (and later __count)
++            obj.set_annotation_mask(used_names)
++
+         obj.add_annotation(Count("*"), alias="__count", is_summary=True)
+         return obj.get_aggregation(using, ["__count"])["__count"]
+ 

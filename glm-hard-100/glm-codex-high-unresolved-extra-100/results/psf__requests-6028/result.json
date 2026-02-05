@@ -1,0 +1,30 @@
+{
+  "instance_id": "psf__requests-6028",
+  "status": "completed",
+  "patch": "diff --git a/requests/utils.py b/requests/utils.py\nindex 1c2ae4e0..d834c5f5 100644\n--- a/requests/utils.py\n+++ b/requests/utils.py\n@@ -974,6 +974,11 @@ def prepend_scheme_if_needed(url, new_scheme):\n     if not netloc:\n         netloc, path = path, netloc\n \n+    if auth:\n+        # parse_url doesn't provide the netloc with auth\n+        # so we'll add it ourselves.\n+        netloc = '@'.join([auth, netloc])\n+\n     if scheme is None:\n         scheme = new_scheme\n     if path is None:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T06:48:01.728172",
+  "end_time": "2026-02-03T07:03:01.818621",
+  "duration_seconds": 900.090449,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "24b84424-105d-4f0a-8436-dee33a6aaed5",
+      "epic_title": "Fix: psf__requests-6028",
+      "comment_id": "4c15ad09-d327-4938-9439-bdabca69148a",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the proxy authentication bug in Python 3.8.12+ where the `Proxy-Authorization` header credentials were being lost when processing proxy URLs.\n\n## Root Cause\n\nThe `prepend_scheme_if_needed` function in `requests/utils.py` was not preserving authentication credentials when reconstructing URLs. The `parse_url` function from urllib3 returns `auth` separately from `netloc`, but the code was using `parsed.netloc` directly when constructing the URL, which doesn't include the auth component.\n\n## Files Modified\n\n- **requests/utils.py** (lines 977-980): Added code to prepend auth credentials to netloc when auth is present in the URL\n\n## Test Results\n\n- **Test file:** `/testbed/tests/test_utils.py::test_prepend_scheme_if_needed`\n- **Baseline (before fix):** 3 passed\n- **After fix:** 3 passed (no regressions)\n- **Additional verification:** Tested end-to-end proxy authentication flow - `Proxy-Authorization` header is correctly generated and credentials are preserved in proxy URLs\n\n## Code Change\n\n```python\nif auth:\n    # parse_url doesn't provide the netloc with auth\n    # so we'll add it ourselves.\n    netloc = '@'.join([auth, netloc])\n```\n\n## Edge Cases Handled\n\n- URLs with username and password: `http://user:pass@proxy.example.com:8080`\n- URLs with only username: `http://user@proxy.example.com:8080`\n- URLs with // prefix and auth: `//user:pass@proxy.example.com:8080`",
+      "created_at": "2026-02-03T06:01:40.678Z"
+    },
+    {
+      "epic_id": "24b84424-105d-4f0a-8436-dee33a6aaed5",
+      "epic_title": "Fix: psf__requests-6028",
+      "comment_id": "76c71c06-948a-45fa-abef-43f8b6624732",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and scoped to `requests/utils.py` only; no tests or build configs modified.\n- Fix correctly re-attaches `auth` to `netloc` in `prepend_scheme_if_needed`, matching the reported proxy URL/auth loss scenario.\n- Reported verification (`test_utils.py::test_prepend_scheme_if_needed`) passes before/after with no regressions noted.",
+      "created_at": "2026-02-03T06:02:52.624Z"
+    }
+  ]
+}

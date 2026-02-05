@@ -1,0 +1,48 @@
+diff --git a/pylint/utils/utils.py b/pylint/utils/utils.py
+index fa7f7b92f..0011eef94 100644
+--- a/pylint/utils/utils.py
++++ b/pylint/utils/utils.py
+@@ -217,8 +217,10 @@ def _splitstrip(string: str, sep: str = ",") -> list[str]:
+     ['a', 'b', 'c', '4']
+     >>> _splitstrip('a')
+     ['a']
+-    >>> _splitstrip('a,\nb,\nc,')
++    >>> _splitstrip('a,\\nb,\\nc,')
+     ['a', 'b', 'c']
++    >>> _splitstrip('a\\, b, c')
++    ['a, b', 'c']
+ 
+     :type string: str or unicode
+     :param string: a csv line
+@@ -229,6 +231,31 @@ def _splitstrip(string: str, sep: str = ",") -> list[str]:
+     :rtype: str or unicode
+     :return: the unquoted string (or the input string if it wasn't quoted)
+     """
++    # Handle escaped separators by splitting character by character
++    if sep == ",":
++        result = []
++        current = []
++        i = 0
++        while i < len(string):
++            if string[i] == "\\" and i + 1 < len(string) and string[i + 1] == ",":
++                # Escaped comma, add the comma to current
++                current.append(",")
++                i += 2
++            elif string[i] == ",":
++                # Separator, split here
++                part = "".join(current).strip()
++                if part:
++                    result.append(part)
++                current = []
++                i += 1
++            else:
++                current.append(string[i])
++                i += 1
++        # Add remaining part
++        part = "".join(current).strip()
++        if part:
++            result.append(part)
++        return result
+     return [word.strip() for word in string.split(sep) if word.strip()]
+ 
+ 

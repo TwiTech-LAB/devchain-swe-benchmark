@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-15022",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py\nindex 66f3396a6b..18ab249c84 100644\n--- a/django/contrib/admin/options.py\n+++ b/django/contrib/admin/options.py\n@@ -1031,6 +1031,7 @@ class ModelAdmin(BaseModelAdmin):\n         if search_fields and search_term:\n             orm_lookups = [construct_search(str(search_field))\n                            for search_field in search_fields]\n+            search_conditions = []\n             for bit in smart_split(search_term):\n                 if bit.startswith(('\"', \"'\")) and bit[0] == bit[-1]:\n                     bit = unescape_string_literal(bit)\n@@ -1038,7 +1039,10 @@ class ModelAdmin(BaseModelAdmin):\n                     *((orm_lookup, bit) for orm_lookup in orm_lookups),\n                     _connector=models.Q.OR,\n                 )\n-                queryset = queryset.filter(or_queries)\n+                search_conditions.append(or_queries)\n+            # Apply all search conditions in a single filter() call to avoid\n+            # redundant JOINs when searching across related fields.\n+            queryset = queryset.filter(*search_conditions)\n             may_have_duplicates |= any(\n                 lookup_spawns_duplicates(self.opts, search_spec)\n                 for search_spec in orm_lookups\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T15:08:52.846498",
+  "end_time": "2026-02-03T15:18:26.116528",
+  "duration_seconds": 573.27003,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "422cfcaa-5372-42ee-97dd-05cf33218f1c",
+      "epic_title": "Fix: django__django-15022",
+      "comment_id": "e729e6c0-a64e-4049-8283-41c225e73dd2",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue of unnecessary joins in admin changelist queries when searching with multiple words across related fields.\n\n### Root Cause\nIn `django/contrib/admin/options.py`, the `get_search_results()` method was calling `queryset.filter()` for each search word. When search_fields included related fields (e.g., `clientoffice__name`), each `filter()` call created new JOINs to the related table, resulting in redundant JOINs and poor performance.\n\n### The Fix\nChanged the code to collect all search condition Q objects into a list and apply them in a single `filter()` call:\n\n**Before (line 1041):**\n```python\nfor bit in smart_split(search_term):\n    ...\n    queryset = queryset.filter(or_queries)  # Creates JOINs for each word\n```\n\n**After:**\n```python\nsearch_conditions = []\nfor bit in smart_split(search_term):\n    ...\n    search_conditions.append(or_queries)\nqueryset = queryset.filter(*search_conditions)  # Creates JOINs only once\n```\n\n### Benefits\n- Only ONE JOIN to related tables instead of multiple JOINs\n- Significantly better performance for multi-word searches on related fields\n- Semantically equivalent - produces same search results with better SQL\n\n### Files Modified\n- `django/contrib/admin/options.py`: Lines 1029-1050\n\n### Test Results\n- Verified the fix correctly handles all edge cases:\n  - Empty search terms\n  - Single search word\n  - Multiple search words (the main fix)\n  - Multiple search fields with OR logic within each word\n\n### Concerns\n- None - the fix is minimal and focused\n- The change is backward compatible - produces identical search results with better performance",
+      "created_at": "2026-02-03T14:16:44.686Z"
+    },
+    {
+      "epic_id": "422cfcaa-5372-42ee-97dd-05cf33218f1c",
+      "epic_title": "Fix: django__django-15022",
+      "comment_id": "d27c6ba5-c619-4dca-989c-f90bd09d1bf9",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\nThe fix correctly addresses the problem of unnecessary JOINs in admin changelist queries. By collecting all per-word Q objects into a list and applying them via a single `queryset.filter(*search_conditions)` call, redundant JOINs to related tables are eliminated. The change is minimal (4 lines), focused, and no test files or unrelated files were modified. No crash bugs or logical errors introduced.",
+      "created_at": "2026-02-03T14:18:20.921Z"
+    }
+  ]
+}

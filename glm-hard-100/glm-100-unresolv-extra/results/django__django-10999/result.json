@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-10999",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/dateparse.py b/django/utils/dateparse.py\nindex 8d08b7d1d3..a037758784 100644\n--- a/django/utils/dateparse.py\n+++ b/django/utils/dateparse.py\n@@ -29,7 +29,7 @@ datetime_re = re.compile(\n standard_duration_re = re.compile(\n     r'^'\n     r'(?:(?P<days>-?\\d+) (days?, )?)?'\n-    r'((?:(?P<hours>-?\\d+):)(?=\\d+:\\d+))?'\n+    r'((?:(?P<hours>-?\\d+):)(?=-?\\d+:-?\\d+))?'\n     r'(?:(?P<minutes>-?\\d+):)?'\n     r'(?P<seconds>-?\\d+)'\n     r'(?:\\.(?P<microseconds>\\d{1,6})\\d{0,6})?'\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T15:27:20.640547",
+  "end_time": "2026-01-31T15:30:44.072887",
+  "duration_seconds": 203.43234,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "76e407a8-b71b-416c-8088-c10b7b604c4c",
+      "epic_title": "Fix: django__django-10999",
+      "comment_id": "2c4f76ae-06ae-4425-a3cf-25d1d14a5e9d",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the `standard_duration_re` regex pattern in `django/utils/dateparse.py` to correctly parse negative durations with negative minutes/seconds. The issue was that the lookahead assertion for hours (`(?=\\d+:\\d+)`) didn't account for optional negative signs in the minutes and seconds components.\n\nChanged the lookahead from `(?=\\d+:\\d+)` to `(?=-?\\d+:-?\\d+)` to properly match durations like `-1:-15:30` and `-1:-15:-30`.\n\n## Files Modified\n- `django/utils/dateparse.py:32` - Updated the `standard_duration_re` regex pattern\n\n## Test Results\n- **Test file:** `/testbed/tests/utils_tests/test_dateparse.py`\n- **Baseline (before fix):** 12 passed, 0 failed, 0 errors\n- **After fix:** 12 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n\nTested the specific cases mentioned in the issue:\n```python\n'-1:-15:30'   -> Now parses correctly (was None before)\n'-1:-15:-30'  -> Now parses correctly (was None before)\n'1:-15:30'    -> Now parses correctly (was None before)\n```\n\nAll edge cases work correctly:\n- Negative hours with positive/negative minutes/seconds\n- Positive hours with negative minutes/seconds\n- Various combinations of day prefixes with negative time components\n\n## Concerns\nNone. The fix is minimal (one character change in regex pattern adding `-?` twice) and focused on the root cause. All existing tests pass.",
+      "created_at": "2026-01-31T14:30:29.291Z"
+    }
+  ]
+}

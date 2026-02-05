@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-15629",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/fields/related.py b/django/db/models/fields/related.py\nindex fad5560486..817e622054 100644\n--- a/django/db/models/fields/related.py\n+++ b/django/db/models/fields/related.py\n@@ -1180,7 +1180,9 @@ class ForeignKey(ForeignObject):\n         return self.target_field.rel_db_type(connection=connection)\n \n     def db_parameters(self, connection):\n-        return {\"type\": self.db_type(connection), \"check\": self.db_check(connection)}\n+        db_params = {\"type\": self.db_type(connection), \"check\": self.db_check(connection)}\n+        db_params[\"collation\"] = getattr(self.target_field, \"db_collation\", None)\n+        return db_params\n \n     def convert_empty_strings(self, value, expression, connection):\n         if (not value) and isinstance(value, str):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T02:57:44.522969",
+  "end_time": "2026-02-03T03:08:17.786909",
+  "duration_seconds": 633.26394,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "8c5e42cd-b860-4646-9926-964a39c375c1",
+      "epic_title": "Fix: django__django-15629",
+      "comment_id": "487286c0-7e40-4725-9b9a-b40ea3e4dabf",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where `db_collation` was not propagated from a primary key field to its foreign key references. The problem was that the `ForeignObject.db_parameters()` method only returned `type` and `check` parameters, omitting `collation`.\n\n## Root Cause\n\nIn `django/db/models/fields/related.py`, the `ForeignObject.db_parameters()` method (line 1182-1183) returned:\n```python\nreturn {\"type\": self.db_type(connection), \"check\": self.db_check(connection)}\n```\n\nThis meant that when generating SQL for foreign key columns, the collation information from the target field was lost, causing MySQL foreign key constraint errors because the PK and FK must have matching collations.\n\n## Files Modified\n\n- **django/db/models/fields/related.py**: Updated `ForeignObject.db_parameters()` to include collation from the target field\n\n## Change Details\n\n```python\ndef db_parameters(self, connection):\n    db_params = {\"type\": self.db_type(connection), \"check\": self.db_check(connection)}\n    db_params[\"collation\"] = getattr(self.target_field, \"db_collation\", None)\n    return db_params\n```\n\nThe fix safely retrieves the `db_collation` attribute from `target_field` (using `getattr` with default `None`), which allows the collation to be properly included in the SQL generated for foreign key columns.\n\n## Test Results\n\n- **Schema tests (baseline):** 178 passed, 28 skipped\n- **Schema tests (after fix):** 178 passed, 28 skipped\n- **Backend tests:** 280 passed, 97 skipped\n- **Model field tests:** 430 passed, 55 skipped\n- **No regressions introduced**\n\n## Additional Verification\n\nCreated a test with models matching the problem description:\n```python\nclass Account(models.Model):\n    id = models.CharField(primary_key=True, max_length=22, db_collation='utf8_bin')\n\nclass Address(models.Model):\n    account = models.ForeignKey(Account, on_delete=models.CASCADE)\n```\n\nVerified that `Address.account` field's `db_parameters()` now includes `collation: utf8_bin`, matching the target field's `db_collation`.\n\n## Concerns\n\n- The fix uses `getattr(self.target_field, \"db_collation\", None)` which safely handles cases where the target field doesn't have a `db_collation` attribute (e.g., IntegerField, AutoField, etc.)\n- This is a minimal fix that follows the same pattern used by CharField and TextField for their own `db_collation` handling",
+      "created_at": "2026-02-03T02:06:53.176Z"
+    },
+    {
+      "epic_id": "8c5e42cd-b860-4646-9926-964a39c375c1",
+      "epic_title": "Fix: django__django-15629",
+      "comment_id": "c8e143c2-8e39-4fbb-8b85-f8ea19222abd",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and focused: only `django/db/models/fields/related.py` updated.\n- No test files or unrelated files modified.\n- Propagating `db_collation` from `target_field` via `db_parameters()` should cause FK columns to emit matching `COLLATE` in schema SQL, addressing the MySQL FK constraint error described in the issue.\n- `getattr(..., None)` keeps behavior unchanged for non-collated target fields.",
+      "created_at": "2026-02-03T02:08:06.311Z"
+    }
+  ]
+}

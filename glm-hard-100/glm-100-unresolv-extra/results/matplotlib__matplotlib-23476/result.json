@@ -1,0 +1,22 @@
+{
+  "instance_id": "matplotlib__matplotlib-23476",
+  "status": "completed",
+  "patch": "diff --git a/lib/matplotlib/backend_bases.py b/lib/matplotlib/backend_bases.py\nindex 9ae2982c62..0b6a635042 100644\n--- a/lib/matplotlib/backend_bases.py\n+++ b/lib/matplotlib/backend_bases.py\n@@ -1653,7 +1653,8 @@ class FigureCanvasBase:\n         self.toolbar = None  # NavigationToolbar2 will set me\n         self._is_idle_drawing = False\n         # We don't want to scale up the figure DPI more than once.\n-        figure._original_dpi = figure.dpi\n+        if not hasattr(figure, \"_original_dpi\"):\n+            figure._original_dpi = figure.dpi\n         self._device_pixel_ratio = 1\n         super().__init__()  # Typically the GUI widget init (if any).\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T21:31:32.653712",
+  "end_time": "2026-01-31T21:35:24.896059",
+  "duration_seconds": 232.242347,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "81a47144-a74e-43f1-9600-36ca0fa1bf20",
+      "epic_title": "Fix: matplotlib__matplotlib-23476",
+      "comment_id": "c09f98f9-bae2-4e8b-a44e-6a286ef38df2",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe bug was caused by `FigureCanvasBase.__init__` unconditionally overwriting `figure._original_dpi` with the current `figure.dpi` value. On M1 Macs with Retina displays (device pixel ratio = 2), the DPI scaling works as follows:\n\n1. First pickle: `dpi=200`, `_original_dpi=200`\n2. Backend scales DPI: `dpi = 2 * _original_dpi = 400`\n3. Second pickle: `dpi=400`, `_original_dpi=400` (overwritten by canvas init)\n4. Backend scales again: `dpi = 2 * _original_dpi = 800`\n\nThe fix ensures `_original_dpi` is only set if it doesn't already exist, preventing it from being overwritten during unpickling.\n\n## Files Modified\n- `lib/matplotlib/backend_bases.py`: Line 1655-1656 - Changed to only set `_original_dpi` if not already present\n\n## Test Results\n- **Test file:** lib/matplotlib/tests/test_figure.py\n- **Result:** 104 passed, 7 skipped\n- **Pickle tests:** Verified with multiple pickle/unpickle cycles and custom DPI values (72, 100, 150, 200, 300)\n\n## Concerns\n- None. The fix is minimal and focused on the root cause. It preserves the original DPI value across pickle/unpickle cycles while maintaining backward compatibility.",
+      "created_at": "2026-01-31T20:35:10.037Z"
+    }
+  ]
+}

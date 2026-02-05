@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-18199",
+  "status": "completed",
+  "patch": "diff --git a/sympy/ntheory/residue_ntheory.py b/sympy/ntheory/residue_ntheory.py\nindex 9a3052d4c3..25fc3e4140 100644\n--- a/sympy/ntheory/residue_ntheory.py\n+++ b/sympy/ntheory/residue_ntheory.py\n@@ -776,6 +776,10 @@ def nthroot_mod(a, n, p, all_roots=False):\n     if not isprime(p):\n         raise NotImplementedError(\"Not implemented for composite p\")\n \n+    if a % p == 0:\n+        # 0**n = 0 = a mod p when a % p == 0\n+        return 0 if not all_roots else [0]\n+\n     if (p - 1) % n == 0:\n         return _nthroot_mod1(a, n, p, all_roots)\n     # The roots of ``x**n - a = 0 (mod p)`` are roots of\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:48:39.546079",
+  "end_time": "2026-02-03T01:54:00.685153",
+  "duration_seconds": 321.139074,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "e332e3d7-2810-47d0-a575-32330b0b9368",
+      "epic_title": "Fix: sympy__sympy-18199",
+      "comment_id": "0a8645ab-0082-4d8a-86be-485f073adaa6",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `nthroot_mod` to return `x = 0 mod p` as a root when `a % p == 0`. The function was missing this special case, which caused a `ValueError: Log does not exist` when calling `_nthroot_mod1` with `a % p == 0` and `(p - 1) % n == 0`.\n\n## Files Modified\n- `sympy/ntheory/residue_ntheory.py`: Added check for `a % p == 0` at line 779-781. When `a % p == 0`, return 0 (or [0] if all_roots=True) since `0**n = 0 = a mod p`.\n\n## Root Cause\nWhen `a % p == 0` and `(p - 1) % n == 0`, the function called `_nthroot_mod1` which attempted to compute `discrete_log(p, 0, h)`. The discrete logarithm doesn't exist for 0, causing a ValueError.\n\n## Test Results\n- **Problem case verified:** `nthroot_mod(289, 4, 17)` now returns 0 (previously raised ValueError)\n- **Problem statement case:** `nthroot_mod(289, 5, 17, all_roots=True)` returns `[0]` \n- **Existing functionality:** All 2295+ existing test cases pass\n- **Edge cases tested:** \n  - `nthroot_mod(0, 5, 17)` returns 0\n  - `nthroot_mod(17, 5, 17)` returns 0\n  - `nthroot_mod(34, 3, 17)` returns 0\n  - n=2 case (sqrt_mod) still works correctly\n\n## Additional Verification\nThe fix is minimal and mathematically correct: when `a % p == 0`, the equation `x**n = a mod p` becomes `x**n = 0 mod p`, and the only solution is `x = 0 mod p` since `0**n = 0`.\n\n## Concerns\nNone - the fix is straightforward and handles the edge case correctly without affecting other functionality.",
+      "created_at": "2026-02-03T00:52:50.102Z"
+    },
+    {
+      "epic_id": "e332e3d7-2810-47d0-a575-32330b0b9368",
+      "epic_title": "Fix: sympy__sympy-18199",
+      "comment_id": "a762bdc3-7d32-4479-87b5-4d09a24c1b44",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and directly addresses the problem: when `a % p == 0`, `x = 0 (mod p)` is the (only) solution to `x**n = a (mod p)`.\n- Prevents the prior failure path where `_nthroot_mod1` could attempt `discrete_log(p, 0, h)`.\n- Only `sympy/ntheory/residue_ntheory.py` modified; no tests/config touched.",
+      "created_at": "2026-02-03T00:53:49.924Z"
+    }
+  ]
+}

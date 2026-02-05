@@ -1,0 +1,30 @@
+{
+  "instance_id": "pydata__xarray-6599",
+  "status": "completed",
+  "patch": "diff --git a/xarray/core/computation.py b/xarray/core/computation.py\nindex 823cbe02..d93fe854 100644\n--- a/xarray/core/computation.py\n+++ b/xarray/core/computation.py\n@@ -1905,6 +1905,10 @@ def polyval(\n     coeffs = coeffs.reindex(\n         {degree_dim: np.arange(max_deg + 1)}, fill_value=0, copy=False\n     )\n+    # If coord is a DataArray with a named dimension, use its coordinate values\n+    # (like the old get_clean_interp_index behavior)\n+    if hasattr(coord, \"name\") and coord.name is not None and coord.name in getattr(coord, \"dims\", []):\n+        coord = coord.coords[coord.name]\n     coord = _ensure_numeric(coord)  # type: ignore # https://github.com/python/mypy/issues/1533 ?\n \n     # using Horner's method\n@@ -1933,7 +1937,8 @@ def _ensure_numeric(data: T_Xarray) -> T_Xarray:\n     from .dataset import Dataset\n \n     def to_floatable(x: DataArray) -> DataArray:\n-        if x.dtype.kind in \"mM\":\n+        if x.dtype.kind == \"M\":\n+            # datetime64: use epoch as offset\n             return x.copy(\n                 data=datetime_to_numeric(\n                     x.data,\n@@ -1941,6 +1946,15 @@ def _ensure_numeric(data: T_Xarray) -> T_Xarray:\n                     datetime_unit=\"ns\",\n                 ),\n             )\n+        elif x.dtype.kind == \"m\":\n+            # timedelta64: use None as offset (will use minimum value)\n+            return x.copy(\n+                data=datetime_to_numeric(\n+                    x.data,\n+                    offset=None,\n+                    datetime_unit=\"ns\",\n+                ),\n+            )\n         return x\n \n     if isinstance(data, Dataset):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T15:18:36.774372",
+  "end_time": "2026-02-03T15:27:57.251095",
+  "duration_seconds": 560.476723,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "9fbc3dd6-d090-432e-8736-82242c0c01a3",
+      "epic_title": "Fix: pydata__xarray-6599",
+      "comment_id": "41b32e7f-74bd-41f0-a1be-f3b535c975a4",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe issue was in the `polyval` function which was refactored in commit 6fbeb131 to use Horner's algorithm. The old implementation used `get_clean_interp_index` which extracted the coordinate (index) values from the DataArray, while the new implementation used the data values directly.\n\nWhen a DataArray with datetime64 data and timedelta64 coordinate was passed (as in the MVCE), the new implementation incorrectly used the datetime64 data values (converted to nanoseconds since epoch) instead of the timedelta64 coordinate values.\n\n## Changes Made\n\n**File:** `xarray/core/computation.py`\n\n**Change 1:** In `polyval` function (line ~1908):\n- Added logic to extract coordinate values when the DataArray has a named dimension that matches its name\n- This restores the old `get_clean_interp_index` behavior\n\n**Change 2:** In `_ensure_numeric` function (line ~1937):\n- Split the handling of datetime64 (\"M\") and timedelta64 (\"m\")\n- For datetime64: use `offset=np.datetime64(\"1970-01-01\")`\n- For timedelta64: use `offset=None` (which uses the minimum value as offset)\n\n## Test Results\n\n- **Test file:** `/testbed/xarray/tests/test_computation.py`\n- **Baseline (before fix):** Not applicable (newly introduced bug)\n- **After fix:** 263 passed, 1 skipped\n- **Regression check:** No new failures introduced\n- **MVCE verification:** The MVCE from the issue now produces correct results matching v2022.3.0 output\n\n## Additional Verification\n\nThe fix correctly handles:\n- Plain numeric coordinates\n- datetime64 coordinates\n- timedelta64 coordinates  \n- DataArrays with datetime64 data and timedelta64 coordinates (the MVCE case)\n- DataArrays without named dimensions\n\n## Concerns\n\nNone. The fix is minimal and focused on restoring the correct behavior.",
+      "created_at": "2026-02-03T14:26:13.458Z"
+    },
+    {
+      "epic_id": "9fbc3dd6-d090-432e-8736-82242c0c01a3",
+      "epic_title": "Fix: pydata__xarray-6599",
+      "comment_id": "84a36221-57e2-41e1-90bb-0062158db07d",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n**Changes reviewed:** `xarray/core/computation.py` (only file modified, no test files touched)\n\n**Change 1 \u2014 `polyval` coordinate extraction (line ~1908):**\nCorrectly extracts the coordinate values from the DataArray when `coord.name` matches a dimension name. This restores the old `get_clean_interp_index` behavior that the Horner refactor lost. In the MVCE case, the DataArray has datetime64 data but timedelta64 coordinates \u2014 this change ensures the timedelta64 coordinate values are used for polynomial evaluation, not the datetime64 data values.\n\n**Change 2 \u2014 `_ensure_numeric` split handling (line ~1940):**\nCorrectly separates datetime64 (`\"M\"`) and timedelta64 (`\"m\"`) processing. For timedelta64, using `offset=None` lets `datetime_to_numeric` use the array minimum as offset (typically timedelta64(0)), avoiding the incorrect application of `np.datetime64(\"1970-01-01\")` as an offset for timedelta values, which was producing the astronomically large wrong results.\n\n**Verification:** 263 tests passed, 1 skipped, no regressions. MVCE produces correct output matching v2022.3.0.",
+      "created_at": "2026-02-03T14:27:52.437Z"
+    }
+  ]
+}

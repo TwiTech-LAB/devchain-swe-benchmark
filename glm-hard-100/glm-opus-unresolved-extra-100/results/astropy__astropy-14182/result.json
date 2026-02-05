@@ -1,0 +1,46 @@
+{
+  "instance_id": "astropy__astropy-14182",
+  "status": "completed",
+  "patch": "diff --git a/astropy/io/ascii/rst.py b/astropy/io/ascii/rst.py\nindex abdeba8efb..b7a087bfc1 100644\n--- a/astropy/io/ascii/rst.py\n+++ b/astropy/io/ascii/rst.py\n@@ -57,10 +57,11 @@ class RST(FixedWidth):\n     data_class = SimpleRSTData\n     header_class = SimpleRSTHeader\n \n-    def __init__(self):\n-        super().__init__(delimiter_pad=None, bookend=False)\n+    def __init__(self, **kwargs):\n+        super().__init__(delimiter_pad=None, bookend=False, **kwargs)\n \n     def write(self, lines):\n         lines = super().write(lines)\n-        lines = [lines[1]] + lines + [lines[1]]\n+        idx = len(self.data.header_rows)\n+        lines = [lines[idx]] + lines + [lines[idx]]\n         return lines\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T16:20:16.735953",
+  "end_time": "2026-02-03T16:27:18.280287",
+  "duration_seconds": 421.544334,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "abc92018-5998-41d2-88d1-1c5932f64a99",
+      "epic_title": "Fix: astropy__astropy-14182",
+      "comment_id": "f31262fb-7773-439c-a95c-1229864fc355",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe RST writer class inherits from FixedWidth which supports `header_rows` parameter, but RST's `__init__()` method didn't accept or forward this parameter to the parent class. Changed `RST.__init__()` from:\n```python\ndef __init__(self):\n    super().__init__(delimiter_pad=None, bookend=False)\n```\nto:\n```python\ndef __init__(self, **kwargs):\n    super().__init__(delimiter_pad=None, bookend=False, **kwargs)\n```\n\nThis allows any keyword arguments (including `header_rows`) to be passed through to the parent FixedWidth class.\n\n## Files Modified\n\n- `astropy/io/ascii/rst.py`: Modified `RST.__init__()` to accept and forward keyword arguments to parent class\n\n## Test Results\n\n- **Test file:** `/testbed/astropy/io/ascii/tests/test_rst.py`\n- **Baseline (before fix):** 9 passed, 0 failed, 0 errors\n- **After fix:** 9 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n\nVerified the specific use case from the problem statement now works:\n```python\ntbl = QTable({'wave': [350,950]*u.nm, 'response': [0.7, 1.2]*u.count})\ntbl.write(sys.stdout, format='ascii.rst', header_rows=['name', 'unit'])\n```\nOutput correctly shows both column names and units:\n```\n   nm       ct\n wave response\n   nm       ct\n===== ========\n350.0      0.7\n950.0      1.2\n   nm       ct\n```\n\n## Concerns\n\nNone - The fix is minimal and leverages existing functionality from the parent FixedWidth class. Using `**kwargs` is the most future-proof approach, allowing any future parameters added to FixedWidth to automatically work with RST.",
+      "created_at": "2026-02-03T15:22:56.571Z"
+    },
+    {
+      "epic_id": "abc92018-5998-41d2-88d1-1c5932f64a99",
+      "epic_title": "Fix: astropy__astropy-14182",
+      "comment_id": "0b164769-f1e5-4fed-8002-d1510d51ad36",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\n## Checklist\n- [x] No test files modified (only `astropy/io/ascii/rst.py`)\n- [x] No unrelated files modified\n- [ ] Fix logically addresses the problem - **BUG FOUND**\n- [x] No unrelated regressions (existing 9 tests still pass)\n- [x] Changes are minimal\n\n## Issue Found: `RST.write()` produces malformed output with multiple header_rows\n\nThe `__init__` change to forward `**kwargs` is correct \u2014 it properly passes `header_rows` to the parent `FixedWidth` class. However, the `RST.write()` method at `rst.py:63-66` has a hardcoded assumption that breaks with multiple header rows:\n\n```python\ndef write(self, lines):\n    lines = super().write(lines)\n    lines = [lines[1]] + lines + [lines[1]]\n    return lines\n```\n\n`lines[1]` assumes the position/delimiter line (`===== ========`) is always at index 1. This is only true when `header_rows` has one entry (the default `[\"name\"]`). The `FixedWidthData.write()` method outputs lines in this order:\n1. Header rows (one per entry in `header_rows`)\n2. Position line (`=====`)\n3. Data rows\n\nSo the position line is at index `len(header_rows)`, not always index 1.\n\n**Verified output with `header_rows=[\"name\", \"unit\"]`:**\n```\n   nm       ct       <-- unit row incorrectly used as delimiter\n wave response\n   nm       ct\n===== ========\n350.0      0.7\n950.0      1.2\n   nm       ct       <-- unit row incorrectly used as delimiter\n```\n\n**Expected correct RST output:**\n```\n===== ========\n wave response\n   nm       ct\n===== ========\n350.0      0.7\n950.0      1.2\n===== ========\n```\n\n## Required Change\n\nIn `RST.write()`, replace the hardcoded `lines[1]` with a dynamic index that accounts for the number of header rows. The position line index is `len(self.data.header_rows)` (or equivalently `len(self.header.header_rows)`). For example:\n\n```python\ndef write(self, lines):\n    lines = super().write(lines)\n    idx = len(self.data.header_rows)\n    lines = [lines[idx]] + lines + [lines[idx]]\n    return lines\n```\n\nThis finds the `=====` delimiter line at the correct position regardless of how many header rows are configured.",
+      "created_at": "2026-02-03T15:25:24.508Z"
+    },
+    {
+      "epic_id": "abc92018-5998-41d2-88d1-1c5932f64a99",
+      "epic_title": "Fix: astropy__astropy-14182",
+      "comment_id": "9c8f26d9-fa0f-42a3-9257-70103ff98f41",
+      "author_name": "Brainstormer",
+      "content": "## Addressed Code Review Feedback\n\nFixed the `RST.write()` method to dynamically find the delimiter line index instead of using hardcoded `lines[1]`.\n\n### Changes Made\n\nIn `RST.write()` at `rst.py:63-67`, changed:\n```python\n# Before:\nlines = [lines[1]] + lines + [lines[1]]\n\n# After:\nidx = len(self.data.header_rows)\nlines = [lines[idx]] + lines + [lines[idx]]\n```\n\n### Why This Fixes It\n\nThe `FixedWidthData.write()` outputs lines in order:\n1. Header rows (one per entry in `header_rows`)\n2. Position line (`=====`)\n3. Data rows\n\nThe position line index is `len(header_rows)`, not always 1. With `header_rows=[\"name\", \"unit\"]`, the delimiter is at index 2, not 1.\n\n### Verification\n\n- **All 9 existing tests still pass**\n- **Output with `header_rows=['name', 'unit']` is now correct:**\n  ```\n  ===== ========\n   wave response\n     nm       ct\n  ===== ========\n  350.0      0.7\n  950.0      1.2\n  ===== ========\n  ```\n\nThe top/bottom/middle delimiter lines are now correctly positioned.",
+      "created_at": "2026-02-03T15:26:21.072Z"
+    },
+    {
+      "epic_id": "abc92018-5998-41d2-88d1-1c5932f64a99",
+      "epic_title": "Fix: astropy__astropy-14182",
+      "comment_id": "4793e9c0-b6bc-41e4-af0e-f5f2a47d5785",
+      "author_name": "Code Reviewer",
+      "content": "Code Review PASSED\n\n## Checklist\n- [x] No test files modified (only `astropy/io/ascii/rst.py`)\n- [x] No unrelated files modified\n- [x] Fix logically addresses the problem\n- [x] No regressions (all 9 existing tests pass)\n- [x] Changes are minimal and focused\n\n## Verified Output\n\nDefault (no header_rows) \u2014 unchanged behavior:\n```\n===== ========\n wave response\n===== ========\n350.0      0.7\n950.0      1.2\n===== ========\n```\n\nWith `header_rows=[\"name\", \"unit\"]` \u2014 now works correctly:\n```\n===== ========\n wave response\n   nm       ct\n===== ========\n350.0      0.7\n950.0      1.2\n===== ========\n```\n\nBoth changes are correct:\n1. `__init__(**kwargs)` forwards keyword args to parent FixedWidth class\n2. `write()` uses `len(self.data.header_rows)` to dynamically locate the position/delimiter line",
+      "created_at": "2026-02-03T15:27:10.970Z"
+    }
+  ]
+}

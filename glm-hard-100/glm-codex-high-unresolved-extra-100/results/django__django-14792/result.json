@@ -1,0 +1,46 @@
+{
+  "instance_id": "django__django-14792",
+  "status": "completed",
+  "patch": "diff --git a/django/db/backends/postgresql/operations.py b/django/db/backends/postgresql/operations.py\nindex 8d19872bea..2a55e60977 100644\n--- a/django/db/backends/postgresql/operations.py\n+++ b/django/db/backends/postgresql/operations.py\n@@ -44,6 +44,13 @@ class DatabaseOperations(BaseDatabaseOperations):\n         return \"DATE_TRUNC('%s', %s)\" % (lookup_type, field_name)\n \n     def _prepare_tzname_delta(self, tzname):\n+        # PostgreSQL's AT TIME ZONE operator interprets:\n+        # - '-10' as UTC+10 (east of UTC)\n+        # - '+10' as UTC-10 (west of UTC)\n+        # IANA names like 'Etc/GMT-10' use POSIX convention (sign reversed),\n+        # so extract just the offset (e.g., '-10' from 'Etc/GMT-10').\n+        if tzname.startswith('Etc/GMT') and len(tzname) > 7 and tzname[7] in '+-':\n+            return tzname[7:]\n         if '+' in tzname:\n             return tzname.replace('+', '-')\n         elif '-' in tzname:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:50:43.864935",
+  "end_time": "2026-02-03T02:02:26.857413",
+  "duration_seconds": 702.992478,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "eb2c0d4d-89d6-41b9-a917-9a1352b54907",
+      "epic_title": "Fix: django__django-14792",
+      "comment_id": "3c377de1-c742-4071-8986-774001eba3a1",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the reverse time zone conversion issue in Trunc()/Extract() database functions when using \"Etc/GMT\" timezones.\n\n## Root Cause\n\nIn Django 3.2, `timezone._get_timezone_name()` returns full timezone names like \"Etc/GMT-10\" instead of just the offset like \"+10\". The PostgreSQL `_prepare_tzname_delta()` function was blindly replacing all signs in the timezone name, which incorrectly converted \"Etc/GMT-10\" to \"Etc/GMT+10\".\n\nThe issue stems from the POSIX convention where:\n- \"Etc/GMT-10\" means UTC+10 (10 hours EAST of UTC)\n- \"Etc/GMT+10\" means UTC-10 (10 hours WEST of UTC)\n\nBut PostgreSQL's `AT TIME ZONE` interprets:\n- \"-10\" as UTC+10 (10 hours EAST of UTC)  \n- \"Etc/GMT-10\" as UTC-10 (POSIX interpretation)\n\n## Files Modified\n- `django/db/backends/postgresql/operations.py`: Updated `_prepare_tzname_delta()` to extract just the offset from \"Etc/GMT\" timezone names before passing to PostgreSQL.\n\n## Test Results\n\nVerified the fix with the following test cases:\n- \"Etc/GMT-10\" -> \"-10\" (PostgreSQL interprets \"-10\" as UTC+10) \u2713\n- \"Etc/GMT+10\" -> \"+10\" (PostgreSQL interprets \"+10\" as UTC-10) \u2713\n- \"+10\" -> \"-10\" (old behavior preserved) \u2713\n- \"-10\" -> \"+10\" (old behavior preserved) \u2713\n- \"America/New_York\" -> \"America/New_York\" (unchanged) \u2713\n- \"UTC\" -> \"UTC\" (unchanged) \u2713\n\nAll edge case tests passed.\n\n## Additional Verification\n\nThe fix correctly handles:\n1. Etc/GMT timezone names by extracting just the offset (e.g., \"Etc/GMT-10\" -> \"-10\")\n2. Simple offset strings by preserving the old behavior (e.g., \"+10\" -> \"-10\")\n3. Named timezones by leaving them unchanged (e.g., \"America/New_York\" -> \"America/New_York\")\n\n## Concerns\n\nNone. The fix is minimal and focused on the specific issue.",
+      "created_at": "2026-02-03T00:58:41.358Z"
+    },
+    {
+      "epic_id": "eb2c0d4d-89d6-41b9-a917-9a1352b54907",
+      "epic_title": "Fix: django__django-14792",
+      "comment_id": "090bdc33-7499-48a7-90ff-789237d46bca",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- `DatabaseOperations._prepare_tzname_delta()` now special-cases any `tzname.startswith('Etc/GMT')` and returns `tzname[7:]`. For `tzname='Etc/GMT'` this becomes an empty string, producing invalid SQL (`AT TIME ZONE ''`). This is a clear regression risk if a project uses `TIME_ZONE='Etc/GMT'` or passes that tzname explicitly.\n- The added comment block describes `Etc/GMT-10` / `Etc/GMT+10` directions inconsistently with the intended fix; it\u2019s likely to confuse future maintainers.\n\nRequired Changes:\n- Narrow the special-case to only IANA names that actually include an offset, e.g. `Etc/GMT+10` / `Etc/GMT-10` (pattern like `Etc/GMT[+-]\\d+`). Leave plain `Etc/GMT` unchanged (or explicitly map it to a valid PostgreSQL zone like `UTC` / `+00`).\n- Adjust or simplify the explanatory comment so it matches the behavior being implemented.",
+      "created_at": "2026-02-03T01:00:24.499Z"
+    },
+    {
+      "epic_id": "eb2c0d4d-89d6-41b9-a917-9a1352b54907",
+      "epic_title": "Fix: django__django-14792",
+      "comment_id": "6a0fbf95-a114-4cf0-b204-1717947c7b7d",
+      "author_name": "Brainstormer",
+      "content": "## Addressed Code Review Feedback\n\nFixed the issues identified by the Code Reviewer:\n\n1. **Empty string bug**: Narrowed the special-case to only handle `Etc/GMT[+-]\\d+` pattern by checking `len(tzname) > 7 and tzname[7] in '+-'`. Plain 'Etc/GMT' now falls through to the default return and is unchanged, avoiding invalid SQL.\n\n2. **Comment clarified**: Simplified the comment to clearly explain what the code does.\n\n## Updated Test Results\n\nAll test cases pass including the edge case:\n- \"Etc/GMT-10\" -> \"-10\" \u2713\n- \"Etc/GMT+10\" -> \"+10\" \u2713\n- \"Etc/GMT\" -> \"Etc/GMT\" \u2713 (fixed - was empty string before)\n- \"+10\" -> \"-10\" \u2713 (old behavior preserved)\n- \"-10\" -> \"+10\" \u2713 (old behavior preserved)\n- \"America/New_York\" -> \"America/New_York\" \u2713 (unchanged)\n- \"UTC\" -> \"UTC\" \u2713 (unchanged)",
+      "created_at": "2026-02-03T01:01:43.056Z"
+    },
+    {
+      "epic_id": "eb2c0d4d-89d6-41b9-a917-9a1352b54907",
+      "epic_title": "Fix: django__django-14792",
+      "comment_id": "e6d01aa5-1c4b-47d6-afb8-29cb9a95061e",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- The special-case is now narrowed to `Etc/GMT[+-]...` and no longer risks generating `AT TIME ZONE ''` for plain `Etc/GMT`.\n- Change is minimal (only `django/db/backends/postgresql/operations.py`) and logically fixes the reversed conversion for `Etc/GMT\u00b1X` tznames used by `Trunc()`/`Extract()` on PostgreSQL.",
+      "created_at": "2026-02-03T01:02:22.403Z"
+    }
+  ]
+}

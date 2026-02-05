@@ -1,0 +1,30 @@
+{
+  "instance_id": "sphinx-doc__sphinx-10435",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/writers/latex.py b/sphinx/writers/latex.py\nindex e0c7d56f8..f275100e9 100644\n--- a/sphinx/writers/latex.py\n+++ b/sphinx/writers/latex.py\n@@ -1710,11 +1710,11 @@ class LaTeXTranslator(SphinxTranslator):\n         # TODO: Use nowrap option once LaTeX formatter supports it\n         # https://github.com/pygments/pygments/pull/1343\n         hlcode = hlcode.replace(r'\\begin{Verbatim}[commandchars=\\\\\\{\\}]',\n-                                r'\\sphinxcode{\\sphinxupquote{')\n+                                r'\\sphinxcode{\\sphinxupquote{%')\n         # get consistent trailer\n-        hlcode = hlcode.rstrip()[:-14]  # strip \\end{Verbatim}\n+        hlcode = hlcode.rstrip()[:-15]  # strip \\n\\end{Verbatim}\n         self.body.append(hlcode)\n-        self.body.append('}}')\n+        self.body.append('%' + CR + '}}')\n         raise nodes.SkipNode\n \n     def depart_literal(self, node: Element) -> None:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:56:50.356355",
+  "end_time": "2026-02-03T12:05:40.832289",
+  "duration_seconds": 530.475934,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "3a3de544-a202-4de2-9577-4487eb2b2f8d",
+      "epic_title": "Fix: sphinx-doc__sphinx-10435",
+      "comment_id": "6d4c4e0b-d79b-4517-8cf5-9b84ee050358",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the LaTeX output for inline code with syntax highlighting to remove unwanted spaces at the start and end. The issue was introduced by PR #10251 which added syntax highlighting to the `code` role.\n\n### Root Cause\nWhen Pygments outputs highlighted code for inline literals, the LaTeX formatter wraps the content in `\\begin{Verbatim}...\\end{Verbatim}` with newlines. After converting this to Sphinx's inline format, these newlines were being interpreted as spaces by LaTeX.\n\n### Changes Made\n**File: sphinx/writers/latex.py** (lines 1712-1717)\n1. Added `%` after `\\sphinxupquote{` to suppress trailing space from newline\n2. Changed strip count from 14 to 15 chars to also strip the newline before `\\end{Verbatim}`\n3. Changed closing from `'}}'` to `'%' + CR + '}}'` to suppress leading space from newline\n\n**File: tests/test_build_latex.py** (lines 1626-1627)\nUpdated test assertion to expect the new format with `%` to suppress spaces\n\n### Technical Details\nThe fix uses LaTeX's comment character `%` to suppress spaces that would otherwise be created by newlines:\n- **Before:** `\\sphinxcode{\\sphinxupquote{\\n...\\n}}` \u2192 produces unwanted spaces\n- **After:** `\\sphinxcode{\\sphinxupquote{%\\n...\\n%}}` \u2192 no spaces\n\n### Test Results\n- **Test file:** tests/test_build_latex.py\n- **Baseline:** 75 passed, 8 skipped (after fix)\n- **All LaTeX tests pass:** No regressions introduced",
+      "created_at": "2026-02-03T11:03:17.769Z"
+    },
+    {
+      "epic_id": "3a3de544-a202-4de2-9577-4487eb2b2f8d",
+      "epic_title": "Fix: sphinx-doc__sphinx-10435",
+      "comment_id": "7c1629c8-a313-4e6f-a71d-3fbd999da8d2",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review: PASSED\n\n### Changes Reviewed\n**File:** `sphinx/writers/latex.py` (visit_literal function, lines 1712-1717)\n\n### Verdict\nThe fix correctly addresses the problem of unwanted whitespace in LaTeX inline code highlighting output.\n\n**What the fix does:**\n1. Adds `%` after `\\sphinxupquote{` to suppress space from the following newline\n2. Strips 15 chars instead of 14 to remove the `\\n` before `\\end{Verbatim}` (the trailing space source)\n3. Appends `%\\n}}` instead of `}}` to suppress space from the line break before closing braces\n\nThis is the standard LaTeX technique for suppressing unwanted spaces from newlines. The resulting output matches the expected format from the problem statement.\n\n### Checklist\n- [x] No unrelated files modified\n- [x] Fix logically addresses the problem described in the problem statement\n- [x] No obvious crash bugs or logical errors introduced\n- [x] Changes are minimal and focused on the stated problem\n- [x] Test file changes are auto-excluded from final patch",
+      "created_at": "2026-02-03T11:05:29.278Z"
+    }
+  ]
+}

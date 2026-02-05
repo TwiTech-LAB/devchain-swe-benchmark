@@ -1,0 +1,87 @@
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 9735ce10c8..2a8806451e 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -545,11 +545,67 @@ class Query(BaseExpression):
+ 
+         return dict(zip(outer_query.annotation_select, result))
+ 
++    def _get_referenced_annotations(self, expression, annotations, exclude_self=None):
++        """
++        Return a set of annotation aliases referenced by the given expression.
++        If exclude_self is provided, don't count self-references to that annotation.
++        """
++        references = set()
++        if expression is None:
++            return references
++        # If this is a Ref, it directly references an annotation
++        if isinstance(expression, Ref):
++            references.add(expression.refs)
++        # If this is an F expression, check if it references an annotation
++        elif isinstance(expression, F):
++            if expression.name in annotations:
++                references.add(expression.name)
++        # Check if the expression itself is an annotation (e.g., when used in filters)
++        elif expression in annotations.values():
++            # Find the annotation name by expression identity
++            for alias, annotation in annotations.items():
++                if annotation is expression:
++                    # Only count as referenced if not excluding self
++                    if alias != exclude_self:
++                        references.add(alias)
++                    break
++        # Traverse source expressions to find nested references
++        if hasattr(expression, "get_source_expressions"):
++            for source in expression.get_source_expressions():
++                references.update(self._get_referenced_annotations(source, annotations, exclude_self))
++        return references
++
+     def get_count(self, using):
+         """
+         Perform a COUNT() query using the current filter constraints.
+         """
+         obj = self.clone()
++        # Find annotations that are referenced by filters, ordering, or other annotations.
++        referenced_annotations = set()
++        # Check annotations referenced in the where clause (filters).
++        for child in self.where.children:
++            referenced_annotations.update(
++                self._get_referenced_annotations(child, self.annotations)
++            )
++        # Check annotations referenced in ordering.
++        for item in self.order_by:
++            if isinstance(item, str) and item.lstrip("-") in self.annotations:
++                referenced_annotations.add(item.lstrip("-"))
++            elif hasattr(item, "resolve_expression"):
++                referenced_annotations.update(
++                    self._get_referenced_annotations(item, self.annotations)
++                )
++        # Check annotations referenced in other annotations.
++        for alias, annotation in self.annotations.items():
++            for ref in self._get_referenced_annotations(annotation, self.annotations, exclude_self=alias):
++                referenced_annotations.add(ref)
++        # Remove unreferenced annotations.
++        for alias in list(obj.annotations.keys()):
++            if alias not in referenced_annotations:
++                del obj.annotations[alias]
++                if obj.annotation_select_mask and alias in obj.annotation_select_mask:
++                    obj.annotation_select_mask.remove(alias)
++        obj._annotation_select_cache = None
+         obj.add_annotation(Count("*"), alias="__count", is_summary=True)
+         return obj.get_aggregation(using, ["__count"])["__count"]
+ 
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..37e29fea5f
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,9 @@
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++INSTALLED_APPS = []
++SECRET_KEY = 'test'

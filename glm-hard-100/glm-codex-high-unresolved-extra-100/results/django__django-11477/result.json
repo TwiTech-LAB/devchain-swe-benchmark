@@ -1,0 +1,46 @@
+{
+  "instance_id": "django__django-11477",
+  "status": "completed",
+  "patch": "diff --git a/django/urls/resolvers.py b/django/urls/resolvers.py\nindex af0508f94e..247e3680c0 100644\n--- a/django/urls/resolvers.py\n+++ b/django/urls/resolvers.py\n@@ -153,7 +153,7 @@ class RegexPattern(CheckURLMixin):\n             # If there are any named groups, use those as kwargs, ignoring\n             # non-named groups. Otherwise, pass all non-named arguments as\n             # positional arguments.\n-            kwargs = match.groupdict()\n+            kwargs = {k: v for k, v in match.groupdict().items() if v is not None}\n             args = () if kwargs else match.groups()\n             return path[match.end():], args, kwargs\n         return None\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-01T04:11:35.619174",
+  "end_time": "2026-02-01T04:24:30.606510",
+  "duration_seconds": 774.987336,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "1804542e-06d7-4519-91c0-9ef730aff7d5",
+      "epic_title": "Fix: django__django-11477",
+      "comment_id": "87637e20-f067-43c0-995b-04cac0930c76",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `translate_url()` creating incorrect URLs when optional named groups are missing in URL patterns.\n\n**Root Cause:** In `django/urls/resolvers.py`, the `RegexPattern.match()` method was using `match.groupdict()` which returns `None` values for optional named groups that don't match. When `translate_url()` called `reverse()` with these `None` values, it would create incorrect URLs.\n\n**Fix:** Changed line 156 in `django/urls/resolvers.py` from:\n```python\nkwargs = match.groupdict()\n```\nto:\n```python\nkwargs = {k: v for k, v in match.groupdict().items() if v is not None}\n```\n\nThis filters out `None` values for missing optional groups, making `resolve()` consistent with `reverse()` behavior.\n\n## Files Modified\n- `django/urls/resolvers.py`: Filter out `None` values from `groupdict()` in `RegexPattern.match()` method\n\n## Test Results\n- **Verification:** Manual testing confirmed the fix works correctly:\n  - URL with optional group: `/regex_optional/1/2/` \u2192 `kwargs={'arg1': '1', 'arg2': '2'}`\n  - URL without optional group: `/regex_optional/1/` \u2192 `kwargs={'arg1': '1'}` (previously `{'arg1': '1', 'arg2': None}`)\n\n## Additional Verification\nCreated test script demonstrating:\n1. Before fix: `groupdict()` returned `{'arg1': '1', 'arg2': None}` for missing optional groups\n2. After fix: `kwargs` contains only `{'arg1': '1'}` for the same URL\n3. This allows `reverse()` to correctly generate URLs when optional groups are omitted\n\n## Concerns\n- None - this is a minimal, focused fix that addresses the root cause directly",
+      "created_at": "2026-02-01T03:18:32.556Z"
+    },
+    {
+      "epic_id": "1804542e-06d7-4519-91c0-9ef730aff7d5",
+      "epic_title": "Fix: django__django-11477",
+      "comment_id": "43292648-cfeb-42ae-b50e-9b26ea39875e",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- Verification was only manual/custom; no run of the actual Django test(s) related to `translate_url()` inside the container.\n- No baseline (pre-fix) test results were provided, so there\u2019s no before/after comparison.\n\nRequired Changes:\n- Run the real test file in the container and report results (command + summary output), e.g. `docker exec swe-bench-django__django-11477 /opt/miniconda3/envs/testbed/bin/pytest tests/i18n/patterns/tests.py -k translate_url -xvs`.\n- Provide a baseline comparison by running the same command on the unmodified code (e.g., temporarily `git checkout -- django/urls/resolvers.py`), then re-apply the fix and re-run.\n\nNotes (not blockers):\n- The change is minimal and plausible, but it does broaden behavior of `RegexPattern.match()`; test coverage will help confirm no unintended regressions.",
+      "created_at": "2026-02-01T03:20:39.466Z"
+    },
+    {
+      "epic_id": "1804542e-06d7-4519-91c0-9ef730aff7d5",
+      "epic_title": "Fix: django__django-11477",
+      "comment_id": "18edb9fe-4f41-45ba-be50-49e91e1c962f",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary (Updated with proper test results)\n\nFixed `translate_url()` creating incorrect URLs when optional named groups are missing in URL patterns.\n\n**Root Cause:** In `django/urls/resolvers.py`, the `RegexPattern.match()` method was using `match.groupdict()` which returns `None` values for optional named groups that don't match. When `translate_url()` called `reverse()` with these `None` values, it would create incorrect URLs.\n\n**Fix:** Changed line 156 in `django/urls/resolvers.py`:\n```python\nkwargs = {k: v for k, v in match.groupdict().items() if v is not None}\n```\n\n## Files Modified\n- `django/urls/resolvers.py`: Filter out `None` values from `groupdict()` in `RegexPattern.match()` method\n\n## Test Results\n\n**Baseline (before fix):**\n```bash\ncd /testbed/tests && python runtests.py i18n.patterns.tests.URLTranslationTests.test_translate_url_utility\n```\nResult: 1 test passed\n\n**After fix:**\n```bash\ncd /testbed/tests && python runtests.py i18n.patterns.tests.URLTranslationTests.test_translate_url_utility\n```\nResult: 1 test passed\n\n**Broader test suite (no regressions):**\n- `i18n.patterns.tests`: 37 tests passed\n- `urlpatterns`: 25 tests passed\n- `urlpatterns.test_resolvers`: 2 tests passed\n\n**Demonstration of the fix:**\n```\nTest 1: URL with optional group present\n  Input: /regex_optional/1/2/\n  kwargs: {'arg1': '1', 'arg2': '2'}\n\nTest 2: URL without optional group (THE BUG FIX)\n  Input: /regex_optional/1/\n  kwargs: {'arg1': '1'}  # Before fix: {'arg1': '1', 'arg2': None}\n  None values in kwargs: False\n```\n\n## Concerns\n- None - the fix is minimal and all related tests pass without regressions",
+      "created_at": "2026-02-01T03:23:22.595Z"
+    },
+    {
+      "epic_id": "1804542e-06d7-4519-91c0-9ef730aff7d5",
+      "epic_title": "Fix: django__django-11477",
+      "comment_id": "c8cef63a-8227-4aff-81fa-bda56951312b",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and directly addresses the root cause: `RegexPattern.match()` no longer includes `None` values for unmatched optional named groups in `kwargs`, avoiding incorrect `reverse()` behavior during `translate_url()`.\n- Verified no test files/build configs were modified.\n- Confirmed the relevant Django test passes in-container: `runtests.py i18n.patterns.tests.URLTranslationTests.test_translate_url_utility` (OK).",
+      "created_at": "2026-02-01T03:24:20.956Z"
+    }
+  ]
+}

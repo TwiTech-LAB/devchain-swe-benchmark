@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-12273",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/base.py b/django/db/models/base.py\nindex 844c01e95e..b07e7783a8 100644\n--- a/django/db/models/base.py\n+++ b/django/db/models/base.py\n@@ -569,7 +569,20 @@ class Model(metaclass=ModelBase):\n         return getattr(self, meta.pk.attname)\n \n     def _set_pk_val(self, value):\n-        return setattr(self, self._meta.pk.attname, value)\n+        setattr(self, self._meta.pk.attname, value)\n+        # When setting the primary key to None, also set parent primary keys to\n+        # None. This ensures that all tables in a multi-table inheritance\n+        # hierarchy will get new primary keys on save, not just the child table.\n+        if value is None:\n+            parents = self._meta.parents\n+            # Process all parent models recursively to handle multi-level inheritance\n+            while parents:\n+                new_parents = {}\n+                for parent, field in parents.items():\n+                    setattr(self, parent._meta.pk.attname, None)\n+                    # Collect this parent's parents for the next iteration\n+                    new_parents.update(parent._meta.parents)\n+                parents = new_parents\n \n     pk = property(_get_pk_val, _set_pk_val)\n \n@@ -803,6 +816,14 @@ class Model(metaclass=ModelBase):\n         meta = cls._meta\n         inserted = False\n         for parent, field in meta.parents.items():\n+            # When a parent PK is set to None (e.g., obj.pk = None to create a\n+            # new object), also set the child's FK to None so both parent and\n+            # child get new primary keys on save. Check if the PK attribute is\n+            # in __dict__ to distinguish between \"explicitly set to None\" and\n+            # \"never set\".\n+            pk_attname = parent._meta.pk.attname\n+            if field and pk_attname in self.__dict__ and getattr(self, pk_attname) is None:\n+                setattr(self, field.attname, None)\n             # Make sure the link fields are synced between parent and self.\n             if (field and getattr(self, parent._meta.pk.attname) is None and\n                     getattr(self, field.attname) is not None):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T12:13:09.955514",
+  "end_time": "2026-02-03T12:26:41.856139",
+  "duration_seconds": 811.900625,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "0763c3f2-54cb-41bb-85ab-9c20badcb7a8",
+      "epic_title": "Fix: django__django-12273",
+      "comment_id": "c20fde7d-4120-4096-b4ab-541c9fe23e25",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe bug occurred when resetting the primary key to None on a child model with multi-table inheritance. When saving, instead of creating a new row, the existing row was updated.\n\n**Root Cause:**\nIn multi-table inheritance, the child and parent share the same primary key. The child has a OneToOneField (FK) to the parent. When resetting the PK:\n1. Setting `obj.pk = None` only set the child's PK attname (e.g., `item_ptr_id`), not the parent's PK (e.g., `uid`)\n2. Setting `obj.uid = None` directly set the parent's PK to None, but the child's FK still had the old value\n3. During save, `_save_parents()` synced the FK value back to the PK, or vice versa, causing an UPDATE instead of INSERT\n\n**Fix (2 changes in `django/db/models/base.py`):**\n\n1. **`_set_pk_val()` (lines 571-583):** When `pk = None` is set, also recursively set all parent model PKs to None. This handles multi-level inheritance.\n\n2. **`_save_parents()` (lines 819-825):** When a parent PK is explicitly set to None (detected by checking if it's in `__dict__`), also set the child's FK field to None. This handles the case where the user sets `parent_pk_attr = None` directly.\n\n## Files Modified\n- `django/db/models/base.py`: Fixed `_set_pk_val()` and `_save_parents()` methods\n\n## Test Results\n- Verified the exact bug scenario: creating a child model, then resetting PK and saving now creates a new row instead of updating\n- Verified regular models (no inheritance) still work correctly\n- Verified multi-level inheritance works correctly\n- Verified setting pk to non-None values works correctly\n\n## Concerns\n- The fix checks `pk_attname in self.__dict__` to distinguish \"explicitly set to None\" vs \"never set\". This may not work for deferred fields, but deferred fields would have a value loaded from the DB, not None.",
+      "created_at": "2026-02-03T11:24:43.233Z"
+    },
+    {
+      "epic_id": "0763c3f2-54cb-41bb-85ab-9c20badcb7a8",
+      "epic_title": "Fix: django__django-12273",
+      "comment_id": "b76b6202-9a4f-40fd-bf11-4078feb0c15e",
+      "author_name": "Code Reviewer",
+      "content": "Code Review PASSED\n\n**Review Summary:**\n\nOnly `django/db/models/base.py` was modified \u2014 no test files, no config files, no unrelated changes.\n\n**Change 1 \u2014 `_set_pk_val()`:** When `pk` is set to None, parent PKs are now iteratively cleared across the entire inheritance chain. The iterative `while` loop handles multi-level inheritance correctly and terminates safely (Django's inheritance is a DAG). For models without inheritance, the loop body is never entered \u2014 zero behavioral change.\n\n**Change 2 \u2014 `_save_parents()`:** Before the existing FK\u2192PK sync logic, the new code checks if the parent PK was explicitly set to None (via `__dict__` presence check) and clears the corresponding FK field. This prevents the old sync logic from restoring a stale PK value, which was the direct cause of UPDATE-instead-of-INSERT.\n\nBoth changes interact correctly: `_set_pk_val` populates `__dict__` with None values for all parent PKs, and `_save_parents` picks them up to clear FK fields, ensuring INSERTs at every level of the hierarchy.\n\nVerdict: **PASS** \u2014 The fix is minimal, logically sound, and directly addresses the reported bug.",
+      "created_at": "2026-02-03T11:26:30.951Z"
+    }
+  ]
+}

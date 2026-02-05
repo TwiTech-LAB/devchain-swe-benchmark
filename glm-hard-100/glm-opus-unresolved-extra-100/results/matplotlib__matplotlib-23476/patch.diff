@@ -1,0 +1,44 @@
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index c55864243a..84a2dcc180 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -3030,11 +3030,22 @@ class Figure(FigureBase):
+         from matplotlib import _pylab_helpers
+         if self.canvas.manager in _pylab_helpers.Gcf.figs.values():
+             state['_restore_to_pylab'] = True
++
++        # Store the device pixel ratio so we can correctly restore _original_dpi
++        # on unpickling. This prevents DPI doubling when unpickling figures with
++        # non-default device pixel ratios (e.g., on retina displays).
++        if hasattr(self.canvas, "_device_pixel_ratio"):
++            state["_device_pixel_ratio"] = self.canvas._device_pixel_ratio
++
++        # Don't pickle _original_dpi so it gets recalculated on unpickling.
++        state.pop("_original_dpi", None)
++
+         return state
+ 
+     def __setstate__(self, state):
+         version = state.pop('__mpl_version__')
+         restore_to_pylab = state.pop('_restore_to_pylab', False)
++        device_pixel_ratio = state.pop("_device_pixel_ratio", None)
+ 
+         if version != mpl.__version__:
+             _api.warn_external(
+@@ -3056,7 +3067,15 @@ class Figure(FigureBase):
+             pylab_helpers.Gcf._set_new_active_manager(mgr)
+             plt.draw_if_interactive()
+ 
+-        self.stale = True
++        # Restore _original_dpi to account for the device pixel ratio that was
++        # applied to the saved DPI. This must be done AFTER all canvas creation
++        # is complete (including the restore_to_pylab block) to prevent our
++        # changes from being overwritten.
++        if device_pixel_ratio is not None:
++            self._original_dpi = self.dpi / device_pixel_ratio
++            self.canvas._device_pixel_ratio = device_pixel_ratio
++
++        self._stale = True
+ 
+     def add_axobserver(self, func):
+         """Whenever the Axes state change, ``func(self)`` will be called."""

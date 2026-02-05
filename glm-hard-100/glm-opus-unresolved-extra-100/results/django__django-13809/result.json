@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-13809",
+  "status": "completed",
+  "patch": "diff --git a/django/core/management/commands/runserver.py b/django/core/management/commands/runserver.py\nindex d9fb088350..d5a037a824 100644\n--- a/django/core/management/commands/runserver.py\n+++ b/django/core/management/commands/runserver.py\n@@ -51,6 +51,10 @@ class Command(BaseCommand):\n             '--noreload', action='store_false', dest='use_reloader',\n             help='Tells Django to NOT use the auto-reloader.',\n         )\n+        parser.add_argument(\n+            '--skip-checks', action='store_true',\n+            help='Skip system checks.',\n+        )\n \n     def execute(self, *args, **options):\n         if options['no_color']:\n@@ -114,11 +118,13 @@ class Command(BaseCommand):\n         shutdown_message = options.get('shutdown_message', '')\n         quit_command = 'CTRL-BREAK' if sys.platform == 'win32' else 'CONTROL-C'\n \n-        self.stdout.write(\"Performing system checks...\\n\\n\")\n-        self.check(display_num_errors=True)\n-        # Need to check migrations here, so can't use the\n-        # requires_migrations_check attribute.\n-        self.check_migrations()\n+        skip_checks = options.get('skip_checks')\n+        if not skip_checks:\n+            self.stdout.write(\"Performing system checks...\\n\\n\")\n+            self.check(display_num_errors=True)\n+            # Need to check migrations here, so can't use the\n+            # requires_migrations_check attribute.\n+            self.check_migrations()\n         now = datetime.now().strftime('%B %d, %Y - %X')\n         self.stdout.write(now)\n         self.stdout.write((\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T22:18:58.185289",
+  "end_time": "2026-01-31T22:26:34.920814",
+  "duration_seconds": 456.735525,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "1958c8fc-4527-4b5f-9d1c-a6adf5e2dea4",
+      "epic_title": "Fix: django__django-13809",
+      "comment_id": "18270c77-21cd-4df5-b905-0cc87bc557c8",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nAdded `--skip-checks` option to the runserver command, allowing developers to skip system checks during development. This is consistent with other management commands like `migrate` that already have this option.\n\n## Files Modified\n\n- `django/core/management/commands/runserver.py`:\n  - Added `--skip-checks` argument in `add_arguments()` method (lines 54-57)\n  - Modified `inner_run()` method to conditionally execute system checks (lines 121-127):\n    - When `--skip-checks` is NOT specified: performs system checks and migration checks (existing behavior)\n    - When `--skip-checks` IS specified: skips both `self.check()` and `self.check_migrations()`\n\n## Test Results\n\n- **Test file:** tests/admin_scripts/tests.py (ManageRunserver class)\n- **Baseline (before fix):** 9 passed, 0 failed, 0 errors\n- **After fix:** 9 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Verification\n\n1. Argument parser correctly accepts `--skip-checks` flag\n2. Default behavior (without flag) remains unchanged - system checks are performed\n3. With `--skip-checks` flag, system checks and migration checks are skipped\n\n## Implementation Pattern\n\nFollows the exact same pattern as the `migrate` command:\n- Set `requires_system_checks = []` to prevent automatic checks\n- Add `--skip-checks` argument in `add_arguments()`\n- Check the option and conditionally call `self.check()` in `inner_run()`",
+      "created_at": "2026-01-31T21:24:48.913Z"
+    },
+    {
+      "epic_id": "1958c8fc-4527-4b5f-9d1c-a6adf5e2dea4",
+      "epic_title": "Fix: django__django-13809",
+      "comment_id": "8a6543c1-deb2-48a8-b9b9-b3b5b0ae9619",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED\n\nThe implementation correctly addresses the problem statement and follows Django's established patterns.\n\n**Changes Verified:**\n- \u2713 Only source code modified (`django/core/management/commands/runserver.py`)\n- \u2713 No test files changed\n- \u2713 Added `--skip-checks` argument matching the migrate command pattern\n- \u2713 Conditional system checks logic is clean and correct\n- \u2713 Default behavior preserved (checks enabled when flag not used)\n- \u2713 All 9 tests passed with no regressions\n- \u2713 Baseline comparison provided\n\n**Implementation Quality:**\n- Clean, minimal changes\n- Consistent with existing Django management commands (migrate)\n- Properly skips both `self.check()` and `self.check_migrations()` when flag is set\n- Command class already has `requires_system_checks = []` for manual control\n\nThe fix is production-ready.",
+      "created_at": "2026-01-31T21:26:21.614Z"
+    }
+  ]
+}

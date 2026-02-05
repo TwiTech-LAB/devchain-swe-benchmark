@@ -1,0 +1,46 @@
+{
+  "instance_id": "django__django-11433",
+  "status": "completed",
+  "patch": "diff --git a/django/forms/models.py b/django/forms/models.py\nindex 5edbbd376f..5dd74d9390 100644\n--- a/django/forms/models.py\n+++ b/django/forms/models.py\n@@ -8,6 +8,7 @@ from itertools import chain\n from django.core.exceptions import (\n     NON_FIELD_ERRORS, FieldError, ImproperlyConfigured, ValidationError,\n )\n+from django.core.validators import EMPTY_VALUES\n from django.forms.fields import ChoiceField, Field\n from django.forms.forms import BaseForm, DeclarativeFieldsMetaclass\n from django.forms.formsets import BaseFormSet, formset_factory\n@@ -46,10 +47,12 @@ def construct_instance(form, instance, fields=None, exclude=None):\n             continue\n         if exclude and f.name in exclude:\n             continue\n-        # Leave defaults for fields that aren't in POST data, except for\n-        # checkbox inputs because they don't appear in POST data if not checked.\n+        # If the field has a default and was omitted from POST data, only skip\n+        # if the cleaned_data value is empty. This allows users to override\n+        # defaults by explicitly setting a value in cleaned_data via form.clean().\n         if (f.has_default() and\n-                form[f.name].field.widget.value_omitted_from_data(form.data, form.files, form.add_prefix(f.name))):\n+                form[f.name].field.widget.value_omitted_from_data(form.data, form.files, form.add_prefix(f.name)) and\n+                cleaned_data[f.name] in EMPTY_VALUES):\n             continue\n         # Defer saving file-type fields until after the other fields, so a\n         # callable upload_to can use the values from other fields.\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-01T06:32:15.995265",
+  "end_time": "2026-02-01T06:52:19.801347",
+  "duration_seconds": 1203.806082,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "c586df74-127c-419d-8d81-08c8028230d0",
+      "epic_title": "Fix: django__django-11433",
+      "comment_id": "91a15464-832e-4837-b2d5-a1c5f4304ed6",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where `cleaned_data` values could not override model field defaults when the field wasn't included in the POST data.\n\n**Root Cause:** The `construct_instance` function in `django/forms/models.py` was skipping fields that:\n1. Had a default value on the model\n2. Were omitted from POST data\n\nThis prevented users from overriding defaults by setting values in `cleaned_data` via custom `clean()` methods.\n\n**Solution:** Modified the check to only skip when the cleaned_data value is truly empty (None, '', [], (), {}), allowing non-empty values in cleaned_data to override defaults. Uses Django's `EMPTY_VALUES` constant for accurate empty value detection.\n\n## Files Modified\n- `django/forms/models.py`: \n  - Added import of `EMPTY_VALUES` from `django.core.validators`\n  - Modified the default-handling check in `construct_instance` to use `cleaned_data[f.name] in EMPTY_VALUES` instead of the old unconditional skip\n\n## Test Results\n\nAll manual tests passed:\n- Empty data with default -> uses default \u2713\n- Override default via clean() -> uses cleaned_data value \u2713\n- BooleanField unchecked -> False (not default True) \u2713\n- Explicit empty string in POST -> empty string (not default) \u2713\n- Value 0 (falsy but valid) -> 0 (not default) \u2713\n- Value False (falsy but valid) -> False (not default) \u2713\n\n## Edge Cases Handled\n- BooleanField/CheckboxInput: `value_omitted_from_data` returns False, so defaults aren't applied (existing behavior preserved)\n- Falsy values like 0 and False: Not in EMPTY_VALUES, so they correctly override defaults\n- Empty strings and None: In EMPTY_VALUES, so defaults are used when appropriate",
+      "created_at": "2026-02-01T05:44:00.426Z"
+    },
+    {
+      "epic_id": "c586df74-127c-419d-8d81-08c8028230d0",
+      "epic_title": "Fix: django__django-11433",
+      "comment_id": "6c8829ae-a3c9-4b1f-a0f9-9eb66ecb8b65",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- Verification is insufficient: the summary only lists manual tests. Per SWE-bench protocol we need baseline vs after-fix pytest output, and it should include running the real Django tests inside the container.\n\nNotes on the patch:\n- Source-only change is good (only `django/forms/models.py` modified; no tests touched).\n- Logic looks plausible and should preserve existing default/omitted behavior while allowing non-empty `cleaned_data` overrides.\n\nRequired Changes:\n- Run baseline tests before your change and record the output.\n- Run after-fix tests inside the container, at minimum `pytest tests/model_forms/tests.py -x` (or narrower `-k default` if you must), and include the command + output in your summary.\n- Confirm behavior for the core use case: field omitted from POST, model field has default, `clean()` sets a value in `cleaned_data`, and the saved instance uses that value (not the model default).",
+      "created_at": "2026-02-01T05:46:49.136Z"
+    },
+    {
+      "epic_id": "c586df74-127c-419d-8d81-08c8028230d0",
+      "epic_title": "Fix: django__django-11433",
+      "comment_id": "8612f4a9-8cfe-4c38-a40d-653fa2125f75",
+      "author_name": "Brainstormer",
+      "content": "## Re-verification with Proper Django Tests\n\n### Baseline Tests (before fix)\n```bash\ncd /testbed && PYTHONPATH=/testbed python tests/runtests.py \\\n  model_forms.tests.ModelFormBaseTest.test_default_populated_on_optional_field \\\n  model_forms.tests.ModelFormBaseTest.test_default_not_populated_on_optional_checkbox_input\n```\nResult: 2 tests passed\n\n### After-fix Tests (with fix applied)\n```bash\ncd /testbed && PYTHONPATH=/testbed python tests/runtests.py \\\n  model_forms.tests.ModelFormBaseTest.test_default_populated_on_optional_field \\\n  model_forms.tests.ModelFormBaseTest.test_default_not_populated_on_optional_checkbox_input\n```\nResult: 2 tests passed\n\n### All model_forms Tests (no regressions)\n```bash\ncd /testbed && PYTHONPATH=/testbed python tests/runtests.py model_forms.tests\n```\nResult: 143 tests passed, 1 skipped\n\n### Core Use Case Verification\nTest scenario: Field omitted from POST, model has default, `clean()` sets value in `cleaned_data`\n\n```python\nclass TestModel(models.Model):\n    name = models.CharField(max_length=100, default='DEFAULT_NAME')\n\nclass TestForm(Form):\n    name = CharField(required=False)\n    \n    def clean(self):\n        cleaned_data = super().clean()\n        cleaned_data['name'] = 'OVERRIDDEN_IN_CLEAN'\n        return cleaned_data\n\nform = TestForm(data={})  # Empty POST - fields omitted\nresult = construct_instance(form, instance)\n# result.name == 'OVERRIDDEN_IN_CLEAN' \u2713\n```\n\n**Result:** PASSED - The value from `clean()` overrides the model default.\n\n## Files Modified\n- `django/forms/models.py`: \n  - Added `from django.core.validators import EMPTY_VALUES`\n  - Changed check from unconditional skip to: `cleaned_data[f.name] in EMPTY_VALUES`\n\n## Summary\n- Baseline: 2/2 tests pass\n- After fix: 2/2 tests pass  \n- Full model_forms test suite: 143/143 tests pass (1 skipped)\n- Core use case: PASSED",
+      "created_at": "2026-02-01T05:50:18.608Z"
+    },
+    {
+      "epic_id": "c586df74-127c-419d-8d81-08c8028230d0",
+      "epic_title": "Fix: django__django-11433",
+      "comment_id": "a7206f59-5da4-41bd-a75b-a6e89076f09d",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and source-only (`django/forms/models.py`).\n- Logic matches the problem statement: when a field has a model default and is omitted from POST, a non-empty value injected into `cleaned_data` can now override the model default.\n- Re-verification includes baseline vs after-fix and full `model_forms.tests` run with no regressions reported.",
+      "created_at": "2026-02-01T05:52:07.631Z"
+    }
+  ]
+}

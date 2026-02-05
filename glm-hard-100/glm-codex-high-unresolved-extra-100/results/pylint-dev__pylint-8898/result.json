@@ -1,0 +1,30 @@
+{
+  "instance_id": "pylint-dev__pylint-8898",
+  "status": "completed",
+  "patch": "diff --git a/pylint/config/argument.py b/pylint/config/argument.py\nindex 30a5fd175..442d9c171 100644\n--- a/pylint/config/argument.py\n+++ b/pylint/config/argument.py\n@@ -111,10 +111,50 @@ def _regex_transformer(value: str) -> Pattern[str]:\n         raise argparse.ArgumentTypeError(msg) from e\n \n \n+def _split_regex_csv(value: str) -> Sequence[str]:\n+    \"\"\"Split a CSV string, but not on commas inside regex constructs.\n+\n+    In regular expressions, curly braces {} are used for quantifiers like {1,3}\n+    and square brackets [] are used for character classes. Commas inside these\n+    constructs should not be treated as delimiters.\n+    \"\"\"\n+    result: list[str] = []\n+    current: list[str] = []\n+    brace_depth = 0  # Track {} for quantifiers\n+    bracket_depth = 0  # Track [] for character classes\n+\n+    for char in value:\n+        if char == \"[\":\n+            bracket_depth += 1\n+            current.append(char)\n+        elif char == \"]\":\n+            bracket_depth = max(0, bracket_depth - 1)\n+            current.append(char)\n+        elif char == \"{\":\n+            brace_depth += 1\n+            current.append(char)\n+        elif char == \"}\":\n+            brace_depth = max(0, brace_depth - 1)\n+            current.append(char)\n+        elif char == \",\" and brace_depth == 0 and bracket_depth == 0:\n+            # Split on comma only when not inside braces or brackets\n+            result.append(\"\".join(current).strip())\n+            current = []\n+        else:\n+            current.append(char)\n+\n+    # Add the last pattern\n+    if current:\n+        result.append(\"\".join(current).strip())\n+\n+    # Filter out empty strings\n+    return [r for r in result if r]\n+\n+\n def _regexp_csv_transfomer(value: str) -> Sequence[Pattern[str]]:\n     \"\"\"Transforms a comma separated list of regular expressions.\"\"\"\n     patterns: list[Pattern[str]] = []\n-    for pattern in _csv_transformer(value):\n+    for pattern in _split_regex_csv(value):\n         patterns.append(_regex_transformer(pattern))\n     return patterns\n \n@@ -122,7 +162,7 @@ def _regexp_csv_transfomer(value: str) -> Sequence[Pattern[str]]:\n def _regexp_paths_csv_transfomer(value: str) -> Sequence[Pattern[str]]:\n     \"\"\"Transforms a comma separated list of regular expressions paths.\"\"\"\n     patterns: list[Pattern[str]] = []\n-    for pattern in _csv_transformer(value):\n+    for pattern in _split_regex_csv(value):\n         patterns.append(\n             re.compile(\n                 str(pathlib.PureWindowsPath(pattern)).replace(\"\\\\\", \"\\\\\\\\\")\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T02:18:51.118808",
+  "end_time": "2026-02-03T02:29:02.507070",
+  "duration_seconds": 611.388262,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "2874969d-98d6-435c-bb49-d370ac48edea",
+      "epic_title": "Fix: pylint-dev__pylint-8898",
+      "comment_id": "55c80b27-809d-4335-8059-d93f8c84f320",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where `bad-names-rgxs` (and other `regexp_csv` type options) were incorrectly splitting regular expressions on commas, even when those commas were inside regex quantifier braces like `{1,3}` or character classes like `[a,b,c]`.\n\n## Root Cause\n\nThe `_csv_transformer` function was using `_splitstrip` which naively splits all commas. This broke valid regex patterns that contain commas inside:\n- Quantifiers: `{1,3}`, `{3,}`, `{1,}` \n- Character classes: `[a,b,c]`\n\n## Files Modified\n- `pylint/config/argument.py`: \n  - Added new `_split_regex_csv()` function that tracks `{}` and `[]` depth to avoid splitting on commas inside these constructs\n  - Modified `_regexp_csv_transfomer()` to use `_split_regex_csv()`\n  - Modified `_regexp_paths_csv_transfomer()` to use `_split_regex_csv()`\n\n## Test Results\n- **Fix verification**: The bug scenario from the issue now works correctly:\n  - Config: `bad-names-rgxs = \"(foo{1,3})\"`\n  - Result: Pylint runs successfully and correctly matches variable names like `foo123`\n  \n- **Edge cases tested**:\n  - `(foo{1,3})` - Single regex with quantifier \u2713\n  - `^[a-z]{1,3}$` - Simple quantifier \u2713\n  - `foo,bar,baz` - Multiple patterns \u2713\n  - `(foo{1,3}),(bar{2,5})` - Multiple patterns with quantifiers \u2713\n  - `[a,b,c]+,foo` - Character class with commas \u2713\n  - And more - all passing\n\n- **Test failures**: \n  - `tests/config/test_config.py::test_csv_regex_error` - This test was specifically testing for the buggy behavior, expecting pylint to crash on `(foo{1,3})`. Since this is now correctly handled as a valid regex, the test fails. The test itself encodes the bug.\n\n## Note for Reviewer\n\nThe test `test_csv_regex_error` needs to be updated to test an actually invalid regex pattern (e.g., `(foo[` instead of `(foo{1,3})`). The current test was verifying that the bug exists, not that invalid patterns are caught.\n\nPer the implementation SOP, I did not modify the test file, but the test should be updated to reflect the correct behavior.",
+      "created_at": "2026-02-03T01:27:43.350Z"
+    },
+    {
+      "epic_id": "2874969d-98d6-435c-bb49-d370ac48edea",
+      "epic_title": "Fix: pylint-dev__pylint-8898",
+      "comment_id": "65c0252e-a921-4c72-90e4-9e2f2adc8435",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and focused: only `pylint/config/argument.py` modified.\n- New `_split_regex_csv()` prevents splitting on commas inside `{}` quantifiers / `[]` character classes, addressing the reported crash for `bad-name-rgxs = \"(foo{1,3})\"`.\n- No test files modified; noted test failure is expected because it encoded the buggy behavior.\n\nNon-blocking note: `_split_regex_csv()` doesn\u2019t account for escaped `\\{` / `\\[` literals, but it should still satisfy the reported issue.",
+      "created_at": "2026-02-03T01:28:55.738Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "instance_id": "pylint-dev__pylint-8898",
+  "status": "completed",
+  "patch": "diff --git a/pylint/utils/utils.py b/pylint/utils/utils.py\nindex fa7f7b92f..0011eef94 100644\n--- a/pylint/utils/utils.py\n+++ b/pylint/utils/utils.py\n@@ -217,8 +217,10 @@ def _splitstrip(string: str, sep: str = \",\") -> list[str]:\n     ['a', 'b', 'c', '4']\n     >>> _splitstrip('a')\n     ['a']\n-    >>> _splitstrip('a,\\nb,\\nc,')\n+    >>> _splitstrip('a,\\\\nb,\\\\nc,')\n     ['a', 'b', 'c']\n+    >>> _splitstrip('a\\\\, b, c')\n+    ['a, b', 'c']\n \n     :type string: str or unicode\n     :param string: a csv line\n@@ -229,6 +231,31 @@ def _splitstrip(string: str, sep: str = \",\") -> list[str]:\n     :rtype: str or unicode\n     :return: the unquoted string (or the input string if it wasn't quoted)\n     \"\"\"\n+    # Handle escaped separators by splitting character by character\n+    if sep == \",\":\n+        result = []\n+        current = []\n+        i = 0\n+        while i < len(string):\n+            if string[i] == \"\\\\\" and i + 1 < len(string) and string[i + 1] == \",\":\n+                # Escaped comma, add the comma to current\n+                current.append(\",\")\n+                i += 2\n+            elif string[i] == \",\":\n+                # Separator, split here\n+                part = \"\".join(current).strip()\n+                if part:\n+                    result.append(part)\n+                current = []\n+                i += 1\n+            else:\n+                current.append(string[i])\n+                i += 1\n+        # Add remaining part\n+        part = \"\".join(current).strip()\n+        if part:\n+            result.append(part)\n+        return result\n     return [word.strip() for word in string.split(sep) if word.strip()]\n \n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T19:00:50.743721",
+  "end_time": "2026-01-31T19:11:25.687603",
+  "duration_seconds": 634.943882,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "764f3ffc-1ba7-4a63-9266-a10fb4f3364b",
+      "epic_title": "Fix: pylint-dev__pylint-8898",
+      "comment_id": "ce9069d2-1b1c-446c-ad40-e6ffc2d5937b",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where `bad-names-rgxs` and similar options would crash when regular expressions contained commas. The fix allows users to escape commas using `\\,` so they are not treated as delimiters.\n\n## Root Cause\n\nThe `_splitstrip` function in `pylint/utils/utils.py` was splitting on ALL commas, including those inside regex patterns. For example, the pattern `(foo{1,3})` would be split into `(foo{1` and `3})`, causing an invalid regex error.\n\n## Solution\n\nModified the `_splitstrip` function to:\n1. Recognize escaped commas (`\\,`) and NOT split on them\n2. Properly unescape the result to restore the actual comma character\n\n## Files Modified\n\n- `pylint/utils/utils.py`: Updated `_splitstrip` function to handle escaped commas when splitting on comma separator\n\n## Test Results\n\n- **Doctests**: All 4 tests in `_splitstrip` pass\n- **test_self.py**: 138 passed, 1 xfailed (pre-existing)\n- **Functional tests**: All name-related tests pass (57 passed, 3 skipped)\n- **Specific verification**: The pattern `(foo{1,3})` can now be used with `\\,` escape: `(foo{1\\,3})`\n\n## Usage Example\n\nUsers can now use regex patterns with commas by escaping them:\n\n```ini\n[tool.pylint.basic]\n# Single pattern with comma in regex quantifier\nbad-names-rgxs = \"(foo{1\\,3})\"\n\n# Multiple patterns, one with escaped comma\nbad-names-rgxs = \"foo\\d{1\\,3},bar.*\"\n```\n\n## Edge Cases Handled\n\n- Empty strings are still discarded\n- Whitespace stripping still works correctly\n- Both escaped (`\\,`) and unescaped commas work as expected\n- Back-to-back empty values are handled correctly\n- Other separators (non-comma) continue to work with the original logic",
+      "created_at": "2026-01-31T18:11:12.816Z"
+    }
+  ]
+}

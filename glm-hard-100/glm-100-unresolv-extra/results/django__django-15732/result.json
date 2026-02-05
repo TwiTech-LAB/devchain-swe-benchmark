@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-15732",
+  "status": "completed",
+  "patch": "diff --git a/django/db/backends/base/schema.py b/django/db/backends/base/schema.py\nindex f2ca8c8df9..62194604ff 100644\n--- a/django/db/backends/base/schema.py\n+++ b/django/db/backends/base/schema.py\n@@ -567,6 +567,7 @@ class BaseDatabaseSchemaEditor:\n             columns,\n             exclude=meta_constraint_names | meta_index_names,\n             **constraint_kwargs,\n+            primary_key=False,\n         )\n         if len(constraint_names) != 1:\n             raise ValueError(\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T16:10:48.369355",
+  "end_time": "2026-01-31T16:16:30.770213",
+  "duration_seconds": 342.400858,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "563b363c-e298-47a1-8d0c-020f9472cea2",
+      "epic_title": "Fix: django__django-15732",
+      "comment_id": "a7a006cb-95a5-4109-ad6f-bab1a0906edb",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where dropping a `unique_together` constraint on a single field that also has its own `unique=True` constraint (like a primary key) would fail.\n\n**Root Cause:** The `_delete_composed_index` method in `django/db/backends/base/schema.py` was finding both the primary key constraint AND the unique_together constraint when searching for constraints to drop, but expected exactly 1 constraint.\n\n**Solution:** Added `primary_key=False` to the `_constraint_names` call in `_delete_composed_index` to exclude primary key constraints from the search. This follows the same pattern already used in `alter_field` (line 827).\n\n## Files Modified\n- `django/db/backends/base/schema.py`: Added `primary_key=False` parameter to `_constraint_names()` call in `_delete_composed_index` method (line ~570)\n\n## Test Results\n- Verified the fix is correctly applied\n- Verified the constraint filtering logic works correctly - with `primary_key=False`, only the unique_together constraint is found (not the primary key)\n- The fix follows existing code patterns in `alter_field` method\n\n## Concerns\n- None. The fix is minimal, focused, and follows existing patterns in the codebase.",
+      "created_at": "2026-01-31T15:16:23.796Z"
+    }
+  ]
+}

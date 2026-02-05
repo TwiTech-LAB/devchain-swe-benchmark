@@ -1,0 +1,29 @@
+diff --git a/django/forms/models.py b/django/forms/models.py
+index 5edbbd376f..0c4859572e 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -48,9 +48,21 @@ def construct_instance(form, instance, fields=None, exclude=None):
+             continue
+         # Leave defaults for fields that aren't in POST data, except for
+         # checkbox inputs because they don't appear in POST data if not checked.
+-        if (f.has_default() and
+-                form[f.name].field.widget.value_omitted_from_data(form.data, form.files, form.add_prefix(f.name))):
+-            continue
++        # If the field is in cleaned_data but was not in POST data, it was set
++        # programmatically (e.g., in form.clean()) and should override the default.
++        prefixed_name = form.add_prefix(f.name)
++        value_omitted = form[f.name].field.widget.value_omitted_from_data(
++            form.data, form.files, prefixed_name
++        )
++        if f.has_default() and value_omitted:
++            # The value was omitted from POST data. Check if it was set
++            # programmatically in clean() by comparing to the field's empty value.
++            field = form[f.name].field
++            if cleaned_data[f.name] in field.empty_values:
++                # Field wasn't submitted and wasn't set programmatically,
++                # use the model default.
++                continue
++            # Otherwise, the field was set programmatically, use cleaned_data.
+         # Defer saving file-type fields until after the other fields, so a
+         # callable upload_to can use the values from other fields.
+         if isinstance(f, models.FileField):

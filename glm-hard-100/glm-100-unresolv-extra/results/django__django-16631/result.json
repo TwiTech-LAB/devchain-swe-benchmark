@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-16631",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/auth/__init__.py b/django/contrib/auth/__init__.py\nindex 155330c596..da8d4c7f3a 100644\n--- a/django/contrib/auth/__init__.py\n+++ b/django/contrib/auth/__init__.py\n@@ -5,7 +5,7 @@ from django.apps import apps as django_apps\n from django.conf import settings\n from django.core.exceptions import ImproperlyConfigured, PermissionDenied\n from django.middleware.csrf import rotate_token\n-from django.utils.crypto import constant_time_compare\n+from django.utils.crypto import constant_time_compare, salted_hmac\n from django.utils.module_loading import import_string\n from django.views.decorators.debug import sensitive_variables\n \n@@ -21,6 +21,27 @@ def load_backend(path):\n     return import_string(path)()\n \n \n+def _verify_session_hash(user, session_hash):\n+    \"\"\"\n+    Verify a session hash against a user's password, trying SECRET_KEY\n+    and all SECRET_KEY_FALLBACKS keys. Returns True if the session hash\n+    matches any of them.\n+    \"\"\"\n+    key_salt = \"django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash\"\n+    # Try with the current SECRET_KEY first (most common case)\n+    current_hash = salted_hmac(key_salt, user.password, algorithm=\"sha256\").hexdigest()\n+    if constant_time_compare(session_hash, current_hash):\n+        return True\n+    # Try with each fallback key\n+    for fallback_key in settings.SECRET_KEY_FALLBACKS:\n+        fallback_hash = salted_hmac(\n+            key_salt, user.password, secret=fallback_key, algorithm=\"sha256\"\n+        ).hexdigest()\n+        if constant_time_compare(session_hash, fallback_hash):\n+            return True\n+    return False\n+\n+\n def _get_backends(return_tuples=False):\n     backends = []\n     for backend_path in settings.AUTHENTICATION_BACKENDS:\n@@ -199,8 +220,8 @@ def get_user(request):\n             # Verify the session\n             if hasattr(user, \"get_session_auth_hash\"):\n                 session_hash = request.session.get(HASH_SESSION_KEY)\n-                session_hash_verified = session_hash and constant_time_compare(\n-                    session_hash, user.get_session_auth_hash()\n+                session_hash_verified = session_hash and _verify_session_hash(\n+                    user, session_hash\n                 )\n                 if not session_hash_verified:\n                     request.session.flush()\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T16:17:23.971760",
+  "end_time": "2026-01-31T16:21:06.412785",
+  "duration_seconds": 222.441025,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "4cdf2173-bb9e-476e-8282-c3f1da298ba4",
+      "epic_title": "Fix: django__django-16631",
+      "comment_id": "852a4f9d-354a-4c1a-baf9-c37961e692b7",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed SECRET_KEY_FALLBACKS not being used for session authentication. When a user's SECRET_KEY is rotated, existing sessions were being invalidated because the session verification code only compared hashes generated with the current SECRET_KEY, without trying the old keys in SECRET_KEY_FALLBACKS.\n\n## Files Modified\n- `django/contrib/auth/__init__.py`: Added `_verify_session_hash()` helper function and updated session verification logic\n\n## Changes Made\n1. Added import for `salted_hmac` from `django.utils.crypto`\n2. Added `_verify_session_hash(user, session_hash)` function that:\n   - First tries to verify the hash with the current SECRET_KEY (most common case)\n   - If that fails, tries each key in SECRET_KEY_FALLBACKS\n   - Returns True if any match, False otherwise\n3. Updated the session verification code in `get_user()` to use `_verify_session_hash()` instead of directly comparing with `get_session_auth_hash()`\n\n## Test Results\n- Verified the fix logic with manual tests:\n  - Current SECRET_KEY works: True\n  - Old key with SECRET_KEY_FALLBACKS configured: True  \n  - Wrong hash correctly fails: False\n\n## Concerns\n- The fix preserves existing behavior for sessions created with the current key\n- Sessions created with old keys remain valid when those keys are in SECRET_KEY_FALLBACKS\n- Security is maintained as invalid hashes still fail verification",
+      "created_at": "2026-01-31T15:20:59.765Z"
+    }
+  ]
+}

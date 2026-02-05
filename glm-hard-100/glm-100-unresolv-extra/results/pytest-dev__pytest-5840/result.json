@@ -1,0 +1,22 @@
+{
+  "instance_id": "pytest-dev__pytest-5840",
+  "status": "completed",
+  "patch": "diff --git a/src/_pytest/config/__init__.py b/src/_pytest/config/__init__.py\nindex 3a0eca546..3ee01f966 100644\n--- a/src/_pytest/config/__init__.py\n+++ b/src/_pytest/config/__init__.py\n@@ -435,9 +435,13 @@ class PytestPluginManager(PluginManager):\n         # Use realpath to avoid loading the same conftest twice\n         # with build systems that create build directories containing\n         # symlinks to actual files.\n-        conftestpath = unique_path(conftestpath)\n+        # We need to use the original conftestpath for the actual import\n+        # because unique_path uses normcase which on Windows returns\n+        # a lowercase path which breaks module imports (#5840).\n+        # Use unique_path only for the cache key.\n+        conftestpath_key = unique_path(conftestpath)\n         try:\n-            return self._conftestpath2mod[conftestpath]\n+            return self._conftestpath2mod[conftestpath_key]\n         except KeyError:\n             pkgpath = conftestpath.pypkgpath()\n             if pkgpath is None:\n@@ -454,7 +458,7 @@ class PytestPluginManager(PluginManager):\n                 raise ConftestImportFailure(conftestpath, sys.exc_info())\n \n             self._conftest_plugins.add(mod)\n-            self._conftestpath2mod[conftestpath] = mod\n+            self._conftestpath2mod[conftestpath_key] = mod\n             dirpath = conftestpath.dirpath()\n             if dirpath in self._dirpath2confmods:\n                 for path, mods in self._dirpath2confmods.items():\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T16:09:23.348069",
+  "end_time": "2026-01-31T16:17:13.572400",
+  "duration_seconds": 470.224331,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "0f873c90-d0df-4088-915d-042f5cea6820",
+      "epic_title": "Fix: pytest-dev__pytest-5840",
+      "comment_id": "8ac6ad58-428b-4101-ba8e-4e01088ac186",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the Windows import folder casing issue in pytest 5.1.2+ where paths were being converted to lowercase, causing `ModuleNotFoundError` when loading conftest files.\n\n### Root Cause\n\nThe `unique_path()` function in `src/_pytest/pathlib.py` uses `os.path.normcase()` which on Windows converts paths to lowercase. This lowercased path was being used both as:\n1. A cache key for deduplication (correct usage)\n2. The actual path for importing modules (incorrect - breaks imports)\n\nWhen `pyimport()` is called on a lowercased path like `c:\\...\\python\\pisys\\conftest.py`, Python's import system fails because the computed module name doesn't match the actual folder case.\n\n### Solution\n\nModified `_importconftest()` in `src/_pytest/config/__init__.py` to:\n- Use `unique_path()` (normcase) only for the cache key (`conftestpath_key`)\n- Use the original case-preserved path (`conftestpath`) for all import operations (`pyimport()`, `pypkgpath()`, `purebasename`)\n\n### Files Modified\n- `src/_pytest/config/__init__.py`: Split cache key usage from import path usage in `_importconftest()` method\n\n### Test Results\n- **Test file:** testing/test_conftest.py\n- **Result:** 52 passed, 1 skipped (the skipped test is Windows-specific and cannot run on Linux)\n- **No regressions introduced**",
+      "created_at": "2026-01-31T15:16:56.288Z"
+    }
+  ]
+}

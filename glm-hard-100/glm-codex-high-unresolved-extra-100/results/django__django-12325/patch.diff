@@ -1,0 +1,28 @@
+diff --git a/django/db/models/base.py b/django/db/models/base.py
+index 8ea6c05ef9..2498eeb545 100644
+--- a/django/db/models/base.py
++++ b/django/db/models/base.py
+@@ -204,7 +204,11 @@ class ModelBase(type):
+             for field in base._meta.local_fields:
+                 if isinstance(field, OneToOneField):
+                     related = resolve_relation(new_class, field.remote_field.model)
+-                    parent_links[make_model_tuple(related)] = field
++                    key = make_model_tuple(related)
++                    # Prefer fields with parent_link=True when there are
++                    # multiple OneToOneFields to the same parent.
++                    if key not in parent_links or field.remote_field.parent_link:
++                        parent_links[key] = field
+ 
+         # Track fields inherited from base models.
+         inherited_attributes = set()
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..9782119717
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,5 @@
++
++SECRET_KEY = 'test'
++INSTALLED_APPS = []
++DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}
++USE_TZ = True

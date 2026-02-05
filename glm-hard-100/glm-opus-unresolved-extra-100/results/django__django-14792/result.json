@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14792",
+  "status": "completed",
+  "patch": "diff --git a/django/db/backends/postgresql/operations.py b/django/db/backends/postgresql/operations.py\nindex 8d19872bea..0825b09048 100644\n--- a/django/db/backends/postgresql/operations.py\n+++ b/django/db/backends/postgresql/operations.py\n@@ -44,6 +44,12 @@ class DatabaseOperations(BaseDatabaseOperations):\n         return \"DATE_TRUNC('%s', %s)\" % (lookup_type, field_name)\n \n     def _prepare_tzname_delta(self, tzname):\n+        # Timezone names from the timezone database (like 'Etc/GMT-10')\n+        # already follow the POSIX convention where the sign is flipped\n+        # relative to the common usage. Only flip the sign for simple\n+        # offset strings like '+10' or '-10'.\n+        if tzname.startswith('Etc/GMT'):\n+            return tzname\n         if '+' in tzname:\n             return tzname.replace('+', '-')\n         elif '-' in tzname:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:52:20.673844",
+  "end_time": "2026-02-03T11:57:53.585804",
+  "duration_seconds": 332.91196,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "5bcfd764-3fee-4e56-94c0-e57c4f3f127f",
+      "epic_title": "Fix: django__django-14792",
+      "comment_id": "ed47a938-8bf2-45f0-b5db-824e7c795b25",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the reverse time zone conversion bug in Trunc()/Extract() database functions for PostgreSQL.\n\n**Root Cause:** The `_prepare_tzname_delta()` function was designed to handle simple offset strings like \"+10\" or \"-10\". Since PostgreSQL's `AT TIME ZONE` uses the POSIX convention (flipped signs), the function flips the sign. However, timezone names like \"Etc/GMT-10\" from the timezone database already follow the POSIX convention, so flipping the sign again results in the wrong timezone.\n\n**Example of the bug:**\n- \"Etc/GMT-10\" in POSIX convention means GMT+10 (10 hours EAST of UTC)\n- The function was flipping this to \"Etc/GMT+10\" which means GMT-10 (10 hours WEST of UTC) - the opposite direction!\n\n**The Fix:** Added a check in `_prepare_tzname_delta()` to NOT flip the sign for timezone names starting with \"Etc/GMT\" since they already follow POSIX convention. Simple offset strings like \"+10\" or \"-10\" still get their signs flipped as before.\n\n## Files Modified\n- `django/db/backends/postgresql/operations.py`: Added check to skip sign flipping for \"Etc/GMT*\" timezone names\n\n## Test Results\n- **Test file:** tests/db_functions/datetime/test_extract_trunc.py\n- **Baseline:** 87 passed, 2 skipped\n- **After fix:** 87 passed, 2 skipped\n- **Regression check:** No new failures introduced\n- **Additional verification:** Tested `_prepare_tzname_delta()` with various inputs:\n  - 'Etc/GMT-10' \u2192 'Etc/GMT-10' \u2713 (no longer flipped)\n  - 'Etc/GMT+10' \u2192 'Etc/GMT+10' \u2713 (no longer flipped)\n  - '+10' \u2192 '-10' \u2713 (still flipped as expected)\n  - '-10' \u2192 '+10' \u2713 (still flipped as expected)\n  - 'UTC' \u2192 'UTC' \u2713 (no change)\n\n## Concerns\nNone. The fix is minimal, targeted, and follows the existing code pattern. The change is backward compatible - it only affects the edge case of \"Etc/GMT*\" timezone names that were previously broken.",
+      "created_at": "2026-02-03T10:56:39.238Z"
+    },
+    {
+      "epic_id": "5bcfd764-3fee-4e56-94c0-e57c4f3f127f",
+      "epic_title": "Fix: django__django-14792",
+      "comment_id": "ede6a730-1bc9-4c63-bd9e-2c47dc58b17f",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review: PASSED\n\n**Review Summary:**\n\nThe fix correctly addresses the reverse timezone conversion bug in `_prepare_tzname_delta()`.\n\n**Analysis:**\n- \"Etc/GMT-10\" timezone names already follow POSIX convention (sign flipped relative to common usage), and PostgreSQL's `AT TIME ZONE` understands them natively\n- The old code was applying a second sign flip, turning \"Etc/GMT-10\" (UTC+10, east) into \"Etc/GMT+10\" (UTC-10, west) \u2014 the opposite direction\n- The fix adds an early return for names starting with \"Etc/GMT\", correctly preserving the original timezone name\n- Simple offset strings like \"+10\"/\"-10\" continue to be flipped as before\n\n**Checklist:**\n- [x] No test files modified \u2014 source code only\n- [x] No unrelated files modified \u2014 single relevant file\n- [x] Fix logically addresses the problem described in the problem statement\n- [x] No obvious crash bugs or logical errors introduced\n- [x] Changes are minimal and focused (4 comment lines + 2 code lines)\n\n**Edge cases verified:**\n- \"Etc/GMT\" (no offset) \u2014 matched by `startswith` but would be returned unchanged by the original code too, so no issue\n- \"Etc/GMT+0\" / \"Etc/GMT-0\" \u2014 returned as-is, both equivalent to UTC regardless of sign\n- Simple offsets \"+10\"/\"-10\" \u2014 still flipped correctly by the existing logic\n\n**Test results:** 87 passed, 2 skipped \u2014 identical to baseline. No regressions.\n\nApproved. Moving to Done.",
+      "created_at": "2026-02-03T10:57:41.589Z"
+    }
+  ]
+}

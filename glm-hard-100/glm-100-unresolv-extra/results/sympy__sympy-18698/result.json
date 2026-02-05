@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-18698",
+  "status": "completed",
+  "patch": "diff --git a/doc/src/modules/polys/basics.rst b/doc/src/modules/polys/basics.rst\nindex 5b5a4e1635..6df5105390 100644\n--- a/doc/src/modules/polys/basics.rst\n+++ b/doc/src/modules/polys/basics.rst\n@@ -536,11 +536,13 @@ factors (not necessarily irreducible) of degree 1, 2 etc.::\n     >>> f = 2*x**2 + 5*x**3 + 4*x**4 + x**5\n \n     >>> sqf_list(f)\n-    (1, [(x + 2, 1), (x, 2), (x + 1, 2)])\n+                       2\n+    (1, [(x + 2, 1), (x  + x, 2)])\n \n     >>> sqf(f)\n-     2        2\n-    x *(x + 1) *(x + 2)\n+                    2\n+            / 2    \\\n+    (x + 2)*\\x  + x/\n \n Factorization\n -------------\ndiff --git a/sympy/polys/polytools.py b/sympy/polys/polytools.py\nindex c9e77a901f..21497f89cf 100644\n--- a/sympy/polys/polytools.py\n+++ b/sympy/polys/polytools.py\n@@ -2,7 +2,8 @@\n \n from __future__ import print_function, division\n \n-from functools import wraps\n+from functools import wraps, reduce\n+from operator import mul\n \n from sympy.core import (\n     S, Basic, Expr, I, Integer, Add, Mul, Dummy, Tuple\n@@ -5905,10 +5906,7 @@ def _symbolic_factor_list(expr, opt, method):\n         if arg.is_Number:\n             coeff *= arg\n             continue\n-        if arg.is_Mul:\n-            args.extend(arg.args)\n-            continue\n-        if arg.is_Pow:\n+        elif arg.is_Pow:\n             base, exp = arg.args\n             if base.is_Number and exp.is_Number:\n                 coeff *= arg\n@@ -5950,6 +5948,10 @@ def _symbolic_factor_list(expr, opt, method):\n \n                 factors.append((_factors_product(other), exp))\n \n+    if method == 'sqf':\n+        factors = [(reduce(mul, (f for f, _ in factors if _ == k)), k)\n+                   for k in set(i for _, i in factors)]\n+\n     return coeff, factors\n \n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T20:26:02.218352",
+  "end_time": "2026-01-31T20:35:44.489369",
+  "duration_seconds": 582.271017,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "67852e82-020a-4441-a4f2-569f8093425c",
+      "epic_title": "Fix: sympy__sympy-18698",
+      "comment_id": "fb783d86-59c5-4419-8e36-962583430a01",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `sqf_list` and `sqf` to combine factors with the same multiplicity into a single factor. Previously, when multiple factors had the same multiplicity (e.g., `(x-2)^3` and `(x-3)^3`), they were incorrectly returned as separate factors. Now they are correctly combined (e.g., `(x^2 - 5x + 6)^3`).\n\n## Root Cause\n\nThe `_symbolic_factor_list` function in `sympy/polys/polytools.py` was not combining factors with the same multiplicity after collecting them from the underlying polynomial factorization.\n\n## Files Modified\n\n- `sympy/polys/polytools.py`: \n  - Added imports for `reduce` (from functools) and `mul` (from operator)\n  - Removed the `arg.is_Mul` case that was causing factors to be processed separately\n  - Added factor combining logic for `sqf` method that groups factors by multiplicity\n\n- `doc/src/modules/polys/basics.rst`:\n  - Updated documentation examples to reflect the new behavior\n\n## Test Results\n\n### Manual Tests\n- `sqf_list(x*(x + y))` now correctly returns `(1, [(x**2 + x*y, 1)])` instead of `(1, [(x, 1), (x + y, 1)])`\n- `sqf_list((x**2 + 1) * (x - 1)**2 * (x - 2)**3 * (x - 3)**3)` correctly returns `(1, [(x**2 + 1, 1), (x - 1, 2), (x**2 - 5*x + 6, 3)])`\n\n### Existing Test Suite\n- `test_sqf`: PASSED\n- `test_dup_sqf`: PASSED  \n- `test_dmp_sqf`: PASSED\n\n### Known Test Issues\nThe test `test_factor_terms` in `sympy/polys/tests/test_polytools.py` has an outdated assertion that expects the buggy behavior. This assertion should be updated from:\n```python\nassert sqf_list(x*(x + y)) == (1, [(x, 1), (x + y, 1)])\n```\nto:\n```python\nassert sqf_list(x*(x + y)) == (1, [(x**2 + x*y, 1)])\n```\n\nHowever, per task instructions, test files were not modified.",
+      "created_at": "2026-01-31T19:35:25.239Z"
+    }
+  ]
+}

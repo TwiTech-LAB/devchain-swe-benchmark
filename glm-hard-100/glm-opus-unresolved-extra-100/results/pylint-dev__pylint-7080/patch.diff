@@ -1,0 +1,44 @@
+diff --git a/pylint/lint/expand_modules.py b/pylint/lint/expand_modules.py
+index 5cacc0371..83e59bade 100644
+--- a/pylint/lint/expand_modules.py
++++ b/pylint/lint/expand_modules.py
+@@ -51,12 +51,26 @@ def _is_ignored_file(
+     ignore_list: list[str],
+     ignore_list_re: list[Pattern[str]],
+     ignore_list_paths_re: list[Pattern[str]],
++    element_is_directory: bool = False,
+ ) -> bool:
++    """Check if a file or directory element should be ignored.
++
++    When element_is_directory is True, the element is treated as a directory
++    and a trailing separator is added when checking against ignore_list_paths_re.
++    This is necessary because ignore-paths patterns often expect directory
++    paths to end with a separator (e.g., '^src/gen/.*$' to match 'src/gen/').
++    """
+     basename = os.path.basename(element)
++    # When checking if a directory should be ignored by path patterns,
++    # add a trailing separator to match patterns like '^src/gen/.*$'
++    element_for_path_check = (
++        element if not element_is_directory or element.endswith(os.sep)
++        else element + os.sep
++    )
+     return (
+         basename in ignore_list
+         or _is_in_ignore_list_re(basename, ignore_list_re)
+-        or _is_in_ignore_list_re(element, ignore_list_paths_re)
++        or _is_in_ignore_list_re(element_for_path_check, ignore_list_paths_re)
+     )
+ 
+ 
+diff --git a/pylint/lint/pylinter.py b/pylint/lint/pylinter.py
+index e2bbf061e..23507e003 100644
+--- a/pylint/lint/pylinter.py
++++ b/pylint/lint/pylinter.py
+@@ -602,6 +602,7 @@ class PyLinter(
+                         self.config.ignore,
+                         self.config.ignore_patterns,
+                         self.config.ignore_paths,
++                        element_is_directory=True,
+                     ):
+                         skip_subtrees.append(root)
+                         continue

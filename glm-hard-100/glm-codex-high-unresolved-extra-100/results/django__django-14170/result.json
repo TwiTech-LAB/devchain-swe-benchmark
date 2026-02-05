@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14170",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/functions/datetime.py b/django/db/models/functions/datetime.py\nindex 90e6f41be0..bbe9fa8c79 100644\n--- a/django/db/models/functions/datetime.py\n+++ b/django/db/models/functions/datetime.py\n@@ -164,12 +164,6 @@ ExtractYear.register_lookup(YearGte)\n ExtractYear.register_lookup(YearLt)\n ExtractYear.register_lookup(YearLte)\n \n-ExtractIsoYear.register_lookup(YearExact)\n-ExtractIsoYear.register_lookup(YearGt)\n-ExtractIsoYear.register_lookup(YearGte)\n-ExtractIsoYear.register_lookup(YearLt)\n-ExtractIsoYear.register_lookup(YearLte)\n-\n \n class Now(Func):\n     template = 'CURRENT_TIMESTAMP'\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:43:44.040984",
+  "end_time": "2026-02-03T01:49:55.902451",
+  "duration_seconds": 371.861467,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "78e83dfc-9b19-4363-8216-e2505a2a8c86",
+      "epic_title": "Fix: django__django-14170",
+      "comment_id": "6717b32b-b6b9-479e-aac8-922b276dc0ca",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the incorrect optimization for `__iso_year` lookup that was using BETWEEN with calendar year bounds instead of EXTRACT. ISO-8601 week-numbering year boundaries differ from calendar year boundaries (e.g., ISO year 2020 starts on 2019-12-30 and ends on 2020-12-27), so using BETWEEN with calendar bounds (2020-01-01 to 2020-12-31) produces incorrect results.\n\n## Root Cause\n\nIn `django/db/models/functions/datetime.py`, `ExtractIsoYear` was registering YearLookup classes (`YearExact`, `YearGt`, `YearGte`, `YearLt`, `YearLte`). These lookups optimize year filtering by using BETWEEN with calendar year bounds, which is correct for regular calendar years but INCORRECT for ISO years.\n\n## Files Modified\n- `django/db/models/functions/datetime.py`: Removed YearLookup registrations from ExtractIsoYear (lines 167-171)\n\n## Verification\n\nThe fix was verified by checking that:\n1. `ExtractYear` still has YearLookups registered (correct - uses BETWEEN optimization)\n2. `ExtractIsoYear` no longer has YearLookups registered (correct - falls back to base Exact lookup which uses EXTRACT)\n\nSQL behavior after fix:\n- `field__year=2020` \u2192 `WHERE field BETWEEN 2020-01-01 AND 2020-12-31` (correct)\n- `field__iso_year=2020` \u2192 `WHERE EXTRACT(isoyear FROM field) = 2020` (correct)\n\n## Concerns\n\nThe test file `tests/db_functions/datetime/test_extract_trunc.py` contains tests that expect BETWEEN for both 'year' and 'iso_year'. These tests will need to be updated separately to NOT expect BETWEEN for iso_year. According to the issue, PR #14157 addresses these test changes.",
+      "created_at": "2026-02-03T00:48:43.719Z"
+    },
+    {
+      "epic_id": "78e83dfc-9b19-4363-8216-e2505a2a8c86",
+      "epic_title": "Fix: django__django-14170",
+      "comment_id": "09caae86-4610-4fc1-b1bc-06d559208d9c",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and focused: only `django/db/models/functions/datetime.py` updated to stop registering `Year*` lookups on `ExtractIsoYear`.\n- This directly fixes the reported bug: `__iso_year` lookups should not use the calendar-year BETWEEN optimization and should instead compare via `EXTRACT(isoyear ...)`.\n- No test files or unrelated files were modified.",
+      "created_at": "2026-02-03T00:49:45.952Z"
+    }
+  ]
+}

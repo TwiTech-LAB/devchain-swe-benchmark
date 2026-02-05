@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-13877",
+  "status": "completed",
+  "patch": "diff --git a/sympy/core/exprtools.py b/sympy/core/exprtools.py\nindex 4e0de9ec18..14469c353d 100644\n--- a/sympy/core/exprtools.py\n+++ b/sympy/core/exprtools.py\n@@ -1176,7 +1176,7 @@ def do(expr):\n         if p.is_Add:\n             list_args = [do(a) for a in Add.make_args(p)]\n             # get a common negative (if there) which gcd_terms does not remove\n-            if all(a.as_coeff_Mul()[0] < 0 for a in list_args):\n+            if all(a.as_coeff_Mul()[0].is_negative for a in list_args):\n                 cont = -cont\n                 list_args = [-a for a in list_args]\n             # watch out for exp(-(x+2)) which gcd_terms will change to exp(-x-2)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T10:16:49.428251",
+  "end_time": "2026-02-03T10:23:40.906450",
+  "duration_seconds": 411.478199,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "93f109ca-e698-4ee4-bee6-47e97de0e5e9",
+      "epic_title": "Fix: sympy__sympy-13877",
+      "comment_id": "357d5424-5ca2-4937-9783-d63eb45f85d3",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the `Invalid NaN comparison` error when computing determinants of matrices with symbolic entries.\n\n### Root Cause\nIn `sympy/core/exprtools.py` line 1179, the code was using `a.as_coeff_Mul()[0] < 0` to check if coefficients were negative. This comparison raises a `TypeError` when:\n1. The coefficient is a symbolic value whose sign is unknown (like `a` where `a` is a symbol)\n2. The comparison `a < 0` returns a `StrictLessThan` expression (not a boolean) instead of `True`/`False`\n3. The `<` operator can raise `TypeError: Invalid NaN comparison` when NaN is involved\n\n### Fix\nChanged `a.as_coeff_Mul()[0] < 0` to `a.as_coeff_Mul()[0].is_negative`\n\nThe `.is_negative` property returns:\n- `True` if the value is definitely negative\n- `False` if the value is definitely not negative  \n- `None` if the sign cannot be determined\n\nWhen `is_negative` returns `None` (unknown sign), `all()` treats it as falsy and correctly skips the optimization. This prevents the error while maintaining correct behavior.\n\n### Files Modified\n- `sympy/core/exprtools.py`: Changed line 1179 from `< 0` to `.is_negative`\n\n### Test Results\n- **Original issue**: `f(6)` now works without raising `TypeError: Invalid NaN comparison`\n- **exprtools tests**: 8 passed, 2 exceptions (same as baseline - pre-existing issues)\n- **matrices tests**: 111 passed, 3 skipped, 4 expected to fail, 39 exceptions (pre-existing issues)\n- **Regression check**: No new failures introduced\n- **Edge cases tested**: Various symbolic and numeric matrices all work correctly",
+      "created_at": "2026-02-03T09:22:27.522Z"
+    },
+    {
+      "epic_id": "93f109ca-e698-4ee4-bee6-47e97de0e5e9",
+      "epic_title": "Fix: sympy__sympy-13877",
+      "comment_id": "e2a8748e-e222-4468-9956-a209d7a9c460",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review: PASSED\n\n**Review Checklist:**\n- [x] No test files modified \u2014 only `sympy/core/exprtools.py` changed\n- [x] No unrelated files modified \u2014 single file, directly at the bug location\n- [x] Fix logically addresses the problem \u2014 replacing `< 0` with `.is_negative` uses SymPy's three-valued logic, preventing the `TypeError: Invalid NaN comparison`\n- [x] No obvious crash bugs \u2014 `.is_negative` is a standard SymPy property, won't raise exceptions\n- [x] Changes are minimal and focused \u2014 single line change at the exact problematic location\n\n**Analysis:**\nThe root cause is correctly identified. The `< 0` comparison on `a.as_coeff_Mul()[0]` raises `TypeError` when the coefficient involves NaN or is a symbolic value whose sign can't be determined. Using `.is_negative` returns `True`, `False`, or `None` (unknown), and `all()` correctly treats `None` as falsy, safely skipping the negation optimization. This optimization only affects cosmetic term factoring, so skipping it when sign is unknown does not affect mathematical correctness.\n\nClean, minimal, correct fix. Approved.",
+      "created_at": "2026-02-03T09:23:29.975Z"
+    }
+  ]
+}

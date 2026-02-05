@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-13401",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py\nindex 28374272f4..14ecdab505 100644\n--- a/django/db/models/fields/__init__.py\n+++ b/django/db/models/fields/__init__.py\n@@ -516,17 +516,24 @@ class Field(RegisterLookupMixin):\n     def __eq__(self, other):\n         # Needed for @total_ordering\n         if isinstance(other, Field):\n-            return self.creation_counter == other.creation_counter\n+            # Fields are equal only if they have the same creation_counter\n+            # and belong to the same model.\n+            return self.creation_counter == other.creation_counter and self.model is other.model\n         return NotImplemented\n \n     def __lt__(self, other):\n         # This is needed because bisect does not take a comparison function.\n         if isinstance(other, Field):\n-            return self.creation_counter < other.creation_counter\n+            # Order by creation_counter first to maintain existing ordering\n+            # for most cases. Fall back to comparing models when counters are equal.\n+            if self.creation_counter != other.creation_counter:\n+                return self.creation_counter < other.creation_counter\n+            # creation_counters are equal, compare by model identity\n+            return id(self.model) < id(other.model)\n         return NotImplemented\n \n     def __hash__(self):\n-        return hash(self.creation_counter)\n+        return hash((self.creation_counter, id(self.model)))\n \n     def __deepcopy__(self, memodict):\n         # We don't have to deepcopy very much here, since most things are not\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:55:24.989341",
+  "end_time": "2026-02-03T12:03:58.090584",
+  "duration_seconds": 513.101243,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "aa421635-46a1-4f46-b936-98bc466a5da0",
+      "epic_title": "Fix: django__django-13401",
+      "comment_id": "5a4426e0-5781-49df-8f8f-f421877551f9",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nModified the `Field` class comparison methods (`__eq__`, `__hash__`, and `__lt__`) to consider the `model` attribute in addition to `creation_counter`. This fixes the issue where fields from different concrete models (that inherit from the same abstract model) incorrectly compared as equal.\n\n## Files Modified\n\n- **django/db/models/fields/__init__.py**: Updated `__eq__`, `__lt__`, and `__hash__` methods to include `model` in comparisons\n\n### Changes Made:\n1. **`__eq__`**: Now checks both `creation_counter` AND `model` identity (using `is` operator)\n2. **`__hash__`**: Now hashes on tuple of `(creation_counter, id(model))` to maintain consistency with `__eq__`\n3. **`__lt__`**: Orders by `creation_counter` first (to avoid re-ordering issues in existing code), then by `model` identity when counters are equal\n\n## Test Results\n\n- **model_fields tests:** 403 tests passed, 10 skipped, 0 failed\n- **model_inheritance tests:** 48 tests passed, 1 skipped, 0 failed\n- **Regression check:** No new failures introduced\n\n### Verification of Fix\n\nBefore fix:\n- `len({B._meta.get_field('myfield'), C._meta.get_field('myfield')}) == 1` was **True** (incorrect)\n- `B._meta.get_field('myfield') == C._meta.get_field('myfield')` was **True** (incorrect)\n\nAfter fix:\n- `len({B._meta.get_field('myfield'), C._meta.get_field('myfield')}) == 1` is **False** (correct)\n- `B._meta.get_field('myfield') == C._meta.get_field('myfield')` is **False** (correct)\n\nEdge case (same field):\n- `field_b == field_b` remains **True** (correct)\n\n## Concerns\n\nNone identified. The fix follows the guidance in the problem statement:\n- Orders by `creation_counter` first in `__lt__` to avoid re-ordering issues\n- Uses `id(self.model)` for comparison/hashing since models are compared by identity",
+      "created_at": "2026-02-03T11:01:54.310Z"
+    },
+    {
+      "epic_id": "aa421635-46a1-4f46-b936-98bc466a5da0",
+      "epic_title": "Fix: django__django-13401",
+      "comment_id": "fd70d975-8a43-4a66-8404-6355ee10f765",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n**Review Summary:**\n\nAll checks pass:\n- **No test files modified** \u2014 only `django/db/models/fields/__init__.py` changed\n- **No unrelated files modified** \u2014 single focused file\n- **Fix logically addresses the problem** \u2014 `__eq__` now checks `self.model is other.model` alongside `creation_counter`, `__hash__` includes `id(self.model)` for consistency, and `__lt__` orders by `creation_counter` first (preserving existing ordering) then falls back to `id(self.model)` \u2014 exactly as the problem statement recommends\n- **No crash bugs** \u2014 `self.model` access is consistent with the rest of the Field class which already assumes `model` is set in `__reduce__`, `__str__`, `get_col`, etc.\n- **Changes are minimal** \u2014 three methods updated, no extraneous code\n\nThe fix correctly ensures abstract model fields contributed to different concrete models compare as unequal, while fields on the same model with the same creation_counter remain equal. Test results show no regressions.",
+      "created_at": "2026-02-03T11:03:44.518Z"
+    }
+  ]
+}

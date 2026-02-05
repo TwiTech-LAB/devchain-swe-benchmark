@@ -1,0 +1,45 @@
+diff --git a/django/db/backends/sqlite3/base.py b/django/db/backends/sqlite3/base.py
+index 8a105d4f35..b2c462d749 100644
+--- a/django/db/backends/sqlite3/base.py
++++ b/django/db/backends/sqlite3/base.py
+@@ -76,6 +76,20 @@ Database.register_converter("timestamp", decoder(parse_datetime))
+ 
+ Database.register_adapter(decimal.Decimal, str)
+ 
++def adapt_simple_lazy_object(val):
++    """
++    Adapt SimpleLazyObject to a value SQLite can handle. Force evaluation
++    and return the string representation.
++    """
++    # Force evaluation by calling str() on the lazy object.
++    # This triggers the _setup() method and returns the actual value.
++    return str(val)
++
++
++# Import and register adapter for SimpleLazyObject
++from django.utils.functional import SimpleLazyObject
++Database.register_adapter(SimpleLazyObject, adapt_simple_lazy_object)
++
+ 
+ class DatabaseWrapper(BaseDatabaseWrapper):
+     vendor = 'sqlite'
+diff --git a/django/utils/functional.py b/django/utils/functional.py
+index 6d38f932f9..3916b9995d 100644
+--- a/django/utils/functional.py
++++ b/django/utils/functional.py
+@@ -403,6 +403,15 @@ class SimpleLazyObject(LazyObject):
+         return copy.deepcopy(self._wrapped, memo)
+ 
+ 
++    # Provide a default __reduce_ex__ to ensure the wrapped object is returned
++    # when pickling. This is needed for database adapters that use pickle-like
++    # protocols to determine how to handle objects (e.g., SQLite parameter
++    # binding uses the reduce protocol).
++    def __reduce_ex__(self, protocol):
++        if self._wrapped is empty:
++            self._setup()
++        return self._wrapped.__reduce_ex__(protocol)
++
+ def partition(predicate, values):
+     """
+     Split the values into two sets, based on the return value of the function

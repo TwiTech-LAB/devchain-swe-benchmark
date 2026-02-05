@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-22080",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/codeprinter.py b/sympy/printing/codeprinter.py\nindex ba0e746f5d..c204ab81a0 100644\n--- a/sympy/printing/codeprinter.py\n+++ b/sympy/printing/codeprinter.py\n@@ -487,7 +487,26 @@ def _print_Mul(self, expr):\n \n         a = a or [S.One]\n \n-        a_str = [self.parenthesize(x, prec) for x in a]\n+        from sympy.core.mod import Mod\n+        has_Mod = any(isinstance(item, Mod) for item in a)\n+\n+        # When we have Mod in the expression, we need special handling for parentheses.\n+        # The issue is that % has lower precedence than unary - in Python,\n+        # so -x % y is interpreted as (-x) % y, not -(x % y).\n+        # Similarly, -2*x % y is interpreted as (-2*x) % y, not -2*(x % y).\n+        # We parenthesize Mod directly, without going through parenthesize, to avoid\n+        # double parentheses when the Mod would already be parenthesized.\n+        if has_Mod and not b:\n+            a_str = []\n+            for x in a:\n+                if isinstance(x, Mod):\n+                    # Always parenthesize Mod to avoid precedence issues\n+                    a_str.append(\"(%s)\" % self._print(x))\n+                else:\n+                    a_str.append(self.parenthesize(x, prec))\n+        else:\n+            a_str = [self.parenthesize(x, prec) for x in a]\n+\n         b_str = [self.parenthesize(x, prec) for x in b]\n \n         # To parenthesize Pow with exp = -1 and having more than one Symbol\ndiff --git a/sympy/printing/precedence.py b/sympy/printing/precedence.py\nindex 47ff463faf..9a2c9c21d9 100644\n--- a/sympy/printing/precedence.py\n+++ b/sympy/printing/precedence.py\n@@ -48,6 +48,7 @@\n     \"KroneckerProduct\": PRECEDENCE[\"Mul\"],\n     \"Equality\": PRECEDENCE[\"Mul\"],\n     \"Unequality\": PRECEDENCE[\"Mul\"],\n+    \"Mod\": PRECEDENCE[\"Mul\"],\n }\n \n # Sometimes it's not enough to assign a fixed precedence value to a\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T21:51:25.851739",
+  "end_time": "2026-01-31T22:03:28.891674",
+  "duration_seconds": 723.039935,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "3236a95d-454e-4a01-b4d5-43c9538b8e01",
+      "epic_title": "Fix: sympy__sympy-22080",
+      "comment_id": "78e24402-ad72-4fcd-b578-623ceed3947f",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the Mod function lambdify bug where expressions like `-Mod(x, y)` with `modules=[]` were generating incorrect code.\n\n### Root Cause\n1. `Mod` was not in the `PRECEDENCE_VALUES` dictionary, defaulting to Atom precedence (1000)\n2. The `%` operator in Python has lower precedence than unary `-`, so `-x % y` is interpreted as `(-x) % y` instead of `-(x % y)`\n3. Modulo doesn't distribute like multiplication: `(-x) % y \u2260 -(x % y)` (e.g., `(-3) % 7 = 4` but `-(3 % 7) = -3`)\n\n### Files Modified\n\n1. **sympy/printing/precedence.py** (line 51)\n   - Added `\"Mod\": PRECEDENCE[\"Mul\"]` to `PRECEDENCE_VALUES` dictionary\n   - This gives Mod the correct precedence (50, same as multiplication)\n\n2. **sympy/printing/codeprinter.py** (lines 488-510)\n   - Modified `_print_Mul` to always parenthesize Mod expressions when they appear in multiplication contexts\n   - This ensures proper code generation for cases like:\n     - `-Mod(x, y)` \u2192 `-(x % y)` (was `-x % y`)\n     - `2 * Mod(x, y)` \u2192 `2 * (x % y)` (was `2 * x % y`)\n\n### Test Results\n\n**Bug Report Example:**\n- Before fix: `-Mod(x, y)` with `modules=[]` generated `-x % y` \u2192 g(3,7)=4 (WRONG)\n- After fix: `-Mod(x, y)` with `modules=[]` generates `-(x % y)` \u2192 g(3,7)=-3 (CORRECT)\n\n**All test cases verified:**\n- `-Mod(x, y)` \u2192 `-(x % y)` \u2713\n- `2 * Mod(x, y)` \u2192 `2 * (x % y)` \u2713\n- `-2 * Mod(x, y)` \u2192 `-2 * (x % y)` \u2713\n- `Mod(x, y) * Mod(x, y)` \u2192 `(x % y)**2` \u2713\n- `Mod(x, y)` \u2192 `x % y` (no extra parens) \u2713\n\n### Additional Notes\n\nThe fix is minimal and focused on the root cause. It doesn't modify any test files or build configs.",
+      "created_at": "2026-01-31T21:03:22.818Z"
+    }
+  ]
+}

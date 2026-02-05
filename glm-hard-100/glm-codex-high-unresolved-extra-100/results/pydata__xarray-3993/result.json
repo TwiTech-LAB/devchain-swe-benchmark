@@ -1,0 +1,30 @@
+{
+  "instance_id": "pydata__xarray-3993",
+  "status": "completed",
+  "patch": "diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py\nindex 2fef3edb..8d306187 100644\n--- a/xarray/core/dataarray.py\n+++ b/xarray/core/dataarray.py\n@@ -3481,21 +3481,24 @@ class DataArray(AbstractArray, DataWithCoords):\n         return self._from_temp_dataset(ds)\n \n     def integrate(\n-        self, dim: Union[Hashable, Sequence[Hashable]], datetime_unit: str = None\n+        self, coord: Union[Hashable, Sequence[Hashable]] = None, datetime_unit: str = None,\n+        dim: Union[Hashable, Sequence[Hashable]] = None\n     ) -> \"DataArray\":\n         \"\"\" integrate the array with the trapezoidal rule.\n \n         .. note::\n-            This feature is limited to simple cartesian geometry, i.e. dim\n+            This feature is limited to simple cartesian geometry, i.e. coord\n             must be one dimensional.\n \n         Parameters\n         ----------\n-        dim : hashable, or sequence of hashable\n+        coord : hashable, or sequence of hashable\n             Coordinate(s) used for the integration.\n         datetime_unit : {\"Y\", \"M\", \"W\", \"D\", \"h\", \"m\", \"s\", \"ms\", \"us\", \"ns\", \\\n                          \"ps\", \"fs\", \"as\"}, optional\n             Can be used to specify the unit if datetime coordinate is used.\n+        dim : hashable, or sequence of hashable\n+            Deprecated, use coord instead.\n \n         Returns\n         -------\n@@ -3528,7 +3531,20 @@ class DataArray(AbstractArray, DataWithCoords):\n         array([5.4, 6.6, 7.8])\n         Dimensions without coordinates: y\n         \"\"\"\n-        ds = self._to_temp_dataset().integrate(dim, datetime_unit)\n+        if dim is not None:\n+            if coord is not None:\n+                raise ValueError(\n+                    \"Cannot specify both 'coord' and 'dim'. \"\n+                    \"'dim' has been deprecated, use 'coord' instead.\"\n+                )\n+            warnings.warn(\n+                \"The 'dim' argument has been renamed to 'coord'. \"\n+                \"In a future version of xarray, 'dim' will be removed.\",\n+                FutureWarning,\n+                stacklevel=2,\n+            )\n+            coord = dim\n+        ds = self._to_temp_dataset().integrate(coord, datetime_unit)\n         return self._from_temp_dataset(ds)\n \n     def unify_chunks(self) -> \"DataArray\":\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-01T06:34:25.236938",
+  "end_time": "2026-02-01T06:43:55.336403",
+  "duration_seconds": 570.099465,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "32f370d2-5d5a-4c39-b682-32317f98380d",
+      "epic_title": "Fix: pydata__xarray-3993",
+      "comment_id": "b2909921-bc28-45f8-9f7d-62a8b48fa8e1",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nChanged `DataArray.integrate` to use `coord` parameter instead of `dim` for API consistency with `Dataset.integrate` and all `differentiate` methods.\n\n## Files Modified\n- `xarray/core/dataarray.py` (lines 3483-3540):\n  - Changed parameter name from `dim` to `coord` \n  - Added `dim` as a deprecated parameter that shows a FutureWarning\n  - Updated docstring to reflect the new parameter name\n  - Added validation to prevent using both `coord` and `dim` simultaneously\n\n## API Consistency Achieved\n```python\n# Before (inconsistent):\nds.differentiate(coord='x')  # uses coord\nda.differentiate(coord='x')  # uses coord\nds.integrate(coord='x')      # uses coord\nda.integrate(dim='x')        # uses dim (inconsistent!)\n\n# After (consistent):\nds.differentiate(coord='x')  # uses coord\nda.differentiate(coord='x')  # uses coord\nds.integrate(coord='x')      # uses coord\nda.integrate(coord='x')      # uses coord (now consistent!)\n```\n\n## Test Results\n- **Test file:** xarray/tests/test_dataset.py::test_integrate\n- **Baseline (before fix):** 2 passed\n- **After fix:** 2 passed (10 passed including all integrate/differentiate tests)\n- **Regression check:** No new failures introduced\n- **Verification:**\n  - New `coord` parameter works correctly\n  - Old `dim` parameter still works but shows FutureWarning\n  - Using both `coord` and `dim` raises ValueError with clear message\n  - All 10 integrate/differentiate tests pass\n\n## Edge Cases Handled\n- Empty values: Not applicable (parameter must be provided)\n- None values: Default is None for backward compatibility\n- Different input types: Supports both Hashable and Sequence[Hashable]\n- Both parameters specified: Raises clear ValueError",
+      "created_at": "2026-02-01T05:42:42.662Z"
+    },
+    {
+      "epic_id": "32f370d2-5d5a-4c39-b682-32317f98380d",
+      "epic_title": "Fix: pydata__xarray-3993",
+      "comment_id": "bf572a80-b418-4a85-aa0d-d9cedfd4e5e6",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Only source change in `xarray/core/dataarray.py`.\n- `DataArray.integrate` now accepts `coord` for API consistency; `dim` is supported with a `FutureWarning` and clear error when both are provided.\n- Brainstormer reports baseline vs post-fix test results and ran the relevant integrate tests.",
+      "created_at": "2026-02-01T05:43:44.345Z"
+    }
+  ]
+}

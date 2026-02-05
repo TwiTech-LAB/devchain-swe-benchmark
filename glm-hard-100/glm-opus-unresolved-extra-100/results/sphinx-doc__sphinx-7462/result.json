@@ -1,0 +1,30 @@
+{
+  "instance_id": "sphinx-doc__sphinx-7462",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/domains/python.py b/sphinx/domains/python.py\nindex 3ca730e30..b6a228a60 100644\n--- a/sphinx/domains/python.py\n+++ b/sphinx/domains/python.py\n@@ -118,7 +118,8 @@ def _parse_annotation(annotation: str) -> List[Node]:\n             for elem in node.elts:\n                 result.extend(unparse(elem))\n                 result.append(addnodes.desc_sig_punctuation('', ', '))\n-            result.pop()\n+            if result:\n+                result.pop()\n             return result\n         else:\n             raise SyntaxError  # unsupported syntax\ndiff --git a/tox.ini b/tox.ini\nindex d9f040544..bf39854b6 100644\n--- a/tox.ini\n+++ b/tox.ini\n@@ -28,7 +28,7 @@ extras =\n setenv =\n     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils\n commands=\n-    pytest --durations 25 {posargs}\n+    pytest -rA --durations 25 {posargs}\n \n [testenv:flake8]\n basepython = python3\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T10:16:23.154431",
+  "end_time": "2026-02-03T10:25:13.704504",
+  "duration_seconds": 530.550073,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "34162ea4-cd86-4493-a6e5-f9926bb82f94",
+      "epic_title": "Fix: sphinx-doc__sphinx-7462",
+      "comment_id": "2f4f81ad-55a8-41d7-8b12-57c46ddc5a92",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the `IndexError: pop from empty list` when using empty tuple type annotation `Tuple[()]`. The bug was in the `ast.Tuple` case of the `unparse()` function in `sphinx/domains/python.py`. When `node.elts` is empty (an empty tuple), the `result` list is empty, and calling `result.pop()` caused the IndexError.\n\nThe fix adds a simple check `if result:` before calling `pop()`, matching the defensive pattern needed for edge cases.\n\n## Files Modified\n\n- `sphinx/domains/python.py` (line 121): Added `if result:` guard before `result.pop()`\n\n## Test Results\n\n- **Baseline (before fix):** \n  - `tests/test_domain_py.py`: 28 passed, 0 failed, 0 errors\n  - `tests/test_autodoc.py`: 50 passed, 0 failed, 0 errors\n\n- **After fix:**\n  - `tests/test_domain_py.py`: 28 passed, 0 failed, 0 errors\n  - `tests/test_autodoc.py`: 50 passed, 0 failed, 0 errors\n  - No regressions introduced\n\n## Additional Verification\n\nTested the fix with the original bug case:\n```python\nfrom sphinx.domains.python import _parse_annotation\nresult = _parse_annotation('Tuple[()]')  # Previously raised IndexError\n```\n\nTested edge cases:\n- `Tuple[()]` - empty tuple: OK\n- `Tuple[int]` - single element: OK  \n- `Tuple[int, str]` - multiple elements: OK\n- `List[[]]` - empty list subscript: OK\n- `List[int]` - normal list: OK\n\n## Concerns\n\nNone. The fix is minimal, targeted, and follows existing code patterns.",
+      "created_at": "2026-02-03T09:23:41.533Z"
+    },
+    {
+      "epic_id": "34162ea4-cd86-4493-a6e5-f9926bb82f94",
+      "epic_title": "Fix: sphinx-doc__sphinx-7462",
+      "comment_id": "35429841-e9f9-4814-936c-1b25d0fb6c3a",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED\n\n**Fix:** `if result:` guard before `result.pop()` in `sphinx/domains/python.py` line 121.\n\n**Analysis:** When `Tuple[()]` is parsed, the AST produces an `ast.Tuple` node with `elts = []`. The for loop over `node.elts` doesn't execute, so `result` stays as an empty list. The unguarded `result.pop()` raised `IndexError`. The `if result:` guard correctly prevents this while leaving all non-empty tuple cases unaffected.\n\n**Checklist:**\n- [x] No test files modified\n- [x] No unrelated source files modified (setup.py/tox.ini are auto-excluded build configs)\n- [x] Fix logically addresses the problem statement\n- [x] No crash bugs or logical errors introduced\n- [x] Change is minimal and focused (single-line guard)\n- [x] Baseline tests pass before and after fix (28+50 passed, 0 failures)\n- [x] Edge cases verified (empty tuple, single element, multiple elements)",
+      "created_at": "2026-02-03T09:25:00.012Z"
+    }
+  ]
+}

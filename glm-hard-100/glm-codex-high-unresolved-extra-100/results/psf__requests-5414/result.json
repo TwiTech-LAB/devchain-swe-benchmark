@@ -1,0 +1,46 @@
+{
+  "instance_id": "psf__requests-5414",
+  "status": "completed",
+  "patch": "diff --git a/requests/adapters.py b/requests/adapters.py\nindex fe22ff45..b808a139 100644\n--- a/requests/adapters.py\n+++ b/requests/adapters.py\n@@ -20,6 +20,7 @@ from urllib3.exceptions import ClosedPoolError\n from urllib3.exceptions import ConnectTimeoutError\n from urllib3.exceptions import HTTPError as _HTTPError\n from urllib3.exceptions import InvalidHeader as _InvalidHeader\n+from urllib3.exceptions import LocationParseError\n from urllib3.exceptions import MaxRetryError\n from urllib3.exceptions import NewConnectionError\n from urllib3.exceptions import ProxyError as _ProxyError\n@@ -524,6 +525,9 @@ class HTTPAdapter(BaseAdapter):\n         except _ProxyError as e:\n             raise ProxyError(e)\n \n+        except LocationParseError as e:\n+            raise InvalidURL(\"URL has an invalid label.\", request=request)\n+\n         except (_SSLError, _HTTPError) as e:\n             if isinstance(e, _SSLError):\n                 # This branch is for urllib3 versions earlier than v1.22\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-01T09:09:43.202198",
+  "end_time": "2026-02-01T09:17:43.187864",
+  "duration_seconds": 479.985666,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "44a111ef-2900-4d0a-8814-9f7bf621b4b0",
+      "epic_title": "Fix: psf__requests-5414",
+      "comment_id": "aebf8856-05ef-4c24-9d80-7d9fdd719e9b",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe issue was that when getting URLs like `http://.example.com`, urllib3 raises `LocationParseError` which wasn't being caught by requests. This caused the urllib3 exception to bubble up instead of being converted to requests' `InvalidURL` exception.\n\nThe error occurred during the connection phase in `adapters.py`'s `send()` method, specifically when `conn.urlopen()` was called and urllib3 tried to validate the hostname.\n\n## Files Modified\n\n- `requests/adapters.py`:\n  - Added import: `from urllib3.exceptions import LocationParseError`\n  - Added exception handler in `send()` method to catch `LocationParseError` and re-raise as `InvalidURL`\n\n## Test Results\n\n- **Baseline:** 129 passed, 1 xfailed, 158 errors (pre-existing test server issues)\n- **After fix:** 129 passed, 1 xfailed, 158 errors (no regressions)\n\n## Additional Verification\n\nTested the fix with various invalid URLs:\n- `http://.example.com` \u2192 `InvalidURL` \u2713\n- `http://..example.com` \u2192 `InvalidURL` \u2713  \n- `http://example..com` \u2192 `InvalidURL` \u2713\n- `http://httpbin.org/get` \u2192 Works (status 200) \u2713\n\nWorks correctly with:\n- Direct requests (`requests.get()`)\n- Session requests (`session.get()`)\n- Prepared requests sent through adapter\n\n## Concerns\n\nNone. The fix is minimal and follows the existing pattern of catching urllib3 exceptions and converting them to the appropriate requests exception types.",
+      "created_at": "2026-02-01T08:12:50.688Z"
+    },
+    {
+      "epic_id": "44a111ef-2900-4d0a-8814-9f7bf621b4b0",
+      "epic_title": "Fix: psf__requests-5414",
+      "comment_id": "34bb5a57-6130-4ee3-9922-a8fb3557dd22",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- The fix changes the exception type to `InvalidURL`, but the raised message/args do not match the expected behavior described in the problem statement (expected: `InvalidURL: URL has an invalid label.`).\n- Current code does `raise InvalidURL(e, request=request)`, which passes a `LocationParseError` object as the first arg. This yields an `InvalidURL` whose `.args[0]` is not a string and whose `str(e)` becomes `Failed to parse: '.example.com', label empty or too long`.\n- Requests already uses the canonical message `InvalidURL('URL has an invalid label.')` in `requests/models.py` for invalid IDNA labels; this case should be consistent.\n\nRequired Changes:\n- In `requests/adapters.py`, change the `LocationParseError` handling to raise `InvalidURL` with a string message (not the exception object), and for the label-empty/IDNA-label case specifically, use the canonical message `URL has an invalid label.` (matching `requests/models.py`).\n  - Example direction: `raise InvalidURL('URL has an invalid label.', request=request)` (optionally preserving the original exception via chaining).\n- Re-run the minimal repro in the container to confirm the exception is `InvalidURL` with message exactly `URL has an invalid label.` and include that output in the epic.\n\nNotes:\n- Good: only `requests/adapters.py` changed; no tests/build config touched; baseline vs after counts unchanged.",
+      "created_at": "2026-02-01T08:15:34.336Z"
+    },
+    {
+      "epic_id": "44a111ef-2900-4d0a-8814-9f7bf621b4b0",
+      "epic_title": "Fix: psf__requests-5414",
+      "comment_id": "ac167861-aee5-4c66-9a3b-0ba3bc0e8cdf",
+      "author_name": "Brainstormer",
+      "content": "## Addressed Code Review Feedback\n\nUpdated the fix to raise `InvalidURL` with the canonical message `\"URL has an invalid label.\"` instead of passing the exception object.\n\n## Change Made\n\nModified `requests/adapters.py:529`:\n- **Before:** `raise InvalidURL(e, request=request)`\n- **After:** `raise InvalidURL(\"URL has an invalid label.\", request=request)`\n\nThis now matches the canonical message used in `requests/models.py:405` for invalid IDNA labels.\n\n## Verification Output\n\n```\nTesting: requests.get(\"http://.example.com\")\nException type: InvalidURL\nException message: URL has an invalid label.\nException args: ('URL has an invalid label.',)\nSUCCESS: Message matches expected: \"URL has an invalid label.\"\n```\n\n## Test Results\n\n- **After fix:** 129 passed, 1 xfailed, 158 errors (no regressions)\n\n## Concerns\n\nNone. The fix now produces the exact expected exception type and message as described in the problem statement.",
+      "created_at": "2026-02-01T08:16:56.714Z"
+    },
+    {
+      "epic_id": "44a111ef-2900-4d0a-8814-9f7bf621b4b0",
+      "epic_title": "Fix: psf__requests-5414",
+      "comment_id": "900abd54-18f1-4af4-8dbb-3b16cd65d7c7",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Verified only `requests/adapters.py` changed (no tests/build config modifications).\n- Confirmed `requests.get(\"http://.example.com\")` now raises `InvalidURL` with message exactly `URL has an invalid label.` and args `('URL has an invalid label.',)` inside the container.\n\nMinor note (non-blocking): `except LocationParseError as e:` doesn\u2019t use `e`; could be `except LocationParseError:` or `raise ... from e` if you want to preserve chaining.",
+      "created_at": "2026-02-01T08:17:39.767Z"
+    }
+  ]
+}

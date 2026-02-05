@@ -1,0 +1,51 @@
+diff --git a/doc/faq.rst b/doc/faq.rst
+index c817855f8..4e2181dc7 100644
+--- a/doc/faq.rst
++++ b/doc/faq.rst
+@@ -93,10 +93,11 @@ localized using the following rules:
+ 
+ * value of the PYLINTHOME environment variable if set
+ 
+-* ".pylint.d" subdirectory of the user's home directory if it is found
+-	(not always findable on Windows platforms)
++* "pylint" subdirectory of the XDG_DATA_HOME directory if set
++  (following the XDG Base Directory Specification)
+ 
+-* ".pylint.d" directory in the current directory
++* ".pylint.d" subdirectory of the user's home directory
++	(default location for backward compatibility)
+ 
+ 3.3 How do I find the option name (for pylintrc) corresponding to a specific command line option?
+ --------------------------------------------------------------------------------------------------------
+diff --git a/pylint/config/__init__.py b/pylint/config/__init__.py
+index 84774d0e3..08e2637ab 100644
+--- a/pylint/config/__init__.py
++++ b/pylint/config/__init__.py
+@@ -63,7 +63,15 @@ if "PYLINTHOME" in os.environ:
+ elif USER_HOME == "~":
+     PYLINT_HOME = ".pylint.d"
+ else:
+-    PYLINT_HOME = os.path.join(USER_HOME, ".pylint.d")
++    # Check for XDG Base Directory Specification support
++    # $XDG_DATA_HOME defines the base directory for user-specific data files
++    # If $XDG_DATA_HOME is set, use XDG-compliant path
++    xdg_data_home = os.environ.get("XDG_DATA_HOME", "")
++    if xdg_data_home:
++        PYLINT_HOME = os.path.join(xdg_data_home, "pylint")
++    else:
++        # Default to traditional location for backward compatibility
++        PYLINT_HOME = os.path.join(USER_HOME, ".pylint.d")
+ 
+ 
+ def _get_pdata_path(base_name, recurs):
+@@ -110,8 +118,8 @@ ENV_HELP = (
+ The following environment variables are used:
+     * PYLINTHOME
+     Path to the directory where persistent data for the run will be stored. If
+-not found, it defaults to ~/.pylint.d/ or .pylint.d (in the current working
+-directory).
++not found, it defaults to ~/.local/share/pylint/ or .pylint.d (in the current
++working directory) following the XDG Base Directory Specification.
+     * PYLINTRC
+     Path to the configuration file. See the documentation for the method used
+ to search for configuration file.

@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-20428",
+  "status": "completed",
+  "patch": "diff --git a/sympy/polys/densetools.py b/sympy/polys/densetools.py\nindex f057824642..931dfe80e1 100644\n--- a/sympy/polys/densetools.py\n+++ b/sympy/polys/densetools.py\n@@ -1198,6 +1198,8 @@ def dup_clear_denoms(f, K0, K1=None, convert=False):\n     if not K1.is_one(common):\n         f = dup_mul_ground(f, common, K0)\n \n+    f = dup_strip(f)\n+\n     if not convert:\n         return common, f\n     else:\n@@ -1252,6 +1254,8 @@ def dmp_clear_denoms(f, u, K0, K1=None, convert=False):\n     if not K1.is_one(common):\n         f = dmp_mul_ground(f, common, u, K0)\n \n+    f = dmp_strip(f, u)\n+\n     if not convert:\n         return common, f\n     else:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:28:37.723080",
+  "end_time": "2026-02-03T11:39:48.332903",
+  "duration_seconds": 670.609823,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "17766397-6bcb-4b5e-a0a4-f5605836a948",
+      "epic_title": "Fix: sympy__sympy-20428",
+      "comment_id": "c1b331d1-cd70-4776-a292-58a57ab5eec3",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where `clear_denoms()` returned a polynomial with unstripped leading zeros in its DMP representation (e.g., `DMP([EX(0)], EX, None)` instead of `DMP([], EX, None)`).\n\n## Root Cause\n\nWhen `clear_denoms()` multiplied a polynomial by a common denominator to clear fractions, the result was not normalized to remove leading zeros. This caused:\n- `is_zero` to return `False` even though the polynomial evaluated to zero\n- Methods like `terms_gcd()` and `primitive()` to crash with `IndexError: tuple index out of range`\n\n## Files Modified\n\n- `sympy/polys/densetools.py`: Added `dup_strip(f)` call in `dup_clear_denoms()` (line 1201) and `dmp_strip(f, u)` call in `dmp_clear_denoms()` (line 1257) to normalize the result after multiplication\n\n## Test Results\n\n- **Baseline (before fix):** 155 passed in test_polytools.py\n- **After fix:** 155 passed in test_polytools.py\n- **Additional tests:** 49 passed in test_densearith.py, 36 passed in test_densetools.py\n\n## Verification\n\nThe fix correctly handles:\n1. Zero polynomials with different domains (QQ, ZZ, EX)\n2. Non-zero polynomials\n3. Multivariate zero polynomials\n4. Expression domain polynomials that evaluate to zero\n5. Edge cases like `terms_gcd()` and `primitive()` no longer crash\n\nExample from issue now works correctly:\n```python\n>>> coeff, bad_poly = f.clear_denoms()\n>>> bad_poly.rep\nDMP([], EX, None)  # was DMP([EX(0)], EX, None)\n>>> bad_poly.is_zero\nTrue  # was False\n>>> bad_poly.terms_gcd()\n((0,), Poly(0, x, domain='EX'))  # was IndexError\n```",
+      "created_at": "2026-02-03T10:38:01.605Z"
+    },
+    {
+      "epic_id": "17766397-6bcb-4b5e-a0a4-f5605836a948",
+      "epic_title": "Fix: sympy__sympy-20428",
+      "comment_id": "d5c0059e-046e-4a60-9331-60e27d4caf68",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n**Checklist:**\n- [x] No test files modified \u2014 only `sympy/polys/densetools.py` changed\n- [x] No unrelated files modified\n- [x] Fix logically addresses the problem\n- [x] No obvious crash bugs or logical errors\n- [x] Changes are minimal and focused (2 lines added)\n\n**Review:**\nThe fix adds `dup_strip(f)` / `dmp_strip(f, u)` calls after the multiplication step in `dup_clear_denoms()` and `dmp_clear_denoms()` respectively. This correctly normalizes polynomial representations that may have leading zero coefficients after multiplication (e.g., when the expression domain evaluates coefficients to zero). Both strip functions are already imported at line 19 and are standard, safe operations used throughout the dense polynomial module. Test results show no regressions (155 passed in test_polytools.py matching baseline).",
+      "created_at": "2026-02-03T10:39:43.491Z"
+    }
+  ]
+}

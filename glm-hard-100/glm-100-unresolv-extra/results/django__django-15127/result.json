@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-15127",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/messages/storage/base.py b/django/contrib/messages/storage/base.py\nindex 01422066a6..a46c57cd53 100644\n--- a/django/contrib/messages/storage/base.py\n+++ b/django/contrib/messages/storage/base.py\n@@ -38,7 +38,7 @@ class Message:\n \n     @property\n     def level_tag(self):\n-        return LEVEL_TAGS.get(self.level, '')\n+        return utils.get_level_tags().get(self.level, '')\n \n \n class BaseStorage:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T15:54:03.669021",
+  "end_time": "2026-01-31T15:56:46.076906",
+  "duration_seconds": 162.407885,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "b8a3c29a-32b5-48e8-824a-675687079ca6",
+      "epic_title": "Fix: django__django-15127",
+      "comment_id": "8d258f9d-052f-4d65-a8b9-2edfb4d8aacb",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe issue was that `LEVEL_TAGS` was being used as a module-level constant in `Message.level_tag` property. When `@override_settings(MESSAGE_TAGS=...)` was used in tests, the setting was changed but `LEVEL_TAGS` remained stale because it was computed at module import time.\n\nThe fix makes the `level_tag` property dynamically call `utils.get_level_tags()` instead of using a cached module-level constant. Since `utils.get_level_tags()` reads directly from `settings.MESSAGE_TAGS` each time it's called, it always returns the current tags even when they've been overridden.\n\n## Files Modified\n- `django/contrib/messages/storage/base.py`: Changed `Message.level_tag` property to call `utils.get_level_tags().get(self.level, '')` instead of `LEVEL_TAGS.get(self.level, '')`\n\n## Test Results\n- **Baseline (before fix):** 96 tests passed\n- **After fix:** 96 tests passed\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nCreated a verification script that demonstrates:\n1. Default INFO level_tag returns 'info'\n2. With @override_settings(MESSAGE_TAGS={INFO: 'custom-info'}), level_tag correctly returns 'custom-info'\n3. After override_settings context, level_tag reverts to 'info'\n\n## Concerns\n- None. The fix is minimal and focused. The `LEVEL_TAGS` module-level constant is still defined for backward compatibility (the test suite's `override_settings_tags` workaround uses it), but the actual `level_tag` property now uses dynamic lookup.",
+      "created_at": "2026-01-31T14:56:38.409Z"
+    }
+  ]
+}

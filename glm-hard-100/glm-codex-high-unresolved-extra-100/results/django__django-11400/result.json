@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-11400",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/filters.py b/django/contrib/admin/filters.py\nindex d65e01d5e2..a3dd427999 100644\n--- a/django/contrib/admin/filters.py\n+++ b/django/contrib/admin/filters.py\n@@ -194,10 +194,13 @@ class RelatedFieldListFilter(FieldListFilter):\n         return [self.lookup_kwarg, self.lookup_kwarg_isnull]\n \n     def field_choices(self, field, request, model_admin):\n+        other_model = get_model_from_relation(field)\n         ordering = ()\n         related_admin = model_admin.admin_site._registry.get(field.remote_field.model)\n         if related_admin is not None:\n             ordering = related_admin.get_ordering(request)\n+        if not ordering:\n+            ordering = other_model._meta.ordering\n         return field.get_choices(include_blank=False, ordering=ordering)\n \n     def choices(self, changelist):\n@@ -418,5 +421,12 @@ FieldListFilter.register(lambda f: True, AllValuesFieldListFilter)\n \n class RelatedOnlyFieldListFilter(RelatedFieldListFilter):\n     def field_choices(self, field, request, model_admin):\n+        other_model = get_model_from_relation(field)\n+        ordering = ()\n+        related_admin = model_admin.admin_site._registry.get(field.remote_field.model)\n+        if related_admin is not None:\n+            ordering = related_admin.get_ordering(request)\n+        if not ordering:\n+            ordering = other_model._meta.ordering\n         pk_qs = model_admin.get_queryset(request).distinct().values_list('%s__pk' % self.field_path, flat=True)\n-        return field.get_choices(include_blank=False, limit_choices_to={'pk__in': pk_qs})\n+        return field.get_choices(include_blank=False, ordering=ordering, limit_choices_to={'pk__in': pk_qs})\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T00:59:03.876822",
+  "end_time": "2026-02-03T01:06:08.956047",
+  "duration_seconds": 425.079225,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "02056cde-f586-4656-850b-e36c147c2818",
+      "epic_title": "Fix: django__django-11400",
+      "comment_id": "a717e4bc-71eb-45fe-a85b-161b9c825f62",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed ordering issues in `RelatedFieldListFilter` and `RelatedOnlyFieldListFilter`:\n\n1. **RelatedFieldListFilter.field_choices()**: Now falls back to `Model._meta.ordering` when no ordering is defined on the related model's ModelAdmin class (previously stayed as empty tuple).\n\n2. **RelatedOnlyFieldListFilter.field_choices()**: Now passes the `ordering` kwarg to `field.get_choices()` (previously omitted entirely, so ordering was never applied).\n\n## Files Modified\n- `django/contrib/admin/filters.py`: \n  - Lines 196-204: Added fallback to `other_model._meta.ordering` in `RelatedFieldListFilter.field_choices()`\n  - Lines 422-432: Added ordering determination and passed it to `field.get_choices()` in `RelatedOnlyFieldListFilter.field_choices()`\n\n## Test Results\n- **Test file:** tests/admin_filters/tests.py\n- **Baseline:** 32 tests passed\n- **After fix:** 32 tests passed\n- **Regression check:** No new failures introduced\n\n## Edge Cases Handled\n- Empty ordering tuple from `ModelAdmin.get_ordering()` - falls back to `Model._meta.ordering`\n- No `related_admin` registered - falls back to `Model._meta.ordering`\n- Empty `Model._meta.ordering` - passes empty tuple as before (no change in behavior)",
+      "created_at": "2026-02-03T00:04:37.461Z"
+    },
+    {
+      "epic_id": "02056cde-f586-4656-850b-e36c147c2818",
+      "epic_title": "Fix: django__django-11400",
+      "comment_id": "45b85fbe-5395-49db-a8c4-4a42476d905a",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Diff is limited to `django/contrib/admin/filters.py` (no test/config changes).\n- `RelatedFieldListFilter.field_choices()` now falls back to `other_model._meta.ordering` when `related_admin.get_ordering()` is empty/falsey, matching the problem statement.\n- `RelatedOnlyFieldListFilter.field_choices()` now computes ordering the same way and passes `ordering=` into `field.get_choices()`, fixing the missing ordering kwarg.\n- Brainstormer reports `tests/admin_filters/tests.py` baseline and post-fix both 32 passed.",
+      "created_at": "2026-02-03T00:06:04.896Z"
+    }
+  ]
+}

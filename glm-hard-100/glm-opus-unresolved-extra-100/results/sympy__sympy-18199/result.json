@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-18199",
+  "status": "completed",
+  "patch": "diff --git a/sympy/ntheory/residue_ntheory.py b/sympy/ntheory/residue_ntheory.py\nindex 9a3052d4c3..01e26c9dd6 100644\n--- a/sympy/ntheory/residue_ntheory.py\n+++ b/sympy/ntheory/residue_ntheory.py\n@@ -776,6 +776,11 @@ def nthroot_mod(a, n, p, all_roots=False):\n     if not isprime(p):\n         raise NotImplementedError(\"Not implemented for composite p\")\n \n+    a_mod_p = a % p\n+    if a_mod_p == 0:\n+        # When a % p == 0, x = 0 is always a root of x**n = a mod p\n+        return 0 if not all_roots else [0]\n+\n     if (p - 1) % n == 0:\n         return _nthroot_mod1(a, n, p, all_roots)\n     # The roots of ``x**n - a = 0 (mod p)`` are roots of\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:51:59.572484",
+  "end_time": "2026-02-03T11:56:39.950583",
+  "duration_seconds": 280.378099,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "884def4a-5f2f-40c1-b12d-4f12d01f25bf",
+      "epic_title": "Fix: sympy__sympy-18199",
+      "comment_id": "15829492-0e0a-4782-8159-73153d894571",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the `nthroot_mod` function to handle the case where `a % p == 0`. When `a` is divisible by `p`, `x = 0 mod p` is always a root of `x**n = a mod p`. Previously, the function would crash with `ValueError: Log does not exist` when trying to compute `discrete_log(p, 0, h)` because the algorithm couldn't find `t` such that `h**t = 0 mod p` (which is impossible).\n\n## Files Modified\n- `sympy/ntheory/residue_ntheory.py`: Added check for `a % p == 0` after the `is_nthpow_residue` check. When `a % p == 0`, the function now returns `0` (or `[0]` if `all_roots=True`).\n\n## Test Results\n- **Test file:** `sympy/ntheory/tests/test_residue.py`\n- **Test function:** `test_residue()`\n- **Result:** All tests pass\n\n## Verification\nTested the specific cases that were failing before the fix:\n- `nthroot_mod(0, 3, 19, True)` \u2192 `[0]` (previously crashed)\n- `nthroot_mod(19, 3, 19, True)` \u2192 `[0]` (previously crashed)\n- `nthroot_mod(38, 3, 19, True)` \u2192 `[0]` (previously crashed)\n- `nthroot_mod(0, 3, 7, True)` \u2192 `[0]` (previously crashed)\n- `nthroot_mod(7, 3, 7, True)` \u2192 `[0]` (previously crashed)\n\nAlso verified the exact case from the issue:\n- `nthroot_mod(289, 5, 17)` \u2192 `0`\n- `nthroot_mod(289, 5, 17, True)` \u2192 `[0]`\n\n## Edge Cases Handled\n- Empty inputs: `a = 0` returns `[0]`\n- Non-zero but divisible by `p`: e.g., `a = 19` when `p = 19` returns `[0]`\n- Single root vs all_roots flag: correctly returns `0` or `[0]`\n\n## Concerns\nNone. The fix is minimal and mathematically correct. When `a % p == 0`, the only solution to `x**n = a mod p` is `x = 0` (since any `x` not divisible by `p` will have `x**n % p != 0`).",
+      "created_at": "2026-02-03T10:55:15.087Z"
+    },
+    {
+      "epic_id": "884def4a-5f2f-40c1-b12d-4f12d01f25bf",
+      "epic_title": "Fix: sympy__sympy-18199",
+      "comment_id": "5cd3c621-d4c4-41c4-828a-669ee59fa775",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED\n\n**Checklist:**\n- [x] No test files modified \u2014 only `sympy/ntheory/residue_ntheory.py`\n- [x] No unrelated files modified \u2014 single file, directly related\n- [x] Fix logically addresses the problem\n- [x] No obvious crash bugs or logical errors\n- [x] Changes are minimal and focused (5 lines)\n\n**Review Notes:**\n\nThe fix correctly handles the `a % p == 0` case by returning `0` (or `[0]` with `all_roots=True`). This is mathematically sound:\n- For prime `p`, if `a \u2261 0 (mod p)`, then `x**n \u2261 0 (mod p)` requires `p | x`, so `x \u2261 0 (mod p)` is the only root.\n- The check is correctly placed after `is_nthpow_residue` (which already returns `True` for this case at line 641) and after the `isprime(p)` guard.\n- The `n == 2` case is correctly handled separately by `sqrt_mod` before this check is reached, so there's no conflict.\n- The fix prevents the `ValueError: Log does not exist` crash that occurred when the algorithm tried to compute `discrete_log(p, 0, h)`.\n\nClean, minimal, and correct fix.",
+      "created_at": "2026-02-03T10:56:28.960Z"
+    }
+  ]
+}

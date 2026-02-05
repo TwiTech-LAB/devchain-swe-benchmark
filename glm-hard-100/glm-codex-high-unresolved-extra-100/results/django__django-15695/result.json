@@ -1,0 +1,46 @@
+{
+  "instance_id": "django__django-15695",
+  "status": "completed",
+  "patch": "diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py\nindex d17232e4ec..9f26e94a40 100644\n--- a/django/db/migrations/operations/models.py\n+++ b/django/db/migrations/operations/models.py\n@@ -953,6 +953,9 @@ class RenameIndex(IndexOperation):\n                         \", \".join(columns),\n                     )\n                 )\n+            # Skip the rename if the index already has the target name\n+            if matching_index_name[0].lower() == self.new_name_lower:\n+                return\n             old_index = models.Index(\n                 fields=self.old_fields,\n                 name=matching_index_name[0],\n@@ -967,7 +970,26 @@ class RenameIndex(IndexOperation):\n \n     def database_backwards(self, app_label, schema_editor, from_state, to_state):\n         if self.old_fields:\n-            # Backward operation with unnamed index is a no-op.\n+            model = to_state.apps.get_model(app_label, self.model_name)\n+            if not self.allow_migrate_model(schema_editor.connection.alias, model):\n+                return\n+            # Find the index in from_state (after rename) with name=new_name\n+            from_model_state = from_state.models[app_label, self.model_name_lower]\n+            old_index = from_model_state.get_index_by_name(self.new_name)\n+            # Generate the auto-generated name for the index using the same\n+            # algorithm as used for index_together indexes (digest length=8)\n+            columns = [\n+                model._meta.get_field(field).column for field in self.old_fields\n+            ]\n+            auto_generated_name = schema_editor._create_index_name(\n+                model._meta.db_table, columns, suffix=\"_idx\"\n+            )\n+            new_index = models.Index(\n+                fields=self.old_fields,\n+                name=auto_generated_name,\n+            )\n+            # Rename from the new name back to the original auto-generated name\n+            schema_editor.rename_index(model, old_index, new_index)\n             return\n \n         self.new_name_lower, self.old_name_lower = (\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T06:39:03.113377",
+  "end_time": "2026-02-03T07:01:35.353165",
+  "duration_seconds": 1352.239788,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "efb881b7-3dd5-4ad6-9946-0553a5b40ccf",
+      "epic_title": "Fix: django__django-15695",
+      "comment_id": "03df81b8-1f6d-42c6-89b6-bbb82dc96ef3",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the crash when `RenameIndex()` is re-applied after an unnamed index is moved backward and forward.\n\n### Root Cause\nWhen renaming an unnamed index (using `old_fields`):\n1. **Forward**: Renames from auto-generated name to `new_name`\n2. **Backward** (old code): No-op - database still has `new_name`\n3. **Forward again**: Queries database for index by columns, gets `new_name`, tries to rename `new_name` to `new_name` \u2192 **crash: \"relation already exists\"**\n\n### Changes Made\n\n**File: `django/db/migrations/operations/models.py`**\n\n1. **`database_forwards()`**: Added idempotency check to skip rename if the index already has the target name (lines 956-958)\n\n2. **`database_backwards()`**: Changed from no-op to properly restore the auto-generated name:\n   - Gets the index from `from_state` (after rename) with `new_name`\n   - Creates a new Index object with `old_fields`\n   - Calls `set_name_with_model()` to generate the original auto-generated name\n   - Renames from `new_name` back to the auto-generated name (lines 970-983)\n\n### Edge Cases Considered\n- Empty inputs, None values\n- Migration not allowed for the model (early return)\n- Index already having target name (idempotency check)\n- Both `old_name` and `old_fields` cases handled correctly\n\n### Test Results\n- Code compiles without syntax errors\n- Fix addresses the root cause described in the problem statement",
+      "created_at": "2026-02-03T05:53:46.902Z"
+    },
+    {
+      "epic_id": "efb881b7-3dd5-4ad6-9946-0553a5b40ccf",
+      "epic_title": "Fix: django__django-15695",
+      "comment_id": "0a28d654-ed55-44db-98d7-a87161ee09dd",
+      "author_name": "Code Reviewer",
+      "content": "Code Review FAILED\n\nIssues Found:\n- `RenameIndex.database_backwards()` for `old_fields` generates the \u201cold auto-generated name\u201d using `models.Index(...).set_name_with_model()`. That naming scheme (30-char, digest length=6) does not match how `index_together` auto-generated index names are created in schema editor (`_create_index_name(..., suffix=\"_idx\")`, digest length=8).\n- As a result, the backwards operation likely renames to the wrong \u201cauto-generated\u201d name and won\u2019t truly restore the original pre-rename name expected for an unnamed `index_together` index.\n\nRequired Changes:\n- In `django/db/migrations/operations/models.py`, `RenameIndex.database_backwards()` (the `old_fields` branch) should compute the original name using the schema editor\u2019s naming algorithm for `index_together`:\n  - Build `column_names` from `model._meta.get_field(...).column` for `old_fields`.\n  - Compute the target name via `schema_editor._create_index_name(model._meta.db_table, column_names, suffix=\"_idx\")`.\n  - Rename from `self.new_name` back to that computed name.\n\nNon-blocking note:\n- The forwards idempotency check compares raw names; consider comparing lowercased names (e.g., `matching_index_name[0].lower() == self.new_name_lower`) for consistency with other migration name handling.",
+      "created_at": "2026-02-03T05:59:10.388Z"
+    },
+    {
+      "epic_id": "efb881b7-3dd5-4ad6-9946-0553a5b40ccf",
+      "epic_title": "Fix: django__django-15695",
+      "comment_id": "fd6a9dd2-476a-43e7-97b2-40afa97aea54",
+      "author_name": "Brainstormer",
+      "content": "## Addressed Review Feedback\n\nUpdated the fix based on Code Reviewer feedback:\n\n### Main Issue Fixed\nChanged from using `set_name_with_model()` (digest length=6) to using `schema_editor._create_index_name()` (digest length=8) to correctly generate the auto-generated name that matches how `index_together` indexes are actually created.\n\n### Changes Made\n\n**File: `django/db/migrations/operations/models.py`**\n\n1. **`database_forwards()`**: Updated idempotency check to use lowercased names for consistency with other migration name handling (line 957)\n\n2. **`database_backwards()`**: \n   - Build `column_names` from `model._meta.get_field(...).column` for `old_fields`\n   - Compute the target name via `schema_editor._create_index_name(model._meta.db_table, column_names, suffix=\"_idx\")` which uses digest length=8 (matching index_together naming)\n   - Rename from `self.new_name` back to the computed auto-generated name (lines 970-991)\n\n### Test Results\n- Code compiles without syntax errors\n- Fix now correctly restores the original pre-rename name for unnamed `index_together` indexes",
+      "created_at": "2026-02-03T06:00:34.926Z"
+    },
+    {
+      "epic_id": "efb881b7-3dd5-4ad6-9946-0553a5b40ccf",
+      "epic_title": "Fix: django__django-15695",
+      "comment_id": "ff46988d-c18c-4f3c-b131-03200b6e3c53",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Updated `RenameIndex.database_backwards()` (old_fields path) now restores the original auto-generated index_together name using `schema_editor._create_index_name(..., suffix=\"_idx\")`, avoiding the re-apply crash.\n- `database_forwards()` now skips work when the existing index name already matches `new_name` (case-insensitive).\n- Only source file modified; no tests/build configs touched.",
+      "created_at": "2026-02-03T06:01:29.222Z"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "instance_id": "astropy__astropy-13236",
+  "status": "completed",
+  "patch": "diff --git a/astropy/table/table.py b/astropy/table/table.py\nindex 5afe2127a3..bf6345b9b1 100644\n--- a/astropy/table/table.py\n+++ b/astropy/table/table.py\n@@ -1243,6 +1243,11 @@ class Table:\n         # mixin class\n         if (not isinstance(data, Column) and not data_is_mixin\n                 and isinstance(data, np.ndarray) and len(data.dtype) > 1):\n+            warnings.warn(\"Passing a structured ndarray to a Table is \"\n+                          \"deprecated. In future, this will be added as a \"\n+                          \"Column. To avoid this warning, wrap the data in \"\n+                          \"a Column explicitly.\",\n+                          FutureWarning, stacklevel=3)\n             data = data.view(NdarrayMixin)\n             data_is_mixin = True\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T03:13:52.768411",
+  "end_time": "2026-02-03T03:18:43.950491",
+  "duration_seconds": 291.18208,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "9600f838-5a57-4a1a-b669-708336d57eaf",
+      "epic_title": "Fix: astropy__astropy-13236",
+      "comment_id": "3df8163d-0306-4dc3-b2c3-2a776a86cb50",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nAdded a `FutureWarning` when a structured numpy array is passed directly to a Table. The warning tells users to wrap the data in `Column` explicitly to avoid the warning.\n\n## Files Modified\n- `astropy/table/table.py`: Added `warnings.warn()` call with `FutureWarning` before converting structured ndarray to `NdarrayMixin`\n\n## Test Results\n- **Test file:** `/testbed/astropy/table/tests/test_table.py`\n- **Baseline (before fix):** 458 passed, 1 failed, 19 skipped, 1 xfailed\n- **After fix:** 458 passed, 1 failed, 19 skipped, 1 xfailed\n- **Regression check:** No new failures introduced (the 1 failed test `test_values_equal_part1` is pre-existing)\n\n## Additional Verification\n1. Verified that passing a structured ndarray directly to Table triggers the `FutureWarning`\n2. Verified that wrapping the structured ndarray in `Column` explicitly does NOT trigger the warning\n\n## Concerns\n- None. The change is minimal and focused on adding the deprecation warning as requested.",
+      "created_at": "2026-02-03T02:17:50.205Z"
+    },
+    {
+      "epic_id": "9600f838-5a57-4a1a-b669-708336d57eaf",
+      "epic_title": "Fix: astropy__astropy-13236",
+      "comment_id": "e7224d0e-485a-4362-897e-b4ffad9e9b83",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change in `astropy/table/table.py` correctly adds a `FutureWarning` when a structured `np.ndarray` would otherwise be auto-viewed as `NdarrayMixin`, matching the proposal in the problem statement.\n- No test files were modified; code change is minimal and uses existing `warnings` import.\n\nNote: `pyproject.toml` is modified in the workspace; per protocol build configs are auto-excluded, but please ensure it\u2019s not part of the final patch/artifact.",
+      "created_at": "2026-02-03T02:18:40.620Z"
+    }
+  ]
+}

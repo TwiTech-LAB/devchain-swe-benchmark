@@ -1,0 +1,22 @@
+{
+  "instance_id": "astropy__astropy-13033",
+  "status": "completed",
+  "patch": "diff --git a/astropy/timeseries/core.py b/astropy/timeseries/core.py\nindex c279f35f87..37d985820f 100644\n--- a/astropy/timeseries/core.py\n+++ b/astropy/timeseries/core.py\n@@ -76,9 +76,13 @@ class BaseTimeSeries(QTable):\n \n             elif self.colnames[:len(required_columns)] != required_columns:\n \n-                raise ValueError(\"{} object is invalid - expected '{}' \"\n-                                 \"as the first column{} but found '{}'\"\n-                                 .format(self.__class__.__name__, required_columns[0], plural, self.colnames[0]))\n+                if len(required_columns) > 1:\n+                    raise ValueError(\"{} object is invalid - expected {} as the first column{} but found {}\"\n+                                     .format(self.__class__.__name__, required_columns, plural, self.colnames[:len(required_columns)]))\n+                else:\n+                    raise ValueError(\"{} object is invalid - expected '{}' \"\n+                                     \"as the first column{} but found '{}'\"\n+                                     .format(self.__class__.__name__, required_columns[0], plural, self.colnames[0]))\n \n             if (self._required_columns_relax\n                     and self._required_columns == self.colnames[:len(self._required_columns)]):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T15:18:40.633468",
+  "end_time": "2026-01-31T15:22:21.634319",
+  "duration_seconds": 221.000851,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "b32ae019-99ed-4a2d-8344-c26fcd5f1579",
+      "epic_title": "Fix: astropy__astropy-13033",
+      "comment_id": "96051e06-6078-42f0-a6fb-408e67a4372c",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the misleading exception message when required columns check fails in TimeSeries. The original error message only showed the first required column, causing confusion like \"expected 'time' as the first columns but found 'time'\" when the actual issue was that other required columns (e.g., 'flux') were missing.\n\n## Files Modified\n- `astropy/timeseries/core.py`: Modified `_check_required_columns` method (lines 77-85) to show all missing required columns when there are multiple required columns, instead of just showing the first one.\n\n## Test Results\n- **Test file:** astropy/timeseries/tests/test_sampled.py\n- **Baseline (before fix):** 21 passed, 1 failed, 3 skipped\n- **After fix:** 21 passed, 1 failed, 3 skipped\n- **Regression check:** No new failures introduced (same unrelated leap-second warning issue)\n\n## Additional Verification\nTested the fix with the reproduction case from the issue:\n```python\nfrom astropy.time import Time\nfrom astropy.timeseries import TimeSeries\ntime=Time(np.arange(100000, 100003), format='jd')\nts = TimeSeries(time=time, data = {\"flux\": [99.9, 99.8, 99.7]})\nts._required_columns = [\"time\", \"flux\"]\nts.remove_column(\"flux\")\n```\n\n**Before fix:** `ValueError: TimeSeries object is invalid - expected 'time' as the first columns but found 'time'` (confusing!)\n**After fix:** `ValueError: TimeSeries object is invalid - expected ['time', 'flux'] as the first columns but found ['time']` (clear!)\n\nAlso tested edge cases:\n- Single required column: Still shows correct format\n- Three required columns: Shows all missing columns correctly\n\n## Concerns\nNone. The fix is minimal and focused on the error message only. No logic changes were made.",
+      "created_at": "2026-01-31T14:22:05.883Z"
+    }
+  ]
+}

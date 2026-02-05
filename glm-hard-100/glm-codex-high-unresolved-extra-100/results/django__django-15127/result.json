@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-15127",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/messages/storage/base.py b/django/contrib/messages/storage/base.py\nindex 01422066a6..a46c57cd53 100644\n--- a/django/contrib/messages/storage/base.py\n+++ b/django/contrib/messages/storage/base.py\n@@ -38,7 +38,7 @@ class Message:\n \n     @property\n     def level_tag(self):\n-        return LEVEL_TAGS.get(self.level, '')\n+        return utils.get_level_tags().get(self.level, '')\n \n \n class BaseStorage:\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:05:13.275798",
+  "end_time": "2026-02-03T01:09:46.953168",
+  "duration_seconds": 273.67737,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "7966fbcb-8a8c-4684-a388-ab3d11a02374",
+      "epic_title": "Fix: django__django-15127",
+      "comment_id": "45370e97-86e5-4e77-b49f-116a833831e8",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe issue was that `LEVEL_TAGS` in `django/contrib/messages/storage/base.py` was a module-level constant computed at import time. When users used `@override_settings(MESSAGE_TAGS={...})` in tests, the settings changed but `LEVEL_TAGS` remained stale.\n\nThe fix makes the `Message.level_tag` property call `utils.get_level_tags()` dynamically instead of using the module-level constant. This ensures that any changes to `MESSAGE_TAGS` via `@override_settings` are immediately reflected when accessing the `level_tag` property.\n\n## Files Modified\n- `django/contrib/messages/storage/base.py`: Changed `level_tag` property to use `utils.get_level_tags().get(self.level, '')` instead of `LEVEL_TAGS.get(self.level, '')`\n\n## Test Results\n- **Test file:** messages_tests (96 tests)\n- **Results:** All 96 tests passed\n- **Verification:** Created custom test script that verified:\n  1. Default MESSAGE_TAGS work correctly\n  2. @override_settings with custom MESSAGE_TAGS works correctly\n  3. Settings revert correctly after override\n  4. Messages created before override see new tags (dynamic behavior)\n\n## Additional Verification\n```python\n# Test script verified:\nwith override_settings(MESSAGE_TAGS={constants.INFO: 'custom_info'}):\n    msg = Message(constants.INFO, 'Test')\n    assert msg.level_tag == 'custom_info'  # PASSES\n```\n\n## Concerns\n- The module-level `LEVEL_TAGS` constant is still defined for backward compatibility (it's used by the test helper `override_settings_tags` in tests) but is no longer used by the `Message.level_tag` property.\n- No edge cases identified - the fix is straightforward and makes the code dynamic to respect settings changes.",
+      "created_at": "2026-02-03T00:08:24.949Z"
+    },
+    {
+      "epic_id": "7966fbcb-8a8c-4684-a388-ab3d11a02374",
+      "epic_title": "Fix: django__django-15127",
+      "comment_id": "25e02ed5-c464-4ff5-b3d3-90929820fafd",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and focused: `Message.level_tag` now calls `utils.get_level_tags()` dynamically, so `@override_settings(MESSAGE_TAGS=...)` is reflected immediately.\n- Only source file modified (`django/contrib/messages/storage/base.py`); no test/config changes detected.\n- No obvious regressions or crash risks from the change (still defaults to `''` when no tag exists).",
+      "created_at": "2026-02-03T00:09:40.382Z"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "instance_id": "sympy__sympy-20916",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/conventions.py b/sympy/printing/conventions.py\nindex 9a3be6bbe9..83d8896421 100644\n--- a/sympy/printing/conventions.py\n+++ b/sympy/printing/conventions.py\n@@ -7,7 +7,7 @@\n from collections.abc import Iterable\n from sympy import Derivative\n \n-_name_with_digits_p = re.compile(r'^([a-zA-Z]+)([0-9]+)$')\n+_name_with_digits_p = re.compile(r'^([^\\W\\d_]+)(\\d+)$', re.U)\n \n \n def split_super_sub(text):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T20:07:15.146018",
+  "end_time": "2026-01-31T20:12:37.225414",
+  "duration_seconds": 322.079396,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "77248a30-6281-416d-9f68-150bf1e88522",
+      "epic_title": "Fix: sympy__sympy-20916",
+      "comment_id": "fc0b1ac1-6607-4d5b-8e18-472af49dc7b3",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the regex pattern in `sympy/printing/conventions.py` to properly handle Unicode letters (including Greek letters) followed by numeric digits. The issue was that the regex `r'^([a-zA-Z]+)([0-9]+)$'` only matched ASCII letters and digits, so symbols like `\u03c90` (Greek omega with 0) were not being split correctly - the entire `\u03c90` was treated as the name rather than `\u03c9` with subscript `0`.\n\nChanged the regex from:\n```python\n_name_with_digits_p = re.compile(r'^([a-zA-Z]+)([0-9]+)$')\n```\n\nTo:\n```python\n_name_with_digits_p = re.compile(r'^([^\\W\\d_]+)(\\d+)$', re.U)\n```\n\nThis uses:\n- `[^\\W\\d_]` - matches any Unicode letter (not a non-word, not a digit, not an underscore)\n- `\\d` - matches any Unicode digit\n- `re.U` - enables Unicode matching\n\n## Files Modified\n- `sympy/printing/conventions.py`: Updated `_name_with_digits_p` regex to match Unicode letters and digits\n\n## Test Results\n- **Test files:** \n  - `sympy/printing/tests/test_conventions.py`: 2 passed, 1 expected to fail\n  - `sympy/printing/pretty/tests/test_pretty.py`: 142 passed\n- **Edge cases tested:**\n  - Greek letters (\u03b1, \u03b2, \u03b3, \u03b4, \u03c9, \u03a9, \u03b8, \u03c6, \u03c8) with numeric subscripts: All pass\n  - ASCII letters with numeric subscripts: Still work correctly\n  - Multiple digit subscripts (e.g., \u03c8123): Works correctly\n\n## Additional Verification\n- `Symbol('\u03c90')` now renders as `\u03c9\u2080` (was `\u03c90` before)\n- Matrix expressions with Greek letter subscripts now display correctly: `[-t\u2080\u22c5\u03c9\u2080  -t\u2081\u22c5\u03c9\u2080  -t\u2082\u22c5\u03c9\u2080]`\n\n## Concerns\nNone - the fix is minimal, focused, and all tests pass.",
+      "created_at": "2026-01-31T19:12:24.316Z"
+    }
+  ]
+}

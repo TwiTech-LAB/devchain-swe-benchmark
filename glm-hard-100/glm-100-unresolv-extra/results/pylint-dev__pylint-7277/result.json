@@ -1,0 +1,22 @@
+{
+  "instance_id": "pylint-dev__pylint-7277",
+  "status": "completed",
+  "patch": "diff --git a/pylint/__init__.py b/pylint/__init__.py\nindex 9f3dd74e6..05d1c6e30 100644\n--- a/pylint/__init__.py\n+++ b/pylint/__init__.py\n@@ -96,9 +96,13 @@ def modify_sys_path() -> None:\n       if pylint is installed in an editable configuration (as the last item).\n       https://github.com/PyCQA/pylint/issues/4161\n     \"\"\"\n-    sys.path.pop(0)\n-    env_pythonpath = os.environ.get(\"PYTHONPATH\", \"\")\n     cwd = os.getcwd()\n+    # Only remove the first entry if it's \"\", \".\" or the current working directory\n+    # This avoids removing custom paths that may have been inserted at the\n+    # beginning of sys.path before running pylint via runpy\n+    if sys.path[0] in (\"\", \".\", cwd):\n+        sys.path.pop(0)\n+    env_pythonpath = os.environ.get(\"PYTHONPATH\", \"\")\n     if env_pythonpath.startswith(\":\") and env_pythonpath not in (f\":{cwd}\", \":.\"):\n         sys.path.pop(0)\n     elif env_pythonpath.endswith(\":\") and env_pythonpath not in (f\"{cwd}:\", \".:\"):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T15:37:35.600330",
+  "end_time": "2026-01-31T15:41:16.823816",
+  "duration_seconds": 221.223486,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "43eea648-2318-41de-8bee-f7383b5a63dc",
+      "epic_title": "Fix: pylint-dev__pylint-7277",
+      "comment_id": "104b5345-0a9f-427e-8b82-59249a6bd3e9",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `modify_sys_path()` function in `pylint/__init__.py` to only remove `sys.path[0]` if it is `\"\"`, `\".\"`, or `os.getcwd()`. Previously, the function unconditionally removed the first item from `sys.path`, which incorrectly removed custom paths that were inserted at the beginning before running pylint via `runpy`.\n\n## Files Modified\n\n- `pylint/__init__.py`: Added conditional check before removing `sys.path[0]` to verify it's one of `\"\"`, `\".\"`, or `os.getcwd()` before removal.\n\n## Test Results\n\n- **Test file:** tests/test_self.py (TestRunTC::test_modify_sys_path)\n- **Baseline (before fix):** 1 passed\n- **After fix:** 1 passed\n- **Regression check:** All 107 tests in TestRunTC passed, no new failures introduced\n\n## Additional Verification\n\nCreated custom tests to verify:\n1. Empty string `\"\"` is correctly removed from first position\n2. Dot `\".\"` is correctly removed from first position  \n3. Current working directory `os.getcwd()` is correctly removed from first position\n4. Custom paths (e.g., `\"something\"`) are preserved in first position\n5. Original bug reproduction case with `runpy.run_module('pylint')` now preserves custom paths\n\n## Concerns\n\nNone. The fix is minimal and focused, addressing the root cause without affecting existing functionality.",
+      "created_at": "2026-01-31T14:41:03.138Z"
+    }
+  ]
+}

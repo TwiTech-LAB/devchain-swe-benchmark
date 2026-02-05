@@ -1,0 +1,22 @@
+{
+  "instance_id": "astropy__astropy-14182",
+  "status": "completed",
+  "patch": "diff --git a/astropy/io/ascii/rst.py b/astropy/io/ascii/rst.py\nindex abdeba8efb..675a48aa30 100644\n--- a/astropy/io/ascii/rst.py\n+++ b/astropy/io/ascii/rst.py\n@@ -57,10 +57,13 @@ class RST(FixedWidth):\n     data_class = SimpleRSTData\n     header_class = SimpleRSTHeader\n \n-    def __init__(self):\n-        super().__init__(delimiter_pad=None, bookend=False)\n+    def __init__(self, header_rows=None):\n+        super().__init__(delimiter_pad=None, bookend=False, header_rows=header_rows)\n \n     def write(self, lines):\n         lines = super().write(lines)\n-        lines = [lines[1]] + lines + [lines[1]]\n+        # The separator line is at index len(header_rows) after super().write()\n+        header_rows = getattr(self.data, \"header_rows\", [\"name\"])\n+        sep_line_idx = len(header_rows)\n+        lines = [lines[sep_line_idx]] + lines + [lines[sep_line_idx]]\n         return lines\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T21:34:17.601280",
+  "end_time": "2026-01-31T21:39:18.460103",
+  "duration_seconds": 300.858823,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "bc96a1d1-8863-46f3-9bb1-025ff53e3def",
+      "epic_title": "Fix: astropy__astropy-14182",
+      "comment_id": "3dc42a71-18eb-4af6-ae67-c0a0b6676b43",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nThe RST (RestructuredText) writer class inherited from `FixedWidth` but did not accept the `header_rows` parameter. This caused a `TypeError` when trying to use `header_rows=['name', 'unit']` with `format='ascii.rst'`.\n\n## Files Modified\n\n- `astropy/io/ascii/rst.py`: \n  1. Updated `RST.__init__()` to accept `header_rows` parameter and pass it to parent class\n  2. Updated `RST.write()` method to correctly handle multiple header rows by dynamically finding the separator line at index `len(header_rows)` instead of hardcoded index 1\n\n## Test Results\n\n- **Test file:** `/testbed/astropy/io/ascii/tests/test_rst.py`\n- **Baseline (before fix):** 9 passed, 0 failed, 0 errors\n- **After fix:** 9 passed, 0 failed, 0 errors\n- **FixedWidth tests:** 35 passed, 0 failed, 0 errors\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n\nTested with the exact example from the problem statement:\n```python\nfrom astropy.table import QTable\nimport astropy.units as u\ntbl = QTable({'wave': [350,950]*u.nm, 'response': [0.7, 1.2]*u.count})\ntbl.write(sys.stdout, format='ascii.rst', header_rows=['name', 'unit'])\n```\n\nOutput:\n```\n===== ========\n wave response\n   nm       ct\n===== ========\n350.0      0.7\n950.0      1.2\n===== ========\n```\n\nAlso tested edge cases:\n- `header_rows=['name']` (single header row)\n- `header_rows=['name', 'unit']` (names then units)\n- `header_rows=['unit', 'name']` (units then names - reversed)\n- Regular Table without units\n\nAll work correctly.\n\n## Concerns\n\nNone. The fix is minimal and follows the existing pattern used by the FixedWidth parent class.",
+      "created_at": "2026-01-31T20:39:01.351Z"
+    }
+  ]
+}

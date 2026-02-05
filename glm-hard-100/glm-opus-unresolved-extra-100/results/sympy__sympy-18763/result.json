@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-18763",
+  "status": "completed",
+  "patch": "diff --git a/sympy/printing/latex.py b/sympy/printing/latex.py\nindex 8743723ea0..969072f47f 100644\n--- a/sympy/printing/latex.py\n+++ b/sympy/printing/latex.py\n@@ -698,7 +698,7 @@ def _print_Derivative(self, expr):\n \n     def _print_Subs(self, subs):\n         expr, old, new = subs.args\n-        latex_expr = self._print(expr)\n+        latex_expr = self.parenthesize(expr, PRECEDENCE[\"Mul\"], strict=True)\n         latex_old = (self._print(e) for e in old)\n         latex_new = (self._print(e) for e in new)\n         latex_subs = r'\\\\ '.join(\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T14:18:09.575765",
+  "end_time": "2026-02-03T14:24:30.151228",
+  "duration_seconds": 380.575463,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "1ec4dead-bc93-4fa3-a7de-dbdc818fa4b3",
+      "epic_title": "Fix: sympy__sympy-18763",
+      "comment_id": "829479cf-22fe-45ef-94c7-66b3835876f8",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed incorrect parenthesizing of Subs expressions in LaTeX printing. When a Subs object contains an expression with operations that have lower precedence than multiplication (e.g., addition, subtraction), the inner expression is now wrapped in `\\left(...\\right)` parentheses.\n\n## Root Cause\n\nThe `_print_Subs` method in `sympy/printing/latex.py` was using `self._print(expr)` directly without checking if the expression needed parenthesization. This caused issues when the inner expression contained operations like `-x+y` which should be parenthesized when Subs appears in a multiplication context.\n\n## Files Modified\n\n- `sympy/printing/latex.py`: Changed line 701 from `latex_expr = self._print(expr)` to `latex_expr = self.parenthesize(expr, PRECEDENCE[\"Mul\"], strict=True)`\n\n## Test Results\n\n- **Test file:** `/testbed/sympy/printing/tests/test_latex.py`\n- **Baseline:** 1 passed (test_latex_subs)\n- **After fix:** 143 passed, 4 failed (all XFail - pre-existing expected failures)\n- **Regression check:** No new failures introduced\n\n## Verification\n\nThe fix correctly produces:\n- `3*Subs(-x+y, (x,), (1,))` \u2192 `'3 \\\\left. \\\\left(- x + y\\\\right) \\\\right|_{\\\\substack{ x=1 }}'` \u2705\n- `Subs(x+y, (x,), (1,))` \u2192 `'\\\\left. \\\\left(x + y\\\\right) \\\\right|_{\\\\substack{ x=1 }}'` \u2705\n- `Subs(x, (x,), (1,))` \u2192 `'\\\\left. x \\\\right|_{\\\\substack{ x=1 }}'` (no unnecessary parens) \u2705\n- `Subs(2*x, (x,), (1,))` \u2192 `'\\\\left. 2 x \\\\right|_{\\\\substack{ x=1 }}'` (no unnecessary parens) \u2705\n\n## Concerns\n\nNone. The fix follows the same pattern used by `_print_Derivative` in the same file and handles all edge cases correctly.",
+      "created_at": "2026-02-03T13:23:32.290Z"
+    },
+    {
+      "epic_id": "1ec4dead-bc93-4fa3-a7de-dbdc818fa4b3",
+      "epic_title": "Fix: sympy__sympy-18763",
+      "comment_id": "43eb4001-c403-45cc-a36c-5c3f85b044b8",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED\n\n**Verdict:** PASS\n\n**Review Summary:**\n- Single line change in `sympy/printing/latex.py` line 701\n- Replaces `self._print(expr)` with `self.parenthesize(expr, PRECEDENCE[\"Mul\"], strict=True)`\n- This follows the exact same pattern already used by `_print_Derivative` (line 695-696) in the same file\n- Correctly parenthesizes inner expressions with lower precedence than Mul (e.g., addition/subtraction) while avoiding unnecessary parentheses for simple expressions (e.g., single variables, products)\n\n**Checklist:**\n- [x] No test files modified\n- [x] No unrelated files modified\n- [x] Fix logically addresses the problem\n- [x] No crash bugs or logical errors\n- [x] Changes are minimal and focused\n\n**Test results:** 143 passed, 4 XFail (pre-existing) \u2014 no regressions.",
+      "created_at": "2026-02-03T13:24:26.302Z"
+    }
+  ]
+}

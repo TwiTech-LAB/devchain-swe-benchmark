@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-11820",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/base.py b/django/db/models/base.py\nindex 3ce711f3f1..42ad06ad65 100644\n--- a/django/db/models/base.py\n+++ b/django/db/models/base.py\n@@ -1712,7 +1712,7 @@ class Model(metaclass=ModelBase):\n                     if fld.is_relation:\n                         _cls = fld.get_path_info()[-1].to_opts.model\n                 except (FieldDoesNotExist, AttributeError):\n-                    if fld is None or fld.get_transform(part) is None:\n+                    if part != 'pk' and (fld is None or fld.get_transform(part) is None):\n                         errors.append(\n                             checks.Error(\n                                 \"'ordering' refers to the nonexistent field, \"\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T16:38:50.932460",
+  "end_time": "2026-01-31T16:43:33.971215",
+  "duration_seconds": 283.038755,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "670a9176-c1d1-40a6-9b60-bd3bb75a1b99",
+      "epic_title": "Fix: django__django-11820",
+      "comment_id": "63d83ca1-0bbf-440f-a79c-8e665a6d2bce",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the models.E015 false positive when `Meta.ordering` contains `__pk` of a related field (e.g., `ordering = ['related__pk']`). The issue was that \"pk\" is a special alias for the primary key field, not an actual field name, but the validation code was treating it as a nonexistent field.\n\n**Root Cause:** In `django/db/models/base.py`, the `_check_ordering` method's related field validation loop (lines 1706-1724) was checking each part of a lookup path (e.g., \"related\" then \"pk\") using `get_field()`. When encountering \"pk\", `get_field()` raises `FieldDoesNotExist` because \"pk\" is an alias. The code then checked for transforms, but \"pk\" is not a transform either, causing the E015 error.\n\n**Fix:** Added a check `part != 'pk'` before raising the E015 error, allowing \"pk\" as a valid lookup component since it's a standard Django alias for the primary key.\n\n## Files Modified\n- `django/db/models/base.py` (line 1715): Added `part != 'pk'` condition to skip E015 error when \"pk\" is used as a lookup component\n\n## Test Results\nVerified the fix handles all cases correctly:\n- `related__pk` - now works correctly (no E015 error)\n- `a__b__pk` - works with multiple levels of relations\n- `-related__pk` - works with descending order\n- `related__invalid` - still raises E015 (validation preserved)\n- `related__id` - still works (no regression)\n- `pk` - top-level pk still works\n- `pk__somefield` - correctly raises E015 (pk is not a relation)\n\n## Edge Cases Considered\n- Empty inputs, None values\n- Multiple levels of related fields with `__pk`\n- Descending order with `-related__pk`\n- Invalid uses like `pk__somefield` (correctly rejected)",
+      "created_at": "2026-01-31T15:43:24.834Z"
+    }
+  ]
+}

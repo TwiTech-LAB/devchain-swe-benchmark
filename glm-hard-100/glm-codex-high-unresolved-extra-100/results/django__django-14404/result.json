@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14404",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/sites.py b/django/contrib/admin/sites.py\nindex 59a4a0364d..4effd75415 100644\n--- a/django/contrib/admin/sites.py\n+++ b/django/contrib/admin/sites.py\n@@ -427,7 +427,7 @@ class AdminSite:\n                 pass\n             else:\n                 if getattr(match.func, 'should_append_slash', True):\n-                    return HttpResponsePermanentRedirect(path)\n+                    return HttpResponsePermanentRedirect('%s/' % request.path)\n         raise Http404\n \n     def _build_app_dict(self, request, label=None):\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-01T12:13:25.705446",
+  "end_time": "2026-02-01T12:22:07.133274",
+  "duration_seconds": 521.427828,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "138225f5-122c-4a58-a234-d62677e4ac74",
+      "epic_title": "Fix: django__django-14404",
+      "comment_id": "d9120f54-ec56-4ef0-ac37-cdee9b6b0cc8",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `catch_all_view()` to support `FORCE_SCRIPT_NAME` by using `request.path` instead of `request.path_info` for the redirect URL.\n\n**Root Cause:** The function used `request.path_info` to construct the redirect URL, but `request.path_info` excludes the SCRIPT_NAME prefix. When `FORCE_SCRIPT_NAME` is set, the redirect would send users to a URL without the script prefix, breaking the application.\n\n**Solution:** Use `request.path` (which includes SCRIPT_NAME) for the redirect while keeping `request.path_info` for URL resolution (which is correct for the resolver).\n\n## Files Modified\n- `django/contrib/admin/sites.py:430` - Changed `HttpResponsePermanentRedirect(path)` to `HttpResponsePermanentRedirect('%s/' % request.path)`\n\n## Test Results\n- **Test file:** tests/admin_views/tests.py\n- **Baseline (before fix):** 416 passed, 22 skipped\n- **After fix:** 416 passed, 22 skipped\n- **Regression check:** No new failures introduced\n\n## Additional Verification\nCreated verification script showing:\n- OLD: redirect to `/admin/secret/` (without SCRIPT_NAME)\n- NEW: redirect to `/my-app/admin/secret/` (with SCRIPT_NAME)\n\n## Concerns\n- None - The fix is minimal and focused on the reported issue. The `path` variable is still correctly used for URL resolution (which expects path_info), only the redirect uses the full path.",
+      "created_at": "2026-02-01T11:20:46.193Z"
+    },
+    {
+      "epic_id": "138225f5-122c-4a58-a234-d62677e4ac74",
+      "epic_title": "Fix: django__django-14404",
+      "comment_id": "77e9bf9b-e275-4f09-aadf-be37da2d1d55",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and directly addresses the reported issue: redirect now uses `request.path` (includes SCRIPT_NAME / `FORCE_SCRIPT_NAME`) while keeping `request.path_info` for URL resolution.\n- Only source file modified (`django/contrib/admin/sites.py`); no test/build config edits.\n- Verification summary includes baseline vs after running `tests/admin_views/tests.py` with identical pass/skip counts.",
+      "created_at": "2026-02-01T11:21:55.419Z"
+    }
+  ]
+}

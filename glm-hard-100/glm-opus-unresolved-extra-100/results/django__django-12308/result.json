@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-12308",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/admin/utils.py b/django/contrib/admin/utils.py\nindex e4ddc8f017..90d14adfd4 100644\n--- a/django/contrib/admin/utils.py\n+++ b/django/contrib/admin/utils.py\n@@ -1,5 +1,6 @@\n import datetime\n import decimal\n+import json\n from collections import defaultdict\n \n from django.core.exceptions import FieldDoesNotExist\n@@ -398,6 +399,11 @@ def display_for_field(value, field, empty_value_display):\n         return formats.number_format(value)\n     elif isinstance(field, models.FileField) and value:\n         return format_html('<a href=\"{}\">{}</a>', value.url, value)\n+    elif isinstance(field, models.JSONField):\n+        try:\n+            return json.dumps(value, cls=field.encoder, ensure_ascii=False)\n+        except TypeError:\n+            return display_for_value(value, empty_value_display)\n     else:\n         return display_for_value(value, empty_value_display)\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-01T05:26:01.436243",
+  "end_time": "2026-02-01T05:33:46.523596",
+  "duration_seconds": 465.087353,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "6a98709d-ff0f-4a23-b51a-1bf8c47cfc97",
+      "epic_title": "Fix: django__django-12308",
+      "comment_id": "9f9183de-5989-48cb-9839-7196e4ae2afb",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed JSONField display in admin when readonly. Previously, JSONField values were displayed using Python's `str()` which produces Python-style repr with single quotes (e.g., `{'foo': 'bar'}`), which is not valid JSON.\n\n## Files Modified\n- `django/contrib/admin/utils.py`: \n  - Added `import json` \n  - Added special case for `models.JSONField` in `display_for_field()` function that uses `json.dumps()` to properly format the value as valid JSON\n\n## Test Results\n- **Baseline (before fix):** 21 passed in admin_utils.tests\n- **After fix:** 21 passed in admin_utils.tests (no regressions)\n- **Additional tests:** 419 passed in admin_views/admin_docs, 32 passed in model_fields.tests\n\n## Additional Verification\nCreated and ran custom test script that verified:\n- Simple dict: `{'foo': 'bar'}` \u2192 `{\"foo\": \"bar\"}` \u2713\n- Nested dict with double quotes \u2713\n- Lists: `[1, 2, 3]` \u2192 `[1, 2, 3]` \u2713\n- Unicode characters preserved \u2713\n- None values handled correctly \u2713\n- String values JSON-encoded correctly \u2713\n\n## Concerns\n- The fix handles `TypeError` exceptions from `json.dumps()` by falling back to `display_for_value()`, which handles non-serializable objects gracefully\n- The fix uses `ensure_ascii=False` to properly handle Unicode characters\n- The fix respects custom `encoder` if set on the JSONField",
+      "created_at": "2026-02-01T04:30:40.777Z"
+    },
+    {
+      "epic_id": "6a98709d-ff0f-4a23-b51a-1bf8c47cfc97",
+      "epic_title": "Fix: django__django-12308",
+      "comment_id": "e800281f-9495-41e1-8e63-2a3c097458a1",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review: PASSED \u2713\n\n### Summary\nThe fix correctly addresses the JSONField display issue in readonly admin fields. JSONField values now render as valid JSON with double quotes instead of Python repr with single quotes.\n\n### Verification Confirmed\n- \u2705 No test files modified (source code only)\n- \u2705 Actual test file run: tests/admin_utils/tests.py\n- \u2705 Test results: 21/21 passed (no regressions)\n- \u2705 Baseline comparison provided\n\n### Code Quality Assessment\n**Strengths:**\n1. Minimal, focused change to django/contrib/admin/utils.py\n2. Follows existing pattern of field type checks in display_for_field()\n3. Properly uses field.encoder to respect custom JSON encoders\n4. Uses ensure_ascii=False for correct Unicode handling\n5. Includes TypeError exception handling with graceful fallback\n6. Clean implementation that addresses root cause\n\n**Technical Correctness:**\nThe fix uses `json.dumps()` directly, which is correct for model fields (models.JSONField). While the problem statement mentioned using `prepare_value()`, that method only exists on form fields (forms.JSONField), not model fields. The implementation does exactly what prepare_value would do, adapted appropriately for the admin display context.\n\n### Final Verdict\n**APPROVED** - The fix is production-ready and solves the reported issue correctly.",
+      "created_at": "2026-02-01T04:33:32.404Z"
+    }
+  ]
+}

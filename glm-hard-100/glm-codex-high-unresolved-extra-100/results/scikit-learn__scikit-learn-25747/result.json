@@ -1,0 +1,30 @@
+{
+  "instance_id": "scikit-learn__scikit-learn-25747",
+  "status": "completed",
+  "patch": "diff --git a/sklearn/utils/_set_output.py b/sklearn/utils/_set_output.py\nindex 335773c6a..425918f94 100644\n--- a/sklearn/utils/_set_output.py\n+++ b/sklearn/utils/_set_output.py\n@@ -53,9 +53,9 @@ def _wrap_in_pandas_container(\n     pd = check_pandas_support(\"Setting output container to 'pandas'\")\n \n     if isinstance(data_to_wrap, pd.DataFrame):\n-        if columns is not None:\n+        if columns is not None and len(columns) == len(data_to_wrap.columns):\n             data_to_wrap.columns = columns\n-        if index is not None:\n+        if index is not None and len(index) == len(data_to_wrap.index):\n             data_to_wrap.index = index\n         return data_to_wrap\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:09:16.573349",
+  "end_time": "2026-02-03T01:15:28.299383",
+  "duration_seconds": 371.726034,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "414b0ae8-c8a0-4ad1-9c5a-ef64c8662410",
+      "epic_title": "Fix: scikit-learn__scikit-learn-25747",
+      "comment_id": "f2839a6b-f8e4-4f42-8459-ab2edaa633a7",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where FeatureUnion fails when a custom transformer returns a DataFrame with a different number of rows (e.g., aggregation) AND `transform_output=\"pandas\"` is set.\n\n**Root Cause:** In `_wrap_in_pandas_container`, when a transformer returned a DataFrame, the function tried to set the original input's index and columns on the output DataFrame without checking if the dimensions matched. This caused a `ValueError: Length mismatch` when aggregating data (e.g., 96 input rows aggregated to 4 output rows).\n\n**Fix:** Added length checks before setting index and columns on an existing DataFrame:\n- Only set `columns` if `len(columns) == len(data_to_wrap.columns)`\n- Only set `index` if `len(index) == len(data_to_wrap.index)`\n\nThis preserves the transformer's output structure when it returns a DataFrame with different dimensions, while still allowing index/column renaming when shapes match.\n\n## Files Modified\n- `sklearn/utils/_set_output.py`: Added length checks before setting index and columns on existing DataFrames (lines 56-59)\n\n## Test Results\n- **Test file:** `sklearn/utils/tests/test_set_output.py`\n- **Baseline (before fix):** 14 passed\n- **After fix:** 14 passed\n- **Regression check:** No new failures introduced\n- **Additional tests:** \n  - `sklearn/tests/test_pipeline.py::test_pipeline_set_output_integration`: PASSED\n  - `sklearn/tests/test_pipeline.py::test_feature_union_set_output`: PASSED\n\n## Additional Verification\nReproduced the original issue with the example code from the bug report. Verified that:\n1. Default output works (was already working)\n2. Pandas output with aggregation now works correctly\n3. Edge cases tested:\n   - Different number of rows (aggregation): PASSED\n   - Different number of columns: PASSED\n\n## Concerns\nNone. The fix is minimal and focused on the specific issue. It follows the existing code pattern and handles all edge cases properly.",
+      "created_at": "2026-02-03T00:13:56.810Z"
+    },
+    {
+      "epic_id": "414b0ae8-c8a0-4ad1-9c5a-ef64c8662410",
+      "epic_title": "Fix: scikit-learn__scikit-learn-25747",
+      "comment_id": "bb375f0f-b39c-43ea-a812-2e81d4d7def2",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Patch is minimal and targeted: only `sklearn/utils/_set_output.py` changed.\n- Fix directly addresses the reported `ValueError: Length mismatch` by only overwriting `DataFrame.index` / `DataFrame.columns` when lengths match, preserving aggregated outputs under `transform_output=\"pandas\"`.\n- No test files were modified; Brainstormer reports relevant tests passing.",
+      "created_at": "2026-02-03T00:15:24.866Z"
+    }
+  ]
+}

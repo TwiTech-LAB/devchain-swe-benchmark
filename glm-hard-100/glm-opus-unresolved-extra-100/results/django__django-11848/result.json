@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-11848",
+  "status": "completed",
+  "patch": "diff --git a/django/utils/http.py b/django/utils/http.py\nindex 572cfb4347..32f336e965 100644\n--- a/django/utils/http.py\n+++ b/django/utils/http.py\n@@ -176,10 +176,17 @@ def parse_http_date(date):\n     try:\n         year = int(m.group('year'))\n         if year < 100:\n-            if year < 70:\n-                year += 2000\n-            else:\n+            # RFC 7231 section 7.1.1.1: Recipients of a timestamp value in\n+            # rfc850-date format, which uses a two-digit year, MUST interpret\n+            # a timestamp that appears to be more than 50 years in the future\n+            # as representing the most recent year in the past that had the\n+            # same last two digits.\n+            current_year = datetime.datetime.utcnow().year\n+            candidate_year = 2000 + year\n+            if candidate_year - current_year > 50:\n                 year += 1900\n+            else:\n+                year = candidate_year\n         month = MONTHS.index(m.group('mon').lower()) + 1\n         day = int(m.group('day'))\n         hour = int(m.group('hour'))\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T10:48:30.915097",
+  "end_time": "2026-02-03T10:55:33.877794",
+  "duration_seconds": 422.962697,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "2d22f360-eda4-47da-b259-5dd306cb85be",
+      "epic_title": "Fix: django__django-11848",
+      "comment_id": "65b4ba01-469c-481f-9a37-0ff3f1ba70ef",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `django.utils.http.parse_http_date` to correctly interpret two-digit years according to RFC 7231 Section 7.1.1.1.\n\n**Previous behavior:** The code used a hardcoded threshold (69/70) to determine whether a two-digit year should be interpreted as 1900s or 2000s.\n\n**New behavior:** The code now implements the RFC 7231 requirement: \"Recipients of a timestamp value in rfc850-date format, which uses a two-digit year, MUST interpret a timestamp that appears to be more than 50 years in the future as representing the most recent year in the past that had the same last two digits.\"\n\nThe algorithm now:\n1. For a two-digit year YY, calculates candidate_year = 2000 + YY\n2. If candidate_year - current_year > 50, uses 1900 + YY instead\n3. Otherwise uses 2000 + YY\n\nThis means the threshold is now dynamic based on the current year, not hardcoded.\n\n## Files Modified\n- `django/utils/http.py`: Updated the two-digit year logic in `parse_http_date()` function (lines 178-188)\n\n## Test Results\n- **Test file:** tests/utils_tests/test_http.py (HttpDateProcessingTests class)\n- **All existing tests pass:**\n  - test_parsing_rfc1123: PASS\n  - test_parsing_rfc850: PASS\n  - test_parsing_asctime: PASS\n  - test_parsing_year_less_than_70: PASS\n\n## Additional Verification\nVerified edge cases with current year = 2026:\n- year 00 \u2192 2000 (2000 - 2026 = -26, not > 50)\n- year 37 \u2192 2037 (2037 - 2026 = 11, not > 50)\n- year 76 \u2192 2076 (2076 - 2026 = 50, not > 50)\n- year 77 \u2192 1977 (2077 - 2026 = 51 > 50)\n- year 99 \u2192 1999 (2099 - 2026 = 73 > 50)\n\n## Concerns\nNone. The fix is minimal, focused, and implements the RFC 7231 requirement correctly.",
+      "created_at": "2026-02-03T09:54:23.219Z"
+    },
+    {
+      "epic_id": "2d22f360-eda4-47da-b259-5dd306cb85be",
+      "epic_title": "Fix: django__django-11848",
+      "comment_id": "f7b7ae02-fce3-4ae2-a18a-73d189a9af6b",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\nThe fix correctly implements RFC 7231 Section 7.1.1.1 by replacing the hardcoded year threshold (69/70) with a dynamic comparison against the current year. The logic `candidate_year - current_year > 50` properly uses strict greater-than, matching the RFC's \"more than 50 years in the future\" wording.\n\nChecklist:\n- \u2705 No test files modified\n- \u2705 No unrelated files modified (only `django/utils/http.py`)\n- \u2705 Fix logically addresses the problem statement\n- \u2705 No crash bugs or logical errors\n- \u2705 Changes are minimal and focused\n\nThe change is clean, well-commented with the RFC reference, and all existing tests pass.",
+      "created_at": "2026-02-03T09:55:21.741Z"
+    }
+  ]
+}

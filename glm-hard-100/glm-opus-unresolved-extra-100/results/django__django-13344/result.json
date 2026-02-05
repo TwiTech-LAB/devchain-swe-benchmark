@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-13344",
+  "status": "completed",
+  "patch": "diff --git a/django/core/handlers/base.py b/django/core/handlers/base.py\nindex 169df6b3cf..301564cd1c 100644\n--- a/django/core/handlers/base.py\n+++ b/django/core/handlers/base.py\n@@ -45,10 +45,10 @@ class BaseHandler:\n                     'Middleware %s must have at least one of '\n                     'sync_capable/async_capable set to True.' % middleware_path\n                 )\n-            elif not handler_is_async and middleware_can_sync:\n-                middleware_is_async = False\n+            elif middleware_can_async:\n+                middleware_is_async = True\n             else:\n-                middleware_is_async = middleware_can_async\n+                middleware_is_async = False\n             try:\n                 # Adapt handler, if needed.\n                 handler = self.adapt_method_mode(\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T16:32:30.316675",
+  "end_time": "2026-02-03T16:53:04.368474",
+  "duration_seconds": 1234.051799,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "ec393a1a-914c-4364-9edc-0072fd629e32",
+      "epic_title": "Fix: django__django-13344",
+      "comment_id": "e7054c8c-dccc-42fe-aff6-a1fae59a8a45",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the bug where async-capable middlewares in ASGI mode would incorrectly run in sync mode when a previous middleware was sync-only. This caused the middleware chain to become inconsistent, leading to coroutines being passed to `process_response()` instead of `HttpResponse` objects.\n\n## Root Cause\n\nIn `django/core/handlers/base.py`, the `load_middleware()` method determined `middleware_is_async` based on:\n1. The current handler's async state (`handler_is_async`)\n2. The middleware's sync capability (`middleware_can_sync`)\n\nThe original logic was:\n```python\nelif not handler_is_async and middleware_can_sync:\n    middleware_is_async = False\nelse:\n    middleware_is_async = middleware_can_async\n```\n\nThis meant that when a sync-only middleware was processed with an async handler:\n- `middleware_is_async` would be set to `False` (correct for sync-only middleware)\n- But then `handler_is_async` would be updated to `False`\n- Subsequent async-capable middlewares would then also run in sync mode (incorrect!)\n\n## Fix\n\nChanged lines 48-51 in `django/core/handlers/base.py`:\n```python\nelif middleware_can_async:\n    middleware_is_async = True\nelse:\n    middleware_is_async = False\n```\n\nNow:\n- Async-capable middlewares ALWAYS run in async mode in ASGI (regardless of current handler state)\n- Sync-only middlewares run in sync mode (handler is adapted as needed)\n\n## Files Modified\n- `django/core/handlers/base.py`: Fixed `middleware_is_async` determination logic (lines 48-51)\n\n## Test Results\n- Created test cases to verify the fix handles all scenarios correctly:\n  - Async-capable middleware with async handler \u2192 async mode \u2713\n  - Async-capable middleware with sync handler \u2192 async mode \u2713 (handler adapted with sync_to_async)\n  - Sync-only middleware with async handler \u2192 sync mode \u2713 (handler adapted with async_to_sync)\n  - Sync-only middleware with sync handler \u2192 sync mode \u2713\n- Verified end-to-end: middleware chain correctly processes requests and returns HttpResponse, not coroutine\n\n## Edge Cases Handled\n- Mixed async/sync middlewares in ASGI mode\n- All async-capable middlewares (MiddlewareMixin) maintain async mode\n- Sync-only third-party middlewares run in sync mode correctly",
+      "created_at": "2026-02-03T15:48:30.643Z"
+    },
+    {
+      "epic_id": "ec393a1a-914c-4364-9edc-0072fd629e32",
+      "epic_title": "Fix: django__django-13344",
+      "comment_id": "138d3d2c-4963-4df4-890a-2230f54a99ca",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED\n\n**Changes reviewed:** `django/core/handlers/base.py` (lines 48-51, 3 lines changed)\n\n**Checklist:**\n- \u2705 No test files modified \u2014 source code only\n- \u2705 No unrelated files modified \u2014 single file, minimal diff\n- \u2705 Fix logically addresses the problem\n- \u2705 No obvious crash bugs or logical errors\n- \u2705 Changes are minimal and focused\n\n**Analysis:**\n\nThe root cause is correctly identified: in `load_middleware()`, the original conditional used `handler_is_async` to decide `middleware_is_async`. This created a cascading bug \u2014 once a sync-only middleware set `handler_is_async = False`, all subsequent dual-capable middlewares (processed in reverse order, so earlier in the settings list) were forced into sync mode. This caused the first middleware in settings to receive a coroutine instead of HttpResponse when running under ASGI.\n\nThe fix correctly decouples the middleware mode decision from the current handler state:\n- If middleware supports async (`middleware_can_async`) \u2192 run it async\n- Otherwise \u2192 run it sync\n\nThis is sound because `adapt_method_mode()` at line 54 already handles wrapping the handler to match the middleware's mode (via `sync_to_async` / `async_to_sync`), and the top-level adaptation at line 92 ensures the final `_middleware_chain` matches the server mode (ASGI/WSGI).\n\n**Non-blocking note:** In WSGI mode, dual-capable middlewares will now prefer async mode, adding minor overhead from unnecessary `sync_to_async` / `async_to_sync` wrapping. This is a performance consideration, not a correctness issue, and does not block this fix.",
+      "created_at": "2026-02-03T15:52:57.021Z"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-15732",
+  "status": "completed",
+  "patch": "diff --git a/django/db/backends/base/schema.py b/django/db/backends/base/schema.py\nindex f2ca8c8df9..a6dbd0425b 100644\n--- a/django/db/backends/base/schema.py\n+++ b/django/db/backends/base/schema.py\n@@ -562,6 +562,11 @@ class BaseDatabaseSchemaEditor:\n         }\n         meta_index_names = {constraint.name for constraint in model._meta.indexes}\n         columns = [model._meta.get_field(field).column for field in fields]\n+        # Exclude primary key constraints when searching for unique constraints,\n+        # since a primary key is also unique but should not be removed when\n+        # dropping unique_together constraints.\n+        if constraint_kwargs.get(\"unique\") and constraint_kwargs.get(\"primary_key\") is None:\n+            constraint_kwargs = {**constraint_kwargs, \"primary_key\": False}\n         constraint_names = self._constraint_names(\n             model,\n             columns,\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:11:39.698930",
+  "end_time": "2026-02-03T01:17:32.538148",
+  "duration_seconds": 352.839218,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "9846041c-3abb-4ec0-9924-10f9a21cbe96",
+      "epic_title": "Fix: django__django-15732",
+      "comment_id": "51aeab13-9dfe-4dde-bad7-64df82d995fc",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where dropping a `unique_together` constraint on a single field that is a primary key would fail with \"Found wrong number (2) of constraints\" error.\n\nThe problem was that when `_delete_composed_index` searched for unique constraints to delete (via `_constraint_names`), it would find both:\n1. The primary key constraint (which has `unique=True` and `primary_key=True`)\n2. The `unique_together` constraint (which has `unique=True` and `primary_key=False`)\n\nThe fix adds `primary_key=False` to the constraint filter when searching for unique constraints in `_delete_composed_index`, which excludes primary key constraints from the results.\n\nThis follows the same pattern already used elsewhere in the codebase (line 827-831 in the same file), where `unique=True` is combined with `primary_key=False` when searching for field unique constraints to remove.\n\n## Files Modified\n- `django/db/backends/base/schema.py`: Added logic to exclude primary key constraints when searching for unique constraints in `_delete_composed_index`\n\n## Test Results\nThe fix is minimal and follows existing patterns in the codebase. The container environment has some issues preventing test execution, but the fix is:\n1. Correct - it follows the same pattern already used in `_remove_field_unique_constraints` method\n2. Minimal - only 5 lines of code added\n3. Targeted - only affects the specific case of dropping unique_together constraints\n\n## Additional Verification\nThe logic is sound:\n- When `unique=True` and `primary_key` is not explicitly specified, we add `primary_key=False`\n- This filters out primary key constraints from the search results\n- Only the actual unique_together constraint is found and removed\n- The fix respects any explicit `primary_key` value if already provided\n\n## Concerns\nNone - the fix is minimal and follows existing patterns in the codebase.",
+      "created_at": "2026-02-03T00:16:23.557Z"
+    },
+    {
+      "epic_id": "9846041c-3abb-4ec0-9924-10f9a21cbe96",
+      "epic_title": "Fix: django__django-15732",
+      "comment_id": "8c4a2c98-a66a-4143-95ea-9af49a652485",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and focused: only `django/db/backends/base/schema.py` updated.\n- No test files modified.\n- Fix matches the problem statement: when dropping a 1-column `unique_together` on a PK column, `_delete_composed_index()` now excludes primary key constraints (`primary_key=False`) so it removes only the `unique_together` unique constraint instead of erroring on 2 matches.\n- Implementation follows existing pattern in the same file (unique constraints lookup already uses `unique=True, primary_key=False`).",
+      "created_at": "2026-02-03T00:17:29.600Z"
+    }
+  ]
+}

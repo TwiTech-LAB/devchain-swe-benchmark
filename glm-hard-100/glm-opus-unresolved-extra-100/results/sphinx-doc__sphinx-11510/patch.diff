@@ -1,0 +1,133 @@
+diff --git a/sphinx/directives/other.py b/sphinx/directives/other.py
+index 19f7c0a8d..9885aed6a 100644
+--- a/sphinx/directives/other.py
++++ b/sphinx/directives/other.py
+@@ -1,9 +1,10 @@
+ from __future__ import annotations
+ 
+ import re
++from pathlib import Path
+ from typing import TYPE_CHECKING, Any, cast
+ 
+-from docutils import nodes
++from docutils import io, nodes, statemachine, utils
+ from docutils.parsers.rst import directives
+ from docutils.parsers.rst.directives.admonitions import BaseAdmonition
+ from docutils.parsers.rst.directives.misc import Class
+@@ -376,8 +377,103 @@ class Include(BaseInclude, SphinxDirective):
+         rel_filename, filename = self.env.relfn2path(self.arguments[0])
+         self.arguments[0] = filename
+         self.env.note_included(filename)
++
++        # For standard RST includes (not literal, code, or parser options),
++        # we need to emit the source-read event for the included file
++        if ('literal' not in self.options and
++                'code' not in self.options and
++                'parser' not in self.options):
++            return self._run_with_source_read(filename, rel_filename)
++
+         return super().run()
+ 
++    def _run_with_source_read(self, filename: str, rel_filename: str) -> list[Node]:
++        """Process the include directive with source-read event emission."""
++        from docutils.parsers.rst import states
++
++        # Get the path for the included file
++        path = Path(filename)
++        current_source = self.state.document.current_source
++        encoding = self.options.get(
++            'encoding', self.state.document.settings.input_encoding)
++        e_handler = self.state.document.settings.input_encoding_error_handler
++        tab_width = self.options.get(
++            'tab-width', self.state.document.settings.tab_width)
++
++        # Open and read the file
++        try:
++            include_file = io.FileInput(source_path=path,
++                                        encoding=encoding,
++                                        error_handler=e_handler)
++        except OSError as error:
++            raise self.severe('Problems with "%s" directive path:\n%s.' %
++                              (self.name, io.error_string(error)))
++        else:
++            self.state.document.settings.record_dependencies.add(path)
++
++        # Read the file content
++        startline = self.options.get('start-line', None)
++        endline = self.options.get('end-line', None)
++        try:
++            if startline or (endline is not None):
++                lines = include_file.readlines()
++                rawtext = ''.join(lines[startline:endline])
++            else:
++                rawtext = include_file.read()
++        except UnicodeError as error:
++            raise self.severe('Problem with "%s" directive:\n%s'
++                              % (self.name, io.error_string(error)))
++
++        # Apply start-after/end-before options
++        after_text = self.options.get('start-after', None)
++        if after_text:
++            after_index = rawtext.find(after_text)
++            if after_index < 0:
++                raise self.severe('Problem with "start-after" option of "%s" '
++                                  'directive:\nText not found.' % self.name)
++            rawtext = rawtext[after_index + len(after_text):]
++
++        before_text = self.options.get('end-before', None)
++        if before_text:
++            before_index = rawtext.find(before_text)
++            if before_index < 0:
++                raise self.severe('Problem with "end-before" option of "%s" '
++                                  'directive:\nText not found.' % self.name)
++            rawtext = rawtext[:before_index]
++
++        # Emit the source-read event for the included file
++        docname = self.env.path2doc(filename)
++        if docname:
++            arg = [rawtext]
++            self.env.events.emit('source-read', docname, arg)
++            rawtext = arg[0]
++
++        # Convert to lines and check line length limit
++        include_lines = statemachine.string2lines(rawtext, tab_width,
++                                                  convert_whitespace=True)
++        for i, line in enumerate(include_lines):
++            if len(line) > self.state.document.settings.line_length_limit:
++                raise self.warning('"%s": line %d exceeds the'
++                                   ' line-length-limit.' % (filename, i + 1))
++
++        # Prevent circular inclusion
++        clip_options = (startline, endline, before_text, after_text)
++        include_log = self.state.document.include_log
++        if not include_log:
++            include_log.append((utils.relative_path(None, current_source),
++                                (None, None, None, None)))
++        if (filename, clip_options) in include_log:
++            master_paths = (pth for (pth, opt) in reversed(include_log))
++            inclusion_chain = '\n> '.join((filename, *master_paths))
++            raise self.warning('circular inclusion in "%s" directive:\n%s'
++                               % (self.name, inclusion_chain))
++
++        # Include as RST source
++        include_lines += ['', '.. end of inclusion from "%s"' % filename]
++        self.state_machine.insert_input(include_lines, filename)
++        include_log.append((filename, clip_options))
++        return []
++
+ 
+ def setup(app: Sphinx) -> dict[str, Any]:
+     directives.register_directive('toctree', TocTree)
+diff --git a/tox.ini b/tox.ini
+index a3dc56211..c76147de3 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -24,7 +24,7 @@ setenv =
+     PYTHONWARNINGS = error
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -X warn_default_encoding -m pytest --durations 25 {posargs}
++    python -X dev -X warn_default_encoding -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:docs]
+ basepython = python3

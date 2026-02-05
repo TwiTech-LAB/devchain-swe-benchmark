@@ -1,0 +1,22 @@
+{
+  "instance_id": "sphinx-doc__sphinx-7440",
+  "status": "completed",
+  "patch": "diff --git a/sphinx/domains/std.py b/sphinx/domains/std.py\nindex d820cfe5c..95f896563 100644\n--- a/sphinx/domains/std.py\n+++ b/sphinx/domains/std.py\n@@ -305,7 +305,7 @@ def make_glossary_term(env: \"BuildEnvironment\", textnodes: Iterable[Node], index\n         term['ids'].append(node_id)\n \n     std = cast(StandardDomain, env.get_domain('std'))\n-    std.note_object('term', termtext.lower(), node_id, location=term)\n+    std.note_object('term', termtext, node_id, location=term)\n \n     # add an index entry too\n     indexnode = addnodes.index()\n@@ -565,7 +565,7 @@ class StandardDomain(Domain):\n         # links to tokens in grammar productions\n         'token':   TokenXRefRole(),\n         # links to terms in glossary\n-        'term':    XRefRole(lowercase=True, innernodeclass=nodes.inline,\n+        'term':    XRefRole(innernodeclass=nodes.inline,\n                             warn_dangling=True),\n         # links to headings or arbitrary labels\n         'ref':     XRefRole(lowercase=True, innernodeclass=nodes.inline,\n@@ -952,8 +952,6 @@ class StandardDomain(Domain):\n         # all others\n         for objtype in self.object_types:\n             key = (objtype, target)\n-            if objtype == 'term':\n-                key = (objtype, ltarget)\n             if key in self.objects:\n                 docname, labelid = self.objects[key]\n                 results.append(('std:' + self.role_for_objtype(objtype),\ndiff --git a/tox.ini b/tox.ini\nindex d9f040544..bf39854b6 100644\n--- a/tox.ini\n+++ b/tox.ini\n@@ -28,7 +28,7 @@ extras =\n setenv =\n     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils\n commands=\n-    pytest --durations 25 {posargs}\n+    pytest -rA --durations 25 {posargs}\n \n [testenv:flake8]\n basepython = python3\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T19:38:04.385951",
+  "end_time": "2026-01-31T19:44:17.622336",
+  "duration_seconds": 373.236385,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "150e7d29-1043-4bb8-95d5-c8474c1751a9",
+      "epic_title": "Fix: sphinx-doc__sphinx-7440",
+      "comment_id": "51cb985c-05fc-4ce6-880a-57636105af35",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the glossary duplicate term detection to be case-sensitive. Previously, terms with different cases (e.g., \"MySQL\" and \"mysql\") were incorrectly treated as duplicates because they were both converted to lowercase before storing.\n\n## Files Modified\n\n- `sphinx/domains/std.py` (3 changes):\n  - Line 308: Removed `.lower()` when storing glossary terms - now stores with original case\n  - Lines 554-556: Removed special lowercase handling for term lookups in `resolve_any_xref`\n  - Line 568: Removed `lowercase=True` from the `term` XRefRole definition\n\n## Test Results\n\n- **Test file:** `tests/test_domain_std.py`\n- **Baseline (before fix):** 13 passed, 1 failed (pre-existing unrelated issue)\n- **After fix:** 13 passed, 1 failed (same pre-existing unrelated issue)\n- **Regression check:** No new failures introduced\n\nAdditional verification:\n- `tests/test_markup.py` (glossary tests): PASSED\n- `tests/test_intl.py` (glossary tests): 4 PASSED\n- `tests/test_environment_indexentries.py`: 8 PASSED\n\n## Manual Verification\n\nCreated a test glossary with both \"MySQL\" and \"mysql\" terms:\n- Before fix: Would trigger \"duplicate term\" warning\n- After fix: Both terms stored separately as `'MySQL'` and `'mysql'` with no warnings\n\n## Concerns\n\nNone. The fix makes the behavior consistent and matches user expectations - terms that differ only by case are now treated as distinct terms, both for storage and lookup.",
+      "created_at": "2026-01-31T18:43:52.831Z"
+    }
+  ]
+}

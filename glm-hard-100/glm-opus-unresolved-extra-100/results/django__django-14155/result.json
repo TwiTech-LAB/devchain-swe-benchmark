@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-14155",
+  "status": "completed",
+  "patch": "diff --git a/django/urls/resolvers.py b/django/urls/resolvers.py\nindex 9b00e24509..959cca1a90 100644\n--- a/django/urls/resolvers.py\n+++ b/django/urls/resolvers.py\n@@ -45,6 +45,9 @@ class ResolverMatch:\n         self.namespaces = [x for x in namespaces if x] if namespaces else []\n         self.namespace = ':'.join(self.namespaces)\n \n+        # Unwrap functools.partial to get the underlying function for the path.\n+        if isinstance(func, functools.partial):\n+            func = func.func\n         if not hasattr(func, '__name__'):\n             # A class-based view\n             self._func_path = func.__class__.__module__ + '.' + func.__class__.__name__\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T11:40:14.039987",
+  "end_time": "2026-02-03T11:45:55.974345",
+  "duration_seconds": 341.934358,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "c81a1788-08ed-4a51-8033-3ca93f6fd39a",
+      "epic_title": "Fix: django__django-14155",
+      "comment_id": "51c9831e-e8a6-4b65-9378-7909604615f6",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\nFixed `ResolverMatch.__repr__()` to handle `functools.partial()` nicely by unwrapping the partial function before computing `_func_path`. Previously, when a partial function was passed as the view, the `__repr__` showed `functools.partial` instead of revealing the underlying function.\n\n## Files Modified\n- `django/urls/resolvers.py`: Added 3 lines to unwrap `functools.partial` objects in `ResolverMatch.__init__()` before computing the function path\n\n## Test Results\n- **Test file:** `tests/urlpatterns_reverse/tests.py` (ResolverMatchTests)\n- **Baseline (before fix):** 4 tests passed\n- **After fix:** 102 tests passed (full urlpatterns_reverse suite)\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\nVerified fix works with:\n1. Partial with function-based views - shows underlying function name\n2. Partial with class-based views (no `__name__`) - shows class name\n3. Nested partials (partial of a partial) - shows original function\n4. Partial with positional args - shows underlying function\n\n## Concerns\nNone. The fix follows the same pattern used in `URLPattern.lookup_str` property (lines 365-376) which already handles `functools.partial` unwrapping.",
+      "created_at": "2026-02-03T10:44:28.568Z"
+    },
+    {
+      "epic_id": "c81a1788-08ed-4a51-8033-3ca93f6fd39a",
+      "epic_title": "Fix: django__django-14155",
+      "comment_id": "9232cbc0-08d6-4b2a-9c8a-48508e6d9ba0",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\nThe fix correctly unwraps `functools.partial` objects in `ResolverMatch.__init__()` before computing `_func_path`, so that `__repr__()` shows the underlying function name instead of `functools.partial`.\n\nKey observations:\n1. `self.func` (line 34) still holds the original partial \u2014 correct for view dispatch.\n2. Only the local `func` variable is unwrapped for `_func_path` / `view_name` computation.\n3. The pattern is identical to the existing `URLPattern.lookup_str` property (lines 374-376), ensuring consistency across the codebase.\n4. Change is minimal (3 lines), focused, and introduces no regressions.\n\nAll checklist items verified. No issues found.",
+      "created_at": "2026-02-03T10:45:42.411Z"
+    }
+  ]
+}

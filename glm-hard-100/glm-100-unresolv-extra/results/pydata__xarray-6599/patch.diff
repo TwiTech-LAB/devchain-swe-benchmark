@@ -1,0 +1,64 @@
+diff --git a/xarray/core/computation.py b/xarray/core/computation.py
+index 823cbe02..eb7ea4b2 100644
+--- a/xarray/core/computation.py
++++ b/xarray/core/computation.py
+@@ -1892,6 +1892,7 @@ def polyval(
+     xarray.DataArray.polyfit
+     numpy.polynomial.polynomial.polyval
+     """
++    from .dataarray import DataArray
+ 
+     if degree_dim not in coeffs._indexes:
+         raise ValueError(
+@@ -1905,6 +1906,19 @@ def polyval(
+     coeffs = coeffs.reindex(
+         {degree_dim: np.arange(max_deg + 1)}, fill_value=0, copy=False
+     )
++    # Use the dimension coordinate if it exists and BOTH the data and coordinate
++    # have datetime/timedelta dtypes that are different.
++    # This preserves the old behavior where polyval would use get_clean_interp_index,
++    # which extracted the coordinate for datetime-like coordinates.
++    if (
++        isinstance(coord, DataArray)
++        and coord.ndim == 1
++        and coord.dims[0] in coord.coords
++        and coord.dtype.kind in "mM"
++        and coord.coords[coord.dims[0]].dtype.kind in "mM"
++        and coord.coords[coord.dims[0]].dtype != coord.dtype
++    ):
++        coord = coord.coords[coord.dims[0]]
+     coord = _ensure_numeric(coord)  # type: ignore # https://github.com/python/mypy/issues/1533 ?
+ 
+     # using Horner's method
+@@ -1934,13 +1948,24 @@ def _ensure_numeric(data: T_Xarray) -> T_Xarray:
+ 
+     def to_floatable(x: DataArray) -> DataArray:
+         if x.dtype.kind in "mM":
+-            return x.copy(
+-                data=datetime_to_numeric(
+-                    x.data,
+-                    offset=np.datetime64("1970-01-01"),
+-                    datetime_unit="ns",
+-                ),
+-            )
++            if x.dtype.kind == "m":
++                # timedelta64: pass offset=None to use array's minimum as offset
++                return x.copy(
++                    data=datetime_to_numeric(
++                        x.data,
++                        offset=None,
++                        datetime_unit="ns",
++                    ),
++                )
++            else:
++                # datetime64: use a fixed offset for consistency
++                return x.copy(
++                    data=datetime_to_numeric(
++                        x.data,
++                        offset=np.datetime64("1970-01-01"),
++                        datetime_unit="ns",
++                    ),
++                )
+         return x
+ 
+     if isinstance(data, Dataset):

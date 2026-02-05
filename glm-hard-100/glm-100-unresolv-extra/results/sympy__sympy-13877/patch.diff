@@ -1,0 +1,26 @@
+diff --git a/sympy/matrices/matrices.py b/sympy/matrices/matrices.py
+index 97cde62e26..96d360ddda 100644
+--- a/sympy/matrices/matrices.py
++++ b/sympy/matrices/matrices.py
+@@ -208,12 +208,19 @@ def bareiss(mat, cumm=1):
+             def entry(i, j):
+                 ret = (pivot_val*tmp_mat[i, j + 1] - mat[pivot_pos, j + 1]*tmp_mat[i, 0]) / cumm
+                 if not ret.is_Atom:
+-                    cancel(ret)
++                    try:
++                        cancel(ret)
++                    except TypeError:
++                        pass  # NaN comparison error in factor_terms
+                 return ret
+ 
+             return sign*bareiss(self._new(mat.rows - 1, mat.cols - 1, entry), pivot_val)
+ 
+-        return cancel(bareiss(self))
++        det = bareiss(self)
++        try:
++            return cancel(det)
++        except TypeError:
++            return det  # NaN comparison error in factor_terms
+ 
+     def _eval_det_berkowitz(self):
+         """ Use the Berkowitz algorithm to compute the determinant."""

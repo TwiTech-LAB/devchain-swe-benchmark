@@ -1,0 +1,22 @@
+{
+  "instance_id": "django__django-16667",
+  "status": "completed",
+  "patch": "diff --git a/django/forms/widgets.py b/django/forms/widgets.py\nindex 842b73e95c..f4bc74b7cd 100644\n--- a/django/forms/widgets.py\n+++ b/django/forms/widgets.py\n@@ -1157,7 +1157,7 @@ class SelectDateWidget(Widget):\n             input_format = formats.sanitize_strftime_format(input_format)\n             try:\n                 date_value = datetime.date(int(y), int(m), int(d))\n-            except ValueError:\n+            except (ValueError, OverflowError):\n                 # Return pseudo-ISO dates with zeros for any unselected values,\n                 # e.g. '2017-0-23'.\n                 return \"%s-%s-%s\" % (y or 0, m or 0, d or 0)\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-01-31T15:50:00.081142",
+  "end_time": "2026-01-31T15:53:53.155023",
+  "duration_seconds": 233.073881,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "53309d3d-1f3b-4d5a-988a-a28fd694e19a",
+      "epic_title": "Fix: django__django-16667",
+      "comment_id": "ad61f9ff-d5ee-4e93-be77-2886e4c3bb29",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed `OverflowError` crash in `SelectDateWidget.value_from_datadict()` when users provide very large integers for year/month/day values. The issue was that `datetime.date(int(y), int(m), int(d))` raises `OverflowError` when integers are larger than `sys.maxsize`, but the code only caught `ValueError`.\n\n## Files Modified\n\n- `django/forms/widgets.py`: Added `OverflowError` to the except clause at line 1160 (now catches both `ValueError` and `OverflowError`)\n\n## Test Results\n\n- **Baseline (before fix):** 15 tests passed\n- **After fix:** 15 tests passed (no regressions)\n- **Regression check:** No new failures introduced\n\n## Additional Verification\n\nTested multiple edge cases:\n1. Very large year value (1234567821345678) - returns pseudo-ISO format instead of crashing\n2. Normal valid dates (2025-01-15) - still works correctly  \n3. Invalid dates (Feb 31) - still returns pseudo-ISO format\n4. Empty values - still returns None\n5. Large month and day values - handled correctly\n\n## Concerns\n\nNone - the fix is minimal, focused, and follows the existing error handling pattern.",
+      "created_at": "2026-01-31T14:52:47.003Z"
+    }
+  ]
+}

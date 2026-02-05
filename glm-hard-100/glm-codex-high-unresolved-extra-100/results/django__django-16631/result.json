@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-16631",
+  "status": "completed",
+  "patch": "diff --git a/django/contrib/auth/__init__.py b/django/contrib/auth/__init__.py\nindex 155330c596..dc0b5d2521 100644\n--- a/django/contrib/auth/__init__.py\n+++ b/django/contrib/auth/__init__.py\n@@ -199,9 +199,28 @@ def get_user(request):\n             # Verify the session\n             if hasattr(user, \"get_session_auth_hash\"):\n                 session_hash = request.session.get(HASH_SESSION_KEY)\n-                session_hash_verified = session_hash and constant_time_compare(\n-                    session_hash, user.get_session_auth_hash()\n-                )\n+                session_hash_verified = False\n+                if session_hash:\n+                    # Try the current secret key first\n+                    session_hash_verified = constant_time_compare(\n+                        session_hash, user.get_session_auth_hash()\n+                    )\n+                    # If not verified, try the fallback keys\n+                    if not session_hash_verified:\n+                        from django.utils.crypto import salted_hmac\n+\n+                        key_salt = (\n+                            \"django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash\"\n+                        )\n+                        for secret in settings.SECRET_KEY_FALLBACKS:\n+                            if constant_time_compare(\n+                                session_hash,\n+                                salted_hmac(\n+                                    key_salt, user.password, secret=secret, algorithm=\"sha256\"\n+                                ).hexdigest(),\n+                            ):\n+                                session_hash_verified = True\n+                                break\n                 if not session_hash_verified:\n                     request.session.flush()\n                     user = None\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:15:38.741232",
+  "end_time": "2026-02-03T01:27:01.300730",
+  "duration_seconds": 682.559498,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "53fda633-1ef9-4e49-ad04-64fd8a17ece2",
+      "epic_title": "Fix: django__django-16631",
+      "comment_id": "72e92cf1-61d0-4b4d-a833-4bd08f70e059",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the issue where `SECRET_KEY_FALLBACKS` was not being used for session authentication. When users rotated their `SECRET_KEY` and added the old key to `SECRET_KEY_FALLBACKS`, all existing sessions were invalidated because the session auth hash verification only checked against the current key.\n\n## Root Cause\n\nIn `django/contrib/auth/__init__.py`, the `get_user()` function verified the session auth hash by comparing the stored hash with `user.get_session_auth_hash()`, which only uses the current `settings.SECRET_KEY`. This meant that when `SECRET_KEY` was rotated, existing sessions (whose hashes were created with the old key) could not be verified.\n\n## Files Modified\n\n- `django/contrib/auth/__init__.py`: Modified `get_user()` function (lines 199-220) to try verifying the session hash against all `SECRET_KEY_FALLBACKS` keys when verification with the current key fails, following the same pattern used by `PasswordResetTokenGenerator`.\n\n## Test Results\n\n- **Test file:** `tests/auth_tests/test_middleware.py`\n- **Baseline (before fix):** 4 passed\n- **After fix:** 4 passed\n- **Full auth tests suite:** 606 passed, 10 skipped\n- **Regression check:** No new failures introduced\n- **Pre-existing errors:** None\n\n## Additional Verification\n\nCreated a verification script that simulates the SECRET_KEY rotation scenario:\n1. Creates a user and logs in with \"old-secret-key\"\n2. Simulates key rotation to \"new-secret-key\" with \"old-secret-key\" in FALLBACKS\n3. Verifies that the session hash is correctly validated using the fallback key\n\nResult: \u2713 SUCCESS - Session auth hash verification with SECRET_KEY_FALLBACKS works!\n\n## Concerns\n\n- The fix duplicates the `get_session_auth_hash()` logic (key_salt and algorithm) in the verification code. If the key_salt or algorithm changes in `AbstractBaseUser.get_session_auth_hash()`, this code would also need to be updated. This is a known trade-off for maintaining the fix without changing the public API of `get_session_auth_hash()`.",
+      "created_at": "2026-02-03T00:24:57.335Z"
+    },
+    {
+      "epic_id": "53fda633-1ef9-4e49-ad04-64fd8a17ece2",
+      "epic_title": "Fix: django__django-16631",
+      "comment_id": "85f5a23a-03de-4dd0-b5a5-a475c1e217b1",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal (only `django/contrib/auth/__init__.py`) and does not touch tests/build config.\n- Fix correctly validates existing sessions\u2019 `_auth_user_hash` against `settings.SECRET_KEY_FALLBACKS` using the same `key_salt` and `sha256` HMAC as `AbstractBaseUser.get_session_auth_hash()`.\n\nNote (non-blocking): the fallback verification duplicates the `get_session_auth_hash()` implementation details (salt/algorithm); if those change in the future, this block must be kept in sync.",
+      "created_at": "2026-02-03T00:26:52.822Z"
+    }
+  ]
+}

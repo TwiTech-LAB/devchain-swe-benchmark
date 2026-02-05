@@ -1,0 +1,30 @@
+{
+  "instance_id": "sympy__sympy-17630",
+  "status": "completed",
+  "patch": "diff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py\nindex 95302a05ca..522c62487b 100644\n--- a/sympy/matrices/expressions/blockmatrix.py\n+++ b/sympy/matrices/expressions/blockmatrix.py\n@@ -164,7 +164,21 @@ def structurally_equal(self, other):\n     def _blockmul(self, other):\n         if (isinstance(other, BlockMatrix) and\n                 self.colblocksizes == other.rowblocksizes):\n-            return BlockMatrix(self.blocks*other.blocks)\n+            blocks = self.blocks*other.blocks\n+            # Replace Zero objects with ZeroMatrix of appropriate dimensions\n+            # to maintain block matrix structure\n+            from sympy.core.numbers import Zero\n+            new_blocks = []\n+            for i in range(blocks.shape[0]):\n+                row = []\n+                for j in range(blocks.shape[1]):\n+                    if isinstance(blocks[i, j], Zero):\n+                        row.append(ZeroMatrix(self.rowblocksizes[i],\n+                                              other.colblocksizes[j]))\n+                    else:\n+                        row.append(blocks[i, j])\n+                new_blocks.append(row)\n+            return BlockMatrix(new_blocks)\n \n         return self * other\n \n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T01:53:23.421375",
+  "end_time": "2026-02-03T02:02:03.974508",
+  "duration_seconds": 520.553133,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "ae1d6848-793c-4b8e-8739-6419461156ac",
+      "epic_title": "Fix: sympy__sympy-17630",
+      "comment_id": "5f6ec64e-f44d-4444-acc4-6a7691dad4d4",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed the `AttributeError: 'Zero' object has no attribute 'cols'` error when multiplying BlockMatrix containing ZeroMatrix blocks multiple times.\n\n## Root Cause\n\nWhen `_blockmul` computes `self.blocks * other.blocks`, the resulting matrix can contain scalar `Zero` objects instead of `ZeroMatrix` objects. This happens because when matrices with `ZeroMatrix` blocks are multiplied, the intermediate results use scalar `Zero` for zero products.\n\nWhen a subsequent `_blockmul` is called on this result, the `colblocksizes` property tries to access `.cols` on these `Zero` objects, which fails.\n\n## Files Modified\n\n- `sympy/matrices/expressions/blockmatrix.py`: Modified `_blockmul` method to convert `Zero` objects to properly sized `ZeroMatrix` objects after block multiplication.\n\n## Test Results\n\nVerified the fix with:\n- Original issue case: `BlockMatrix([[a, z], [z, z]]) * *` (3x multiplication)\n- Different block dimensions\n- Chain multiplications (4x)\n- BlockDiagMatrix multiplication\n- Non-trivial block matrix multiplication\n\nAll tests pass successfully.\n\n## Edge Cases Considered\n\n- Empty inputs: N/A (block matrices must have at least one block)\n- None values: Handled by existing code structure\n- Different input types: Zero objects from block multiplication are converted\n- Boundary conditions: Works with various block dimensions\n- Other code paths: `_blockadd` and `BlockDiagMatrix._blockmul` work correctly",
+      "created_at": "2026-02-03T01:00:55.932Z"
+    },
+    {
+      "epic_id": "ae1d6848-793c-4b8e-8739-6419461156ac",
+      "epic_title": "Fix: sympy__sympy-17630",
+      "comment_id": "60559fe2-2a9b-436b-a945-25f5d26a91e1",
+      "author_name": "Code Reviewer",
+      "content": "Code review PASSED.\n\n- Change is minimal and scoped to `sympy/matrices/expressions/blockmatrix.py`.\n- No test/config files modified.\n- `_blockmul` now normalizes scalar `Zero` block results into correctly-sized `ZeroMatrix`, preventing the reported `AttributeError: 'Zero' object has no attribute 'cols'` on repeated block multiplications.\n\nNon-blocking note: consider using `S.Zero` (or `is_zero`) instead of importing `Zero` directly, but current check should work.",
+      "created_at": "2026-02-03T01:01:54.889Z"
+    }
+  ]
+}

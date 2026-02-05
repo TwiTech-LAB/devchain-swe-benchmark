@@ -1,0 +1,52 @@
+diff --git a/django/contrib/auth/__init__.py b/django/contrib/auth/__init__.py
+index 155330c596..da8d4c7f3a 100644
+--- a/django/contrib/auth/__init__.py
++++ b/django/contrib/auth/__init__.py
+@@ -5,7 +5,7 @@ from django.apps import apps as django_apps
+ from django.conf import settings
+ from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+ from django.middleware.csrf import rotate_token
+-from django.utils.crypto import constant_time_compare
++from django.utils.crypto import constant_time_compare, salted_hmac
+ from django.utils.module_loading import import_string
+ from django.views.decorators.debug import sensitive_variables
+ 
+@@ -21,6 +21,27 @@ def load_backend(path):
+     return import_string(path)()
+ 
+ 
++def _verify_session_hash(user, session_hash):
++    """
++    Verify a session hash against a user's password, trying SECRET_KEY
++    and all SECRET_KEY_FALLBACKS keys. Returns True if the session hash
++    matches any of them.
++    """
++    key_salt = "django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash"
++    # Try with the current SECRET_KEY first (most common case)
++    current_hash = salted_hmac(key_salt, user.password, algorithm="sha256").hexdigest()
++    if constant_time_compare(session_hash, current_hash):
++        return True
++    # Try with each fallback key
++    for fallback_key in settings.SECRET_KEY_FALLBACKS:
++        fallback_hash = salted_hmac(
++            key_salt, user.password, secret=fallback_key, algorithm="sha256"
++        ).hexdigest()
++        if constant_time_compare(session_hash, fallback_hash):
++            return True
++    return False
++
++
+ def _get_backends(return_tuples=False):
+     backends = []
+     for backend_path in settings.AUTHENTICATION_BACKENDS:
+@@ -199,8 +220,8 @@ def get_user(request):
+             # Verify the session
+             if hasattr(user, "get_session_auth_hash"):
+                 session_hash = request.session.get(HASH_SESSION_KEY)
+-                session_hash_verified = session_hash and constant_time_compare(
+-                    session_hash, user.get_session_auth_hash()
++                session_hash_verified = session_hash and _verify_session_hash(
++                    user, session_hash
+                 )
+                 if not session_hash_verified:
+                     request.session.flush()

@@ -1,0 +1,46 @@
+diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
+index b3daa06f1..ef9b5fc57 100644
+--- a/sphinx/ext/napoleon/docstring.py
++++ b/sphinx/ext/napoleon/docstring.py
+@@ -273,7 +273,27 @@ class GoogleDocstring:
+         while not self._is_section_break():
+             _name, _type, _desc = self._consume_field(parse_type, prefer_type)
+             if _name or _type or _desc:
+-                fields.append((_name, _type, _desc,))
++                # Check if multiple parameter names are separated by commas
++                # Only split for simple names (no parentheses, backticks, or all asterisks)
++                # This handles numpy-style parameters like "x1, x2 : array_like"
++                # but doesn't split method signatures like "func(i, j)"
++                # or special cases like "*args, **kwargs"
++                names = [n.strip() for n in _name.split(',')]
++                # Helper to check if a name is an asterisk parameter (escaped or not)
++                def is_asterisk_param(n):
++                    return n.startswith('*') or n.startswith(r'\*')
++                if (
++                    len(names) > 1
++                    and all(names)
++                    and not any(('`' in n) for n in names)
++                    and not any(('(' in n or ')' in n) for n in names)
++                    and not all(is_asterisk_param(n) for n in names if n)
++                ):
++                    # Split into multiple fields with the same type and description
++                    for name in names:
++                        fields.append((name, _type, _desc,))
++                else:
++                    fields.append((_name, _type, _desc,))
+         return fields
+ 
+     def _consume_inline_attribute(self) -> Tuple[str, List[str]]:
+diff --git a/tox.ini b/tox.ini
+index bddd822a6..34baee205 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

@@ -1,0 +1,30 @@
+{
+  "instance_id": "django__django-12325",
+  "status": "completed",
+  "patch": "diff --git a/django/db/models/base.py b/django/db/models/base.py\nindex 8ea6c05ef9..41d7245e1b 100644\n--- a/django/db/models/base.py\n+++ b/django/db/models/base.py\n@@ -202,7 +202,7 @@ class ModelBase(type):\n                 continue\n             # Locate OneToOneField instances.\n             for field in base._meta.local_fields:\n-                if isinstance(field, OneToOneField):\n+                if isinstance(field, OneToOneField) and field.remote_field.parent_link:\n                     related = resolve_relation(new_class, field.remote_field.model)\n                     parent_links[make_model_tuple(related)] = field\n \n@@ -239,6 +239,17 @@ class ModelBase(type):\n                 if base_key in parent_links:\n                     field = parent_links[base_key]\n                 elif not is_proxy:\n+                    # Check for user-declared OneToOneFields to this base without\n+                    # parent_link=True before auto-generating a parent link.\n+                    for field in new_class._meta.local_fields:\n+                        if isinstance(field, OneToOneField):\n+                            related = resolve_relation(new_class, field.remote_field.model)\n+                            if (make_model_tuple(related) == base_key and\n+                                    not field.remote_field.parent_link and\n+                                    not field.auto_created):\n+                                raise FieldError(\n+                                    \"Add parent_link=True to %s.\" % field\n+                                )\n                     attr_name = '%s_ptr' % base._meta.model_name\n                     field = OneToOneField(\n                         base,\n",
+  "epics_created": 1,
+  "epics_completed": 1,
+  "start_time": "2026-02-03T12:11:52.160168",
+  "end_time": "2026-02-03T12:23:45.073245",
+  "duration_seconds": 712.913077,
+  "error_message": null,
+  "workspace_path": "<redacted>",
+  "epic_comments": [
+    {
+      "epic_id": "a5f6fe78-1d1c-4f4a-a612-7a9fdd7041ee",
+      "epic_title": "Fix: django__django-12325",
+      "comment_id": "50af5e7a-2e4a-43a1-b9a0-f941809a5341",
+      "author_name": "Brainstormer",
+      "content": "## Fix Summary\n\nFixed issue #12325 where Multi-Table Inheritance (MTI) parent link selection was confused by multiple OneToOneField references to the parent model. The order of field declarations no longer matters when `parent_link=True` is explicitly set.\n\n## Root Cause\n\nIn `django/db/models/base.py`, the code collected ALL OneToOneFields pointing to parent models into the `parent_links` dictionary (lines 204-207). When there were multiple OneToOneFields to the same parent, the last one encountered would overwrite the previous ones in the dictionary, regardless of whether `parent_link=True` was explicitly set.\n\n## Files Modified\n\n- **django/db/models/base.py** (2 changes):\n  1. Line 205: Added `and field.remote_field.parent_link` condition to only collect fields with explicit `parent_link=True`\n  2. Lines 242-251: Added validation to raise an error when a user-declared OneToOneField to the parent doesn't have `parent_link=True` (preserves existing validation behavior)\n\n## Test Results\n\n**Manual verification tests:**\n- \u2705 parent_link field BEFORE other OneToOne (was failing, now works)\n- \u2705 parent_link field AFTER other OneToOne (was working, still works)\n- \u2705 Correct field selected as parent link regardless of order\n- \u2705 Multiple parents with multiple OneToOneFields\n- \u2705 Validation still raises error when parent_link is missing\n\n## Edge Cases Handled\n\n- Empty inputs: N/A (field-level logic)\n- None values: N/A (field-level logic)\n- Different input types: Handled through isinstance checks\n- Boundary conditions: Tested with multiple inheritance levels\n- Auto-created fields: Explicitly excluded from validation check (line 247: `not field.auto_created`)\n\n## Concerns\n\nNone. The fix is minimal, focused, and preserves existing behavior while fixing the reported issue.",
+      "created_at": "2026-02-03T11:21:49.175Z"
+    },
+    {
+      "epic_id": "a5f6fe78-1d1c-4f4a-a612-7a9fdd7041ee",
+      "epic_title": "Fix: django__django-12325",
+      "comment_id": "46260a1b-d661-4aa3-877a-2daf5778b609",
+      "author_name": "Code Reviewer",
+      "content": "## Code Review PASSED\n\n**Review Checklist:**\n- [x] No test files modified (source code only)\n- [x] No unrelated files modified\n- [x] Fix logically addresses the problem described in the problem statement\n- [x] No obvious crash bugs or logical errors introduced\n- [x] Changes are minimal and focused on the stated problem\n\n**Analysis:**\n\n**Change 1 (line 205 filter):** The root cause was that ALL `OneToOneField` instances were collected into the `parent_links` dict keyed by target model tuple. With two fields pointing to the same parent, the last one overwrote the first \u2014 so if the `parent_link=True` field was declared before the non-parent-link field, it got overwritten, causing the spurious `ImproperlyConfigured` error. Adding `and field.remote_field.parent_link` ensures only explicitly marked parent link fields are collected, making declaration order irrelevant. This directly fixes the reported bug.\n\n**Change 2 (lines 242-251 validation):** Correctly preserves error behavior for the case where a user declares a `OneToOneField` to a parent WITHOUT `parent_link=True` and no other field provides the parent link. The `not field.auto_created` guard properly avoids false positives. This ensures Django still tells developers when they forgot `parent_link=True`.\n\nThe fix is clean, minimal, and correctly addresses the problem statement.",
+      "created_at": "2026-02-03T11:23:39.805Z"
+    }
+  ]
+}
